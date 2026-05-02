@@ -46,12 +46,14 @@ export function rateLimit(bucket: string, limit: number, windowMs: number, silen
 
     if (entry.count > limit) {
       if (silent) return next();
-      const retryAfter = (entry.resetAt - now) / 1000;
-      res.set('Retry-After', String(Math.ceil(retryAfter)));
+      const retryAfter = Math.ceil((entry.resetAt - now) / 1000);
+      res.set('Retry-After', String(retryAfter));
       res.status(429).json({
-        message: 'You are being rate limited.',
-        retry_after: retryAfter,
-        global: bucket === 'global',
+        error: {
+          code: 'RATE_LIMITED',
+          message: 'Trop de requêtes.',
+          retry_after: retryAfter,
+        },
       });
       return;
     }
@@ -60,7 +62,9 @@ export function rateLimit(bucket: string, limit: number, windowMs: number, silen
   };
 }
 
-export const globalRateLimit = rateLimit('global', 50, 1000);
+export const globalRateLimit = rateLimit('global', 100, 900000);
+export const loginRateLimit = rateLimit('login', 5, 60000);
+export const registerRateLimit = rateLimit('register', 3, 3600000);
 export const authRateLimit = rateLimit('auth', 5, 60000);
 export const messageSendRateLimit = rateLimit('message_send', 5, 5000);
 export const messageEditDeleteRateLimit = rateLimit('message_edit_delete', 10, 10000);

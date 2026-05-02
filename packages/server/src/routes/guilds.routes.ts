@@ -29,6 +29,7 @@ router.delete('/:guildId/members/:userId', authenticate, guilds.kickMember);
 router.delete('/:guildId/members/@me', authenticate, guilds.leaveGuild);
 
 router.get('/:guildId/bans', authenticate, guilds.getBans);
+router.get('/:guildId/bans/:userId', authenticate, guilds.getBan);
 router.put('/:guildId/bans/:userId', authenticate, guilds.createBan);
 router.delete('/:guildId/bans/:userId', authenticate, guilds.removeBan);
 
@@ -44,6 +45,12 @@ router.post('/:guildId/automod/rules', authenticate, automod.createRule);
 router.patch('/:guildId/automod/rules/:ruleId', authenticate, automod.updateRule);
 router.delete('/:guildId/automod/rules/:ruleId', authenticate, automod.deleteRule);
 router.get('/:guildId/automod/executions', authenticate, automod.getAutoModExecutions);
+
+router.get('/:guildId/auto-moderation/rules', authenticate, automod.getRules);
+router.post('/:guildId/auto-moderation/rules', authenticate, automod.createRule);
+router.patch('/:guildId/auto-moderation/rules/:ruleId', authenticate, automod.updateRule);
+router.delete('/:guildId/auto-moderation/rules/:ruleId', authenticate, automod.deleteRule);
+router.get('/:guildId/auto-moderation/executions', authenticate, automod.getAutoModExecutions);
 
 router.get('/:guildId/scheduled-events', authenticate, scheduledEvents.getScheduledEvents);
 router.post('/:guildId/scheduled-events', authenticate, scheduledEvents.createScheduledEvent);

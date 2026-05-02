@@ -93,10 +93,12 @@ async function handleResponse<T>(res: Response): Promise<T> {
     return undefined as T;
   }
   if (!res.ok) {
-    const error = new Error(data.message || 'Request failed') as any;
-    error.code = data.code;
+    const errData = data.error || data;
+    const error = new Error(errData.message || 'Request failed') as any;
+    error.code = errData.code;
     error.status = res.status;
-    error.details = data.details;
+    error.details = errData.details;
+    error.retry_after = errData.retry_after;
     throw error;
   }
   return data as T;
@@ -246,13 +248,13 @@ export const api = Object.assign(apiFn, {
   },
 
   friends: {
-    get: <T>() => typedGet<T>('/relationships'),
-    add: <T>(userId: string) => typedPost<T>('/relationships', { user_id: userId }),
-    remove: <T>(userId: string) => apiFn<T>(`/relationships/${userId}`, { method: 'DELETE' }),
-    accept: <T>(userId: string) => typedPost<T>(`/relationships/accept/${userId}`),
-    reject: <T>(userId: string) => typedPost<T>(`/relationships/decline/${userId}`),
-    block: <T>(userId: string) => apiFn<T>(`/relationships/${userId}/block`, { method: 'PUT' }),
-    unblock: <T>(userId: string) => apiFn<T>(`/relationships/${userId}/block`, { method: 'DELETE' }),
+    get: <T>() => typedGet<T>('/users/@me/relationships'),
+    add: <T>(userId: string) => typedPost<T>('/users/@me/relationships', { user_id: userId }),
+    remove: <T>(userId: string) => apiFn<T>(`/users/@me/relationships/${userId}`, { method: 'DELETE' }),
+    accept: <T>(userId: string) => apiFn<T>(`/users/@me/relationships/${userId}`, { method: 'PUT' }),
+    reject: <T>(userId: string) => typedPost<T>(`/users/@me/relationships/${userId}/decline`),
+    block: <T>(userId: string) => apiFn<T>(`/users/@me/relationships/${userId}/block`, { method: 'PUT' }),
+    unblock: <T>(userId: string) => apiFn<T>(`/users/@me/relationships/${userId}/block`, { method: 'DELETE' }),
   },
 
   reports: {

@@ -1368,7 +1368,7 @@ function ModerationTab({ guild }: { guild: any }) {
 
   useEffect(() => {
     api(`/api/guilds/${guild.id}/bans`)
-      .then((d: any) => setBans(d.bans || []))
+      .then((d: any) => setBans(Array.isArray(d) ? d : []))
       .catch((e: any) => setMsg(e.message))
       .finally(() => setLoading(false));
   }, [guild.id]);
@@ -1555,7 +1555,7 @@ function AuditLogTab({ guild }: { guild: any }) {
   useEffect(() => {
     const url = filterAction ? `/api/guilds/${guild.id}/audit-logs?action_type=${filterAction}&limit=100` : `/api/guilds/${guild.id}/audit-logs?limit=100`;
     api(url)
-      .then((d: any) => setLogs(d.audit_logs || []))
+      .then((d: any) => setLogs(d.audit_log_entries || []))
       .catch((e: any) => setMsg(e.message))
       .finally(() => setLoading(false));
   }, [guild.id, filterAction]);

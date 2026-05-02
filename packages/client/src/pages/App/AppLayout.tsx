@@ -150,18 +150,18 @@ function ContextMenuLayer() {
 
   if (!contextMenu) return null;
 
-  const iconMap: Record<string, any> = {
-    reply: Reply,
-    thread: MessageCircle,
-    copy: Copy,
-    edit: Edit2,
-    delete: Trash2,
-  };
+  const menuW = 240;
+  const menuH = Math.min(contextMenu.items.length * 40 + 12, 400);
+  const left = Math.min(contextMenu.x, window.innerWidth - menuW - 8);
+  const top = Math.min(contextMenu.y, window.innerHeight - menuH - 8);
 
   return (
-    <div className={styles.contextMenu} style={{ left: contextMenu.x, top: contextMenu.y }} onClick={(e) => e.stopPropagation()}>
-      {contextMenu.items.map((item, index) => {
-        const Icon = iconMap[item.icon];
+    <div className={styles.contextMenu} style={{ left, top }} onClick={(e) => e.stopPropagation()}>
+      {contextMenu.items.map((item: any, index: number) => {
+        if (item.separator) {
+          return <div key={`sep-${index}`} className={styles.contextMenuDivider} />;
+        }
+        const iconEl = item.icon && typeof item.icon === 'object' ? item.icon : null;
         return (
           <button
             key={`${item.label}-${index}`}
@@ -171,7 +171,7 @@ function ContextMenuLayer() {
               item.onClick?.();
             }}
           >
-            {Icon && <Icon size={18} />}
+            {iconEl}
             <span>{item.label}</span>
           </button>
         );
@@ -386,9 +386,6 @@ function UserProfilePopout() {
             <div className={styles.popoutCard}>
               <div className={styles.popoutNameRow}>
                 <div className={styles.popoutName}>{profile.global_name || profile.username}</div>
-                {profile.badges?.filter((b: any) => b.display_type !== 'icon').map((badge: any) => (
-                  <Badge key={badge.id} badge={badge} variant="inline" />
-                ))}
               </div>
               <div className={styles.popoutTag}>{profile.username}#{profile.discriminator}</div>
 

@@ -276,12 +276,6 @@ export async function twoFactorEnable(req: Request, res: Response, next: NextFun
       hashedBackupCodes.push(await bcrypt.hash(code, 10));
     }
 
-    // Revoke existing sessions - new 2FA setup invalidates them
-    await prisma.refreshToken.updateMany({
-      where: { user_id: user.id, is_revoked: false },
-      data: { is_revoked: true },
-    });
-
     await prisma.user.update({
       where: { id: user.id },
       data: {
@@ -420,21 +414,7 @@ export async function changePassword(req: Request, res: Response, next: NextFunc
       data: { is_revoked: true },
     });
 
-    const accessToken = generateAccessToken(user.id);
-    const { token: refreshToken, tokenId } = generateRefreshToken(user.id);
-
-    await prisma.refreshToken.create({
-      data: {
-        id: tokenId,
-        user_id: user.id,
-        token_hash: hashToken(refreshToken),
-        device_info: req.headers['user-agent'] || null,
-        ip_address: req.ip || null,
-        expires_at: new Date(Date.now() + REFRESH_TOKEN_EXPIRY_SECONDS * 1000),
-      },
-    });
-
-    res.json({ access_token: accessToken, refresh_token: refreshToken });
+    res.json({ message: 'password_changed' });
   } catch (err) {
     next(err);
   }
@@ -485,7 +465,7 @@ export async function requestPasswordReset(req: Request, res: Response, next: Ne
       await sendPasswordResetEmail(user.email, token, user.username);
     }
 
-    res.json({ message: 'If that email exists, a reset link has been sent' });
+    res.json({ message: 'reset_email_sent' });
   } catch (err) {
     next(err);
   }
@@ -522,7 +502,7 @@ export async function resetPassword(req: Request, res: Response, next: NextFunct
       data: { is_revoked: true },
     });
 
-    res.json({ message: 'Password reset successfully' });
+    res.json({ message: 'password_reset_success' });
   } catch (err) {
     next(err);
   }
@@ -543,7 +523,7 @@ export async function verifyEmail(req: Request, res: Response, next: NextFunctio
       data: { verified: true, email_verify_token: null },
     });
 
-    res.json({ message: 'Email verified successfully' });
+    res.json({ message: 'email_verified' });
   } catch (err) {
     next(err);
   }

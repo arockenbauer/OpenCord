@@ -187,9 +187,9 @@ function AccountSection({ user }: { user: any }) {
     setSaving(true);
     setMessage('');
     try {
-      await api('/api/auth/change-password', {
+      await api('/api/auth/password/change', {
         method: 'POST',
-        body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+        body: JSON.stringify({ old_password: currentPassword, new_password: newPassword }),
       });
       setCurrentPassword('');
       setNewPassword('');
@@ -809,7 +809,7 @@ function SessionsSection() {
 
   const loadSessions = async () => {
     try {
-      const data = await api<any>('/api/auth/sessions');
+      const data = await api<any>('/api/users/@me/sessions');
       setSessions((data.sessions || []) as any[]);
     } catch { /* handled */ }
     setLoaded(true);
@@ -817,7 +817,7 @@ function SessionsSection() {
 
   const revokeSession = async (id: string) => {
     try {
-      await api(`/api/auth/sessions/${id}`, { method: 'DELETE' });
+      await api(`/api/users/@me/sessions/${id}`, { method: 'DELETE' });
       setSessions((prev) => prev.filter((s) => s.id !== id));
     } catch { /* handled */ }
   };

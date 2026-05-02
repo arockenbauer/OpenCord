@@ -6,6 +6,7 @@ import { uploadAvatar, uploadBanner } from '../middleware/upload.middleware.js';
 import { updateUserSchema } from '@opencord/shared';
 import * as users from '../controllers/user.controller.js';
 import * as plugins from '../controllers/plugin.controller.js';
+import * as auth from '../controllers/auth.controller.js';
 
 const router = Router();
 
@@ -36,6 +37,8 @@ router.get('/@me/plugins', authenticate, plugins.getUserPlugins);
 router.patch('/@me/plugins/:slug', authenticate, plugins.updateUserPlugin);
 router.post('/@me/data-export', authenticate, users.requestDataExport);
 router.get('/@me/boosts', authenticate, users.getMyBoosts);
+router.get('/@me/sessions', authenticate, auth.getSessions);
+router.delete('/@me/sessions/:sessionId', authenticate, auth.revokeSession);
 router.get('/:userId', authenticate, users.getUser);
 
 export default router;

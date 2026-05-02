@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth.middleware.js';
 import { validate } from '../middleware/validate.middleware.js';
-import { channelManageRateLimit } from '../middleware/rate-limit.middleware.js';
+import { channelManageRateLimit, typingRateLimit } from '../middleware/rate-limit.middleware.js';
 import * as channels from '../controllers/channel.controller.js';
 import * as threads from '../controllers/thread.controller.js';
 import { createChannelSchema } from '@opencord/shared';
@@ -30,7 +30,7 @@ router.get('/:channelId/threads/archived/public', authenticate, threads.getArchi
 router.get('/:channelId/threads/archived/private', authenticate, threads.getArchivedThreads);
 router.get('/:channelId/threads/archived/joined', authenticate, threads.getArchivedThreads);
 
-router.post('/:channelId/typing', authenticate, channels.triggerTyping);
+router.post('/:channelId/typing', authenticate, typingRateLimit, channels.triggerTyping);
 router.post('/:channelId/follow', authenticate, channels.followChannel);
 
 export { router as guildChannelRouter };

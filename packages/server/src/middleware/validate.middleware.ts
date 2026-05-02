@@ -14,7 +14,7 @@ export function validate(schema: ZodSchema, source: 'body' | 'query' | 'params' 
           field: e.path.join('.'),
           message: e.message,
         }));
-        next(new AppError(400, 'VALIDATION_ERROR', 'Invalid data', details));
+        next(new AppError(422, 'VALIDATION_ERROR', 'Invalid data', details));
       } else {
         next(err);
       }

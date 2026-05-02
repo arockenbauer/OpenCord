@@ -38,6 +38,12 @@
   color: var(--text-danger);
 }
 
+.contextMenuDivider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.06);
+  margin: 4px 6px;
+}
+
 .largeModal {
   width: 100vw;
   max-width: 100vw;

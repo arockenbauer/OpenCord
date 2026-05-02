@@ -12,10 +12,11 @@ router.delete('/invites/:code', authenticate, invites.deleteInvite);
 
 router.get('/users/@me/relationships', authenticate, friends.getRelationships);
 router.post('/users/@me/relationships', authenticate, friends.sendFriendRequest);
-router.post('/users/@me/relationships/:userId', authenticate, friends.acceptFriendRequest);
+router.put('/users/@me/relationships/:userId', authenticate, friends.acceptFriendRequest);
 router.delete('/users/@me/relationships/:userId', authenticate, friends.removeFriend);
 router.post('/users/@me/relationships/:userId/decline', authenticate, friends.declineFriendRequest);
 router.put('/users/@me/relationships/:userId/block', authenticate, friends.blockUser);
+router.delete('/users/@me/relationships/:userId/block', authenticate, friends.removeOrUnblock);
 
 router.get('/users/@me/channels', authenticate, dms.getDMChannels);
 router.post('/users/@me/channels', authenticate, dms.createDM);

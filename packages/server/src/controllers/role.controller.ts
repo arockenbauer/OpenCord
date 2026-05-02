@@ -18,7 +18,7 @@ export async function getRoles(req: Request, res: Response, next: NextFunction):
       where: { guild_id: req.params.guildId },
       orderBy: { position: 'asc' },
     });
-    res.json({ roles });
+    res.json(roles);
   } catch (err) {
     next(err);
   }

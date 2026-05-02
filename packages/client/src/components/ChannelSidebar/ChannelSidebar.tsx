@@ -1,5 +1,5 @@
 import { MouseEvent, useState, useRef, useEffect } from 'react';
-import { Hash, Volume2, Megaphone, ChevronDown, ChevronRight, Plus, Settings, Mic, Headphones, MessageCircle, UserPlus, LogOut, Trash2, Edit3, Trash } from 'lucide-react';
+import { Hash, Volume2, Megaphone, ChevronDown, ChevronRight, Plus, Settings, Mic, Headphones, MessageCircle, UserPlus, LogOut, Trash2, Edit3, Trash, Copy, Link } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useGuildStore } from '../../stores/guildStore';
 import { useAuthStore } from '../../stores/authStore';
@@ -7,6 +7,7 @@ import { useUIStore } from '../../stores/uiStore';
 import { useUnreadStore } from '../../stores/unreadStore';
 import { CreateChannelModal } from '../modals/CreateChannelModal';
 import { Tooltip } from '../Tooltip/Tooltip';
+import { api } from '../../services/api';
 import styles from './ChannelSidebar.module.css';
 
 const channelIcons: Record<number, any> = {

@@ -35,6 +35,7 @@ export function Tooltip({
   const hideTooltip = useCallback(() => {
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     setVisible(false);
+    setPositioned(false);
     setStyle({});
     positionedRef.current = false;
   }, []);
@@ -89,6 +90,7 @@ export function Tooltip({
 
       positionedRef.current = true;
       setStyle(newStyle);
+      setPositioned(true);
     });
 
     return () => cancelAnimationFrame(raf);
@@ -108,7 +110,7 @@ export function Tooltip({
         <div
           ref={tooltipRef}
           className={styles.tooltip}
-          style={style}
+          style={{ ...style, visibility: positioned ? 'visible' : 'hidden' }}
           role="tooltip"
         >
           <div className={styles.content}>{content}</div>

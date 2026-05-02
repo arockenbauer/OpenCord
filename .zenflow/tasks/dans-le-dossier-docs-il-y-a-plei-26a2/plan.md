@@ -1,30 +1,15 @@
-# Auto
+# Analyse et correction des specs OpenCord
 
-## Configuration
-- **Artifacts Path**: {@artifacts_path} → `.zenflow/tasks/{task_id}`
+Analyse de toutes les specs du dossier `docs/specs/` et correction des violations trouvées, principalement dans les specs 00 (architecture), 01 (auth) et leurs impacts sur le frontend.
 
-## Agent Instructions
+### [x] Step: Analyse et correction des violations de specs
 
-Ask the user questions when anything is unclear or needs their input. This includes:
-- Ambiguous or incomplete requirements
-- Technical decisions that affect architecture or user experience
-- Trade-offs that require business context
-
-Do not make assumptions on important decisions — get clarification first.
-
-**Debug requests, questions, and investigations:** answer or investigate first. Do not create a plan upfront — the user needs an answer, not a plan. A plan may become relevant later once the investigation reveals what needs to change.
-
-**For all other tasks**, before writing any code, assess the scope of the actual change (not the prompt length — a one-sentence prompt can describe a large feature). Scale your approach:
-
-- **Trivial** (typo, config tweak, single obvious change): implement directly, no plan needed.
-- **Small** (a few files, clear what to do): write 2–3 sentences in `plan.md` describing what and why, then implement. No substeps.
-- **Medium** (multiple components, design decisions, edge cases): write a plan in `plan.md` with requirements, affected files, key decisions, verification. Break into 3–5 steps.
-- **Large** (new feature, cross-cutting, unclear scope): gather requirements and write a technical spec first (`requirements.md`, `spec.md` in `{@artifacts_path}/`). Then write `plan.md` with concrete steps referencing the spec.
-
-**Skip planning and implement directly when** the task is trivial, or the user explicitly asks to "just do it" / gives a clear direct instruction.
-
-To reflect the actual purpose of the first step, you can rename it to something more relevant (e.g., Planning, Investigation). Do NOT remove meta information like comments for any step.
-
-Rule of thumb for step size: each step = a coherent unit of work (component, endpoint, test suite). Not too granular (single function), not too broad (entire feature). Unit tests are part of each step, not separate.
-
-Update `{@artifacts_path}/plan.md` if it makes sense to have a plan and task has more than 1 big step.
+Fichiers modifiés :
+- `packages/server/src/middleware/error.middleware.ts` — Format des erreurs conforme à la spec (wrapper `{ error: { ... } }`)
+- `packages/server/src/middleware/validate.middleware.ts` — Status HTTP 422 pour VALIDATION_ERROR (était 400)
+- `packages/server/src/middleware/rate-limit.middleware.ts` — Format de la réponse 429 conforme + rate limits séparés (global 100/15min, register 3/h, login 5/min)
+- `packages/server/src/controllers/auth.controller.ts` — Bug 2FA : révocation des tokens déplacée de enable() vers verify() ; messages de réponse normalisés (reset_email_sent, password_reset_success, email_verified, password_changed)
+- `packages/server/src/routes/auth.routes.ts` — Route `/change-password` → `/password/change` ; rate limits différenciés
+- `packages/server/src/routes/users.routes.ts` — Endpoints sessions ajoutés à `GET/DELETE /users/@me/sessions[/:id]`
+- `packages/client/src/services/api.ts` — handleResponse adapté au nouveau format `{ error: { ... } }`
+- `packages/client/src/pages/Settings/UserSettingsPage.tsx` — Routes mises à jour + champ `old_password` (était `current_password`)

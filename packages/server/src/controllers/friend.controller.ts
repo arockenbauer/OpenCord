@@ -40,15 +40,28 @@ export async function getRelationships(req: Request, res: Response, next: NextFu
 
 export async function sendFriendRequest(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { username, discriminator } = req.body;
-    const target = await prisma.user.findFirst({
-      where: { username, discriminator },
-      select: {
-        id: true,
-        username: true,
-        discriminator: true,
-      },
-    });
+    if (req.body.type === 'block' && req.body.user_id) {
+      req.params = { ...req.params, userId: req.body.user_id };
+      return blockUser(req, res, next);
+    }
+
+    const { username, discriminator, user_id } = req.body;
+    let target: { id: string; username: string; discriminator: string } | null = null;
+    if (user_id) {
+      target = await prisma.user.findUnique({
+        where: { id: user_id },
+        select: { id: true, username: true, discriminator: true },
+      });
+    } else {
+      target = await prisma.user.findFirst({
+        where: { username, discriminator },
+        select: {
+          id: true,
+          username: true,
+          discriminator: true,
+        },
+      });
+    }
     if (!target) throw new AppError(404, 'USER_NOT_FOUND', 'User not found');
     if (target.id === req.user!.userId) throw new AppError(400, 'SELF_REQUEST', 'Cannot send friend request to yourself');
 
@@ -231,7 +244,7 @@ export async function unblockUser(req: Request, res: Response, next: NextFunctio
 export async function acceptFriendRequest(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const friend = await prisma.friend.findFirst({
-      where: { user_id: req.params.friendId, target_id: req.user!.userId, status: 0 },
+      where: { user_id: req.params.userId, target_id: req.user!.userId, status: 0 },
     });
     if (!friend) throw new AppError(404, 'NOT_FOUND', 'Friend request not found');
 
@@ -239,8 +252,8 @@ export async function acceptFriendRequest(req: Request, res: Response, next: Nex
 
     const io = getIO();
     if (io) {
-      io.to(`user:${req.user!.userId}`).emit(GatewayEvents.RELATIONSHIP_UPDATE, { id: friend.id, type: 1, user_id: req.params.friendId });
-      io.to(`user:${req.params.friendId}`).emit(GatewayEvents.RELATIONSHIP_UPDATE, { id: friend.id, type: 1, user_id: req.user!.userId });
+      io.to(`user:${req.user!.userId}`).emit(GatewayEvents.RELATIONSHIP_UPDATE, { id: friend.id, type: 1, user_id: req.params.userId });
+      io.to(`user:${req.params.userId}`).emit(GatewayEvents.RELATIONSHIP_UPDATE, { id: friend.id, type: 1, user_id: req.user!.userId });
     }
 
     res.json({ id: friend.id, type: 1 });
@@ -252,7 +265,7 @@ export async function acceptFriendRequest(req: Request, res: Response, next: Nex
 export async function declineFriendRequest(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const friend = await prisma.friend.findFirst({
-      where: { user_id: req.params.friendId, target_id: req.user!.userId, status: 0 },
+      where: { user_id: req.params.userId, target_id: req.user!.userId, status: 0 },
     });
     if (!friend) throw new AppError(404, 'NOT_FOUND', 'Friend request not found');
 
@@ -260,7 +273,7 @@ export async function declineFriendRequest(req: Request, res: Response, next: Ne
 
     const io = getIO();
     if (io) {
-      io.to(`user:${req.user!.userId}`).emit(GatewayEvents.RELATIONSHIP_REMOVE, { id: friend.id, user_id: req.params.friendId });
+      io.to(`user:${req.user!.userId}`).emit(GatewayEvents.RELATIONSHIP_REMOVE, { id: friend.id, user_id: req.params.userId });
     }
 
     res.status(204).send();

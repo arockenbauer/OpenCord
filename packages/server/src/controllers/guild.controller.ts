@@ -510,7 +510,23 @@ export async function getBans(req: Request, res: Response, next: NextFunction): 
       where: { guild_id: req.params.guildId },
       include: { user: { select: { id: true, username: true, discriminator: true, avatar: true } } },
     });
-    res.json({ bans });
+    res.json(bans);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getBan(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
+    checkPermission(perms, BigInt(0x4));
+
+    const ban = await prisma.ban.findUnique({
+      where: { guild_id_user_id: { guild_id: req.params.guildId, user_id: req.params.userId } },
+      include: { user: { select: { id: true, username: true, discriminator: true, avatar: true } } },
+    });
+    if (!ban) throw new AppError(404, 'BAN_NOT_FOUND', 'Ban not found');
+    res.json(ban);
   } catch (err) {
     next(err);
   }
@@ -541,7 +557,7 @@ export async function createBan(req: Request, res: Response, next: NextFunction)
         user_id: req.params.userId,
         reason: req.body.reason || null,
         banned_by: req.user!.userId,
-        delete_messages_seconds: (req.body.delete_message_days || 0) * 86400,
+        delete_messages_seconds: req.body.delete_message_seconds ?? (req.body.delete_message_days ? req.body.delete_message_days * 86400 : 0),
       },
       update: {
         reason: req.body.reason || null,
@@ -639,7 +655,16 @@ export async function getAuditLogs(req: Request, res: Response, next: NextFuncti
       include: { user: { select: { id: true, username: true, discriminator: true, avatar: true } } },
     });
 
-    res.json({ audit_logs: logs });
+    const usersMap = new Map<string, any>();
+    for (const log of logs) {
+      if (log.user) usersMap.set(log.user.id, log.user);
+    }
+
+    res.json({
+      audit_log_entries: logs.map(({ user, ...log }) => log),
+      users: Array.from(usersMap.values()),
+      total_results: logs.length,
+    });
   } catch (err) {
     next(err);
   }
