@@ -1,0 +1,131 @@
+.modalContent {
+  background: var(--bg-primary);
+  border-radius: 16px;
+  padding: 28px;
+  width: 480px;
+  max-width: 95vw;
+  border: 1px solid var(--border);
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.iconWrap {
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  background: rgba(240,177,50,0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.title {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+
+.subtitle {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.closeBtn {
+  margin-left: auto;
+  padding: 6px;
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+  background: none;
+  border: none;
+  flex-shrink: 0;
+}
+.closeBtn:hover { background: var(--bg-modifier-hover); color: var(--text-primary); }
+
+.perks {
+  background: var(--bg-secondary);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.perkTitle {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+  letter-spacing: 0.05em;
+}
+
+.perkList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.perkRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.perkIcon {
+  font-size: 16px;
+  width: 24px;
+  text-align: center;
+}
+
+.perkLabel {
+  flex: 1;
+}
+
+.guarantee {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 20px;
+  padding: 10px 14px;
+  background: rgba(88,101,242,0.08);
+  border-radius: 8px;
+}
+
+.msg {
+  padding: 10px 14px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  font-size: 14px;
+  text-align: center;
+}
+.msgSuccess { background: rgba(87,242,135,0.15); color: #57f287; }
+.msgError { background: rgba(237,66,69,0.15); color: var(--danger); }
+
+.boostBtn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 13px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #d69e2e, #ecc94b);
+  color: #1a1a1a;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+  transition: opacity 0.15s, transform 0.1s;
+}
+.boostBtn:hover:not(:disabled) { opacity: 0.9; }
+.boostBtn:active:not(:disabled) { transform: scale(0.98); }
+.boostBtn:disabled { opacity: 0.5; cursor: not-allowed; }

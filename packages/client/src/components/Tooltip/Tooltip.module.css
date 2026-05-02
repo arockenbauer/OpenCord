@@ -1,0 +1,32 @@
+.trigger {
+  display: inline-flex;
+  position: relative;
+}
+
+.tooltip {
+  position: fixed;
+  z-index: 2147483647;
+  animation: tooltipFadeIn 100ms ease-out forwards;
+  pointer-events: none;
+}
+
+@keyframes tooltipFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.content {
+  background: var(--bg-floating);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 6px 10px;
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: var(--shadow-medium);
+  backdrop-filter: blur(16px);
+}

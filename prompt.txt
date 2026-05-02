@@ -1,0 +1,7 @@
+Analyse exhaustivement les fonctionnalités de Discord liées aux serveurs, salons, rôles, permissions granulaires, héritage et overrides, groupes, DM, amis, présence, blocage, invitations, modération, audit logs, webhooks, threads, forums, réactions, pièces jointes, messages système, erreurs d’envoi, statuts, profils, notifications, onboarding, sécurité, anti-spam, bots, API temps réel, synchronisation multi-serveurs, paramètres utilisateur et fonctionnalités premium/Nitro puis compare-les point par point avec notre projet afin d’identifier précisément chaque fonctionnalité manquante, incomplète ou partiellement compatible ; génère ensuite un plan d’implémentation détaillé priorisé avec architecture, schémas de données, endpoints/API, permissions, edge-cases, sécurité, UX, compatibilité temps réel et suggestions de fonctionnalités premium avancées inédites inspirées de Discord mais améliorées. N'hésite pas à déployer des agents.
+
+
+
+Analyse tout le projet et identifie les incohérences/workflows utilisateurs ambigus, puis corrige les tous
+
+Analyse @docs/specs/99-user-workflows.md puis regarde pour CHAQUE WORKFLOW si il se passe ce qui est attendu en prod dans l'app. Si ce n'est pas le cas (unqiuement si c'est pas fonctionnel ou trop loin), corrige le ! laisse le uniquement si c'est fonctionnel et propre comem c'est déjà (ou mieux).

@@ -1,0 +1,41 @@
+import { Router } from 'express';
+import { authenticate } from '../middleware/auth.middleware.js';
+import { validate } from '../middleware/validate.middleware.js';
+import { userProfileUpdateRateLimit } from '../middleware/rate-limit.middleware.js';
+import { uploadAvatar, uploadBanner } from '../middleware/upload.middleware.js';
+import { updateUserSchema } from '@opencord/shared';
+import * as users from '../controllers/user.controller.js';
+import * as plugins from '../controllers/plugin.controller.js';
+
+const router = Router();
+
+router.get('/@me', authenticate, users.getMe);
+router.patch('/@me', authenticate, userProfileUpdateRateLimit, validate(updateUserSchema), users.updateMe);
+router.patch('/@me/avatar', authenticate, userProfileUpdateRateLimit, uploadAvatar, users.updateAvatar);
+router.patch('/@me/banner', authenticate, userProfileUpdateRateLimit, uploadBanner, users.updateBanner);
+router.delete('/@me', authenticate, users.deleteAccount);
+router.get('/@me/guilds', authenticate, users.getMyGuilds);
+router.get('/@me/notification-settings', authenticate, users.getNotificationSettings);
+router.get('/@me/notes', authenticate, users.getUserNotes);
+router.post('/@me/notes/:userId', authenticate, users.setUserNote);
+router.put('/@me/notes/:userId', authenticate, users.setUserNote);
+router.delete('/@me/notes/:userId', authenticate, users.deleteUserNote);
+router.get('/@me/connections', authenticate, users.getConnections);
+router.post('/@me/connections', authenticate, users.createConnection);
+router.delete('/@me/connections/:platform/:platformUserId', authenticate, users.deleteConnection);
+router.get('/@me/activities', authenticate, users.getActivities);
+router.post('/@me/activities', authenticate, users.updateActivity);
+router.delete('/@me/activities/:sessionId', authenticate, users.deleteActivity);
+router.get('/@me/settings', authenticate, users.getUserSettings);
+router.patch('/@me/settings', authenticate, users.updateUserSettings);
+router.patch('/@me/status', authenticate, users.updateStatus);
+router.get('/@me/games', authenticate, users.getGames);
+router.post('/@me/games', authenticate, users.addGame);
+router.delete('/@me/games/:gameId', authenticate, users.deleteGame);
+router.get('/@me/plugins', authenticate, plugins.getUserPlugins);
+router.patch('/@me/plugins/:slug', authenticate, plugins.updateUserPlugin);
+router.post('/@me/data-export', authenticate, users.requestDataExport);
+router.get('/@me/boosts', authenticate, users.getMyBoosts);
+router.get('/:userId', authenticate, users.getUser);
+
+export default router;

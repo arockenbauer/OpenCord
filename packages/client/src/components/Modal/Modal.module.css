@@ -1,0 +1,126 @@
+@keyframes overlayFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modalScaleIn {
+  from { transform: scale(0.92); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: overlayFadeIn 200ms var(--ease-out);
+}
+
+.modal {
+  background: var(--bg-modal);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-medium), 0 0 0 1px rgba(0, 0, 0, 0.2);
+  max-width: 440px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+  padding: var(--spacing-8);
+  animation: modalScaleIn 200ms var(--ease-out);
+}
+
+.title {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  text-align: center;
+  margin-bottom: var(--spacing-2);
+}
+
+.subtitle {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  text-align: center;
+  margin-bottom: var(--spacing-6);
+}
+
+.field {
+  margin-bottom: var(--spacing-5);
+}
+
+.label {
+  display: block;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  margin-bottom: var(--spacing-2);
+  letter-spacing: 0.02em;
+}
+
+.input {
+  width: 100%;
+  padding: var(--spacing-3);
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-md);
+  color: var(--text-primary);
+  border: 1px solid transparent;
+  transition: border-color 150ms;
+}
+.input:focus {
+  border-color: var(--bg-accent);
+  box-shadow: 0 0 0 2px rgba(88, 101, 242, 0.3);
+}
+
+.button {
+  width: 100%;
+  padding: var(--spacing-3);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  transition: background 150ms, transform 100ms, opacity 200ms;
+  cursor: pointer;
+  border: none;
+}
+
+.button:active:not(:disabled) { transform: scale(0.98); }
+
+.buttonPrimary {
+  composes: button;
+  background: var(--bg-accent);
+  color: white;
+}
+.buttonPrimary:hover:not(:disabled) { background: var(--bg-accent-hover); }
+.buttonPrimary:disabled { opacity: 0.5; cursor: not-allowed; transition: opacity 200ms; }
+
+.buttonDanger {
+  composes: button;
+  background: var(--danger);
+  color: white;
+}
+.buttonDanger:hover:not(:disabled) { background: var(--danger-hover); }
+.buttonDanger:disabled { opacity: 0.5; cursor: not-allowed; transition: opacity 200ms; }
+
+.buttonSecondary {
+  composes: button;
+  background: transparent;
+  color: var(--text-secondary);
+}
+.buttonSecondary:hover:not(:disabled) { text-decoration: underline; }
+.buttonSecondary:disabled { opacity: 0.5; cursor: not-allowed; transition: opacity 200ms; }
+
+.error {
+  color: var(--text-danger);
+  font-size: var(--font-size-sm);
+  margin-bottom: var(--spacing-4);
+}
+
+.actions {
+  display: flex;
+  gap: var(--spacing-3);
+  justify-content: flex-end;
+  margin-top: var(--spacing-6);
+}

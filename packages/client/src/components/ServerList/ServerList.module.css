@@ -1,0 +1,132 @@
+.container {
+  width: 72px;
+  min-width: 72px;
+  height: 100%;
+  background: var(--bg-tertiary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--spacing-3) 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.container::-webkit-scrollbar { display: none; }
+
+.homeButton {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-full);
+  background: var(--bg-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-primary);
+  transition: border-radius 150ms, background 150ms;
+  cursor: pointer;
+  margin-bottom: var(--spacing-2);
+  position: relative;
+}
+.homeButton:hover, .homeButton.active {
+  border-radius: var(--radius-lg);
+  background: var(--bg-accent);
+  color: white;
+}
+
+.separator {
+  width: 32px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--border);
+  margin: var(--spacing-1) 0;
+}
+
+.serverIcon {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-full);
+  margin: var(--spacing-1) 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: border-radius 150ms var(--ease-spring), background 150ms, transform 150ms var(--ease-spring);
+  overflow: hidden;
+  position: relative;
+}
+.serverIcon:hover, .serverIcon.active {
+  border-radius: var(--radius-lg);
+  background: var(--bg-accent);
+  color: white;
+}
+.serverIcon:hover {
+  transform: scale(1.05);
+}
+.serverIcon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.indicator {
+  position: absolute;
+  left: 0;
+  width: 4px;
+  border-radius: 0 4px 4px 0;
+  background: var(--text-primary);
+  transition: height 250ms var(--ease-spring);
+}
+.indicator.active { height: 32px; top: 50%; transform: translateY(-50%); }
+.indicator.unread { height: 8px; top: 50%; transform: translateY(-50%); }
+
+@keyframes indicatorPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.indicator.unread { animation: indicatorPulse 2s ease-in-out infinite; }
+
+.indicator.mentions {
+  height: 18px; top: 50%; transform: translateY(-50%);
+  background: var(--status-dnd);
+}
+
+.addButton {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-full);
+  background: var(--bg-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--success);
+  cursor: pointer;
+  transition: border-radius 150ms, background 150ms, color 150ms;
+  margin-top: var(--spacing-1);
+}
+.addButton:hover {
+  border-radius: var(--radius-lg);
+  background: var(--success);
+  color: white;
+}
+
+.adminButton {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-full);
+  background: var(--bg-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  cursor: pointer;
+  transition: border-radius 150ms, background 150ms, color 150ms;
+  margin-top: var(--spacing-1);
+}
+.adminButton:hover {
+  border-radius: var(--radius-lg);
+  background: var(--accent);
+  color: white;
+}
