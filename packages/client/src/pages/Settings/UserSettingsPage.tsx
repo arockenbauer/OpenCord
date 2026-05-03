@@ -1338,7 +1338,7 @@ function ApplicationsSection() {
       const data = await api.applications.create<{ application: any }>({
         name: name.trim(),
         description: description.trim() || undefined,
-      });
+      } as any);
       setApplications((prev) => [data.application, ...prev]);
       setName('');
       setDescription('');
@@ -1488,7 +1488,7 @@ function PluginsSection() {
     setSavingSlug(slug);
     setMessage('');
     try {
-      const response = await api.plugins.updateUserSettings<any>(slug, {
+      const response = await api.plugins.saveUserSettings<any>({
         enabled: current.enabled,
         settings: current.settings,
       });

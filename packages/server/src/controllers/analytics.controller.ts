@@ -3,10 +3,9 @@ import { prisma } from '../utils/prisma.js';
 import { generateSnowflake } from '../utils/snowflake.js';
 import { AppError } from '../utils/app-error.js';
 import { getMemberPermissions } from './guild.controller.js';
-import { GatewayEvents } from '@opencord/shared';
+import { GatewayEvents, PERMISSION_BITS } from '@opencord/shared';
 import { getIO } from '../gateway/index.js';
-
-const VIEW_GUILD_ANALYTICS = BigInt(1 << 40);
+import { logInfo, logError } from '../utils/logger.js';
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -16,7 +15,7 @@ function dateToISO(date: Date): string {
 
 async function requireAnalyticsPermission(guildId: string, userId: string) {
   const perms = await getMemberPermissions(guildId, userId);
-  if ((perms & VIEW_GUILD_ANALYTICS) === BigInt(0)) {
+  if ((perms & PERMISSION_BITS.VIEW_GUILD_ANALYTICS) === BigInt(0)) {
     throw new AppError(403, 'MISSING_PERMISSIONS', 'Requires VIEW_GUILD_ANALYTICS permission');
   }
 }
@@ -237,7 +236,7 @@ export async function getRetention(req: Request, res: Response, next: NextFuncti
       const joinedMembers = await prisma.auditLog.count({
         where: {
           guild_id: guildId,
-          action_type: 'MEMBER_JOIN',
+          action_type: 20, // MEMBER_JOIN
           created_at: { gte: cohortStart, lt: cohortEnd },
         },
       });
@@ -275,5 +274,151 @@ export async function getRetention(req: Request, res: Response, next: NextFuncti
     res.json({ weeks });
   } catch (err) {
     next(err);
+  }
+}
+
+// ── Snapshot creation (cron job) ──────────────────────────────────────
+
+export async function createSnapshotForGuild(guildId: string): Promise<void> {
+  try {
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+
+    // Check if snapshot already exists for today
+    const existing = await prisma.guildAnalyticsSnapshot.findFirst({
+      where: { guild_id: guildId, date: today },
+    });
+    if (existing) return;
+
+    // 1. Member count
+    const memberCount = await prisma.guildMember.count({ where: { guild_id: guildId } });
+
+    // 2. Joins/leaves today (from audit log)
+    const todayStart = new Date(today);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const joinsToday = await prisma.auditLog.count({
+      where: { guild_id: guildId, action_type: 20, created_at: { gte: todayStart, lt: tomorrow } }, // MEMBER_JOIN
+    });
+    const leavesToday = await prisma.auditLog.count({
+      where: { guild_id: guildId, action_type: 21, created_at: { gte: todayStart, lt: tomorrow } }, // MEMBER_LEAVE
+    });
+
+    // 3. Messages today
+    const messagesToday = await prisma.message.count({
+      where: {
+        channel: { guild_id: guildId },
+        created_at: { gte: todayStart, lt: tomorrow },
+      },
+    });
+
+    // 4. Active members (sent at least 1 message today)
+    const activeMembersResult = await prisma.$queryRaw<[{ count: number }]>`
+      SELECT COUNT(DISTINCT author_id) as count
+      FROM messages m
+      JOIN channels c ON m.channel_id = c.id
+      WHERE c.guild_id = ${guildId} AND m.created_at >= ${todayStart} AND m.created_at < ${tomorrow}
+    `;
+    const activeMembers = Number(activeMembersResult[0]?.count || 0);
+
+    // 5. Active communicators (message + reaction/thread) - simplified: just active members for now
+    const activeCommunicators = activeMembers;
+
+    // 6. Top channels (top 10 by message count today)
+    const topChannelsResult = await prisma.$queryRaw<Array<{ channel_id: string; message_count: number }>>`
+      SELECT channel_id, COUNT(*) as message_count
+      FROM messages
+      WHERE channel_id IN (SELECT id FROM channels WHERE guild_id = ${guildId})
+        AND created_at >= ${todayStart} AND created_at < ${tomorrow}
+      GROUP BY channel_id
+      ORDER BY message_count DESC
+      LIMIT 10
+    `;
+    const topChannels = topChannelsResult.map(c => ({ channel_id: c.channel_id, message_count: Number(c.message_count) }));
+
+    // 7. Hourly distribution
+    const hourlyResult = await prisma.$queryRaw<Array<{ hour: number; count: number }>>`
+      SELECT CAST(strftime('%H', created_at) AS INTEGER) as hour, COUNT(*) as count
+      FROM messages
+      WHERE channel_id IN (SELECT id FROM channels WHERE guild_id = ${guildId})
+        AND created_at >= ${todayStart} AND created_at < ${tomorrow}
+      GROUP BY hour
+    `;
+    const hourlyMessages = new Array(24).fill(0);
+    for (const row of hourlyResult) {
+      hourlyMessages[row.hour] = Number(row.count);
+    }
+
+    // 8. Join sources (from invites, discovery, vanity, bot)
+    // Simplified: check invite usage, vanity URL usage, discovery joins
+    const joinSources: Record<string, number> = { invite: 0, discovery: 0, vanity: 0, bot: 0 };
+
+    // Count invites used today
+    const invitesUsed = await prisma.invite.findMany({
+      where: { guild_id: guildId, created_at: { gte: todayStart } },
+      select: { uses: true },
+    });
+    joinSources.invite = invitesUsed.reduce((sum, inv) => sum + inv.uses, 0);
+
+    // Check if guild has vanity URL and count uses (simplified)
+    const guild = await prisma.guild.findUnique({ where: { id: guildId }, select: { vanity_url_code: true } });
+    if (guild?.vanity_url_code) {
+      // Vanity URL joins would need tracking - simplified for now
+      joinSources.vanity = 0;
+    }
+
+    // Create snapshot
+    await prisma.guildAnalyticsSnapshot.create({
+      data: {
+        id: generateSnowflake(),
+        guild_id: guildId,
+        date: today,
+        member_count: memberCount,
+        member_joins: joinsToday,
+        member_leaves: leavesToday,
+        message_count: messagesToday,
+        active_members: activeMembers,
+        active_communicators: activeCommunicators,
+        voice_minutes: 0, // DIFFÉRÉ - voice not implemented
+        top_channels: topChannels as any,
+        hourly_messages: hourlyMessages as any,
+        join_sources: joinSources as any,
+      },
+    });
+
+    logInfo(`Created analytics snapshot for guild ${guildId}`);
+  } catch (err) {
+    logError(`Error creating snapshot for guild ${guildId}:`, err);
+  }
+}
+
+export async function runSnapshotCron(): Promise<void> {
+  try {
+    const now = new Date();
+    // Only run at 00:05 UTC
+    if (now.getUTCHours() !== 0 || now.getUTCMinutes() < 5 || now.getUTCMinutes() > 10) {
+      return;
+    }
+
+    logInfo('Running analytics snapshot cron...');
+    const guilds = await prisma.guild.findMany({ select: { id: true } });
+
+    for (const guild of guilds) {
+      await createSnapshotForGuild(guild.id);
+    }
+
+    // Cleanup old snapshots (> 90 days)
+    const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+    const deleted = await prisma.guildAnalyticsSnapshot.deleteMany({
+      where: { date: { lt: ninetyDaysAgo } },
+    });
+    if (deleted.count > 0) {
+      logInfo(`Cleaned up ${deleted.count} old analytics snapshots`);
+    }
+
+    logInfo('Analytics snapshot cron completed');
+  } catch (err) {
+    logError('Error in analytics snapshot cron:', err);
   }
 }

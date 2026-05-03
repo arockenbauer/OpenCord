@@ -581,6 +581,127 @@
   overflow-y: auto;
 }
 
+.roleSearchWrap {
+  position: relative;
+  margin-bottom: 12px;
+}
+
+.roleSearchIcon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.roleSearchInput {
+  width: 100%;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 8px 12px 8px 32px;
+  font-size: var(--font-size-sm);
+  transition: border-color 80ms;
+}
+
+.roleSearchInput:focus {
+  border-color: var(--bg-accent);
+  outline: none;
+}
+
+.roleSearchClear {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+}
+
+.roleSearchClear:hover {
+  color: var(--text-primary);
+}
+
+.roleItemRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  cursor: grab;
+  transition: background 80ms;
+}
+
+.roleItemRow:hover {
+  background: var(--bg-modifier-hover);
+}
+
+.roleItemRowActive {
+  background: var(--bg-modifier-selected);
+}
+
+.roleItemRowDragging {
+  opacity: 0.5;
+  background: var(--bg-modifier-active);
+}
+
+.roleDragHandle {
+  display: flex;
+  align-items: center;
+  color: var(--text-muted);
+  cursor: grab;
+  padding: 4px 2px;
+  opacity: 0;
+  transition: opacity 120ms;
+}
+
+.roleItemRow:hover .roleDragHandle {
+  opacity: 1;
+}
+
+.roleDragHandle:active {
+  cursor: grabbing;
+}
+
+.roleArrows {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.roleArrow {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0 4px;
+  font-size: 10px;
+  line-height: 1;
+}
+
+.roleArrow:hover:not(:disabled) {
+  color: var(--text-primary);
+}
+
+.roleArrow:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.roleListEmpty {
+  padding: 16px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
 .roleItem {
   display: flex;
   align-items: center;

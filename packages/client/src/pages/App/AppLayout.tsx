@@ -21,6 +21,9 @@ import { ServerSettingsPage } from '../ServerSettings/ServerSettingsPage';
 import { FriendsView } from '../../components/FriendsView/FriendsView';
 import { AnnouncementBanner } from '../../components/AnnouncementBanner/AnnouncementBanner';
 import { Badge } from '../../components/Badge/Badge';
+import { UserNoteEditor } from '../../components/UserNoteEditor/UserNoteEditor';
+import { QuickSwitcher } from '../../components/QuickSwitcher/QuickSwitcher';
+import { useKeyboardShortcuts, DEFAULT_SHORTCUTS, getShortcutKey } from '../../hooks/useKeyboardShortcuts.js';
 import { applyClientPluginPreferences } from '../../utils/plugins';
 import styles from './AppLayout.module.css';
 
@@ -47,8 +50,23 @@ export function AppLayout() {
   const setContextMenu = useUIStore((s) => s.setContextMenu);
   const selectedGuildId = useGuildStore((s) => s.selectedGuildId);
   const selectedChannelId = useGuildStore((s) => s.selectedChannelId);
+  const [showQuickSwitcher, setShowQuickSwitcher] = useState(false);
 
   useGateway();
+
+  // Global keyboard shortcuts
+  useKeyboardShortcuts({
+    shortcuts: [
+      {
+        key: getShortcutKey(DEFAULT_SHORTCUTS.QUICK_SWITCHER.win),
+        callback: () => setShowQuickSwitcher(prev => !prev),
+      },
+      {
+        key: getShortcutKey(DEFAULT_SHORTCUTS.OPEN_SETTINGS.win),
+        callback: () => useUIStore.getState().setShowUserSettings(true),
+      },
+    ],
+  });
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -120,12 +138,15 @@ export function AppLayout() {
 
   return (
     <>
+      <a href="#main-chat" className="sr-only">Aller au contenu principal</a>
       <AnnouncementBanner />
       <NotificationBell />
       <div className={styles.layout}>
         <ServerList />
         <ChannelSidebar />
-        {showFriendsView ? <FriendsView /> : <ChatArea />}
+        <main id="main-chat" className={styles.mainRegion}>
+          {showFriendsView ? <FriendsView /> : <ChatArea />}
+        </main>
         {selectedGuildId && <MemberList />}
       </div>
       {showCreateGuild && <CreateGuildModal />}
@@ -140,6 +161,8 @@ export function AppLayout() {
       )}
       {profilePopover && <UserProfilePopout />}
       {contextMenu && <ContextMenuLayer />}
+      <div aria-live="polite" aria-atomic="false" className="sr-only" id="aria-live-messages"></div>
+      <div aria-live="assertive" aria-atomic="false" className="sr-only" id="aria-live-mentions"></div>
     </>
   );
 }
@@ -155,21 +178,48 @@ function ContextMenuLayer() {
   const left = Math.min(contextMenu.x, window.innerWidth - menuW - 8);
   const top = Math.min(contextMenu.y, window.innerHeight - menuH - 8);
 
+  const handleKeyDown = (event: React.KeyboardEvent, item: any, index: number) => {
+    if (event.key === 'Escape') {
+      setContextMenu(null);
+    } else if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      const next = event.currentTarget.nextElementSibling as HTMLElement | null;
+      next?.focus();
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      const prev = event.currentTarget.previousElementSibling as HTMLElement | null;
+      if (prev) prev.focus();
+    } else if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      item.onClick?.();
+      setContextMenu(null);
+    }
+  };
+
   return (
-    <div className={styles.contextMenu} style={{ left, top }} onClick={(e) => e.stopPropagation()}>
+    <div
+      className={styles.contextMenu}
+      style={{ left, top }}
+      role="menu"
+      aria-label="Actions"
+      onClick={(e) => e.stopPropagation()}
+    >
       {contextMenu.items.map((item: any, index: number) => {
         if (item.separator) {
-          return <div key={`sep-${index}`} className={styles.contextMenuDivider} />;
+          return <div key={`sep-${index}`} className={styles.contextMenuDivider} role="separator" />;
         }
         const iconEl = item.icon && typeof item.icon === 'object' ? item.icon : null;
         return (
           <button
             key={`${item.label}-${index}`}
             className={`${styles.contextMenuItem} ${item.danger ? styles.contextMenuItemDanger : ''}`}
+            role="menuitem"
+            tabIndex={0}
             onClick={() => {
               setContextMenu(null);
               item.onClick?.();
             }}
+            onKeyDown={(e) => handleKeyDown(e, item, index)}
           >
             {iconEl}
             <span>{item.label}</span>
@@ -478,9 +528,20 @@ function UserProfilePopout() {
                 </div>
               </div>
             )}
+
+            {!isSelf && (
+              <div className={styles.popoutSection}>
+                <UserNoteEditor
+                  targetUserId={profile.id}
+                  targetUsername={profile.global_name || profile.username}
+                />
+              </div>
+            )}
           </div>
         </>
       ) : null}
+
+      <QuickSwitcher open={showQuickSwitcher} onClose={() => setShowQuickSwitcher(false)} />
     </div>
   );
 }

@@ -11,5 +11,6 @@ router.post('/decline/:friendId', authenticate, friend.declineFriendRequest);
 router.put('/:userId/block', authenticate, friend.blockUser);
 router.delete('/:userId/block', authenticate, friend.unblockUser);
 router.delete('/:userId', authenticate, friend.removeOrUnblock);
+router.get('/:userId/relationships', authenticate, friend.getMutualRelationships);
 
 export default router;

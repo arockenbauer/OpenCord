@@ -2,14 +2,19 @@ import { Router } from 'express';
 import { authenticate } from '../middleware/auth.middleware.js';
 import { validate } from '../middleware/validate.middleware.js';
 import { guildOperationsRateLimit } from '../middleware/rate-limit.middleware.js';
-import { uploadIcon, uploadBanner, uploadSticker } from '../middleware/upload.middleware.js';
+import { uploadIcon, uploadBanner, uploadSticker, uploadEventImage } from '../middleware/upload.middleware.js';
 import { createGuildSchema, updateGuildSchema, deleteGuildSchema } from '@opencord/shared';
 import * as guilds from '../controllers/guild.controller.js';
 import * as automod from '../controllers/automod.controller.js';
 import * as scheduledEvents from '../controllers/scheduledEvent.controller.js';
 import * as emojis from '../controllers/emoji.controller.js';
 import * as analytics from '../controllers/analytics.controller.js';
+import * as messages from '../controllers/message.controller.js';
 import * as plugins from '../controllers/plugin.controller.js';
+import * as ban from '../controllers/ban.controller.js';
+import * as slashCommands from '../controllers/slashcommand.controller.js';
+import * as invites from '../controllers/invite.controller.js';
+import * as channels from '../controllers/channel.controller.js';
 import { guildBoostRouter } from './premium.routes.js';
 
 const router = Router();
@@ -25,13 +30,17 @@ router.post('/:guildId/transfer', authenticate, guilds.transferOwnership);
 router.get('/:guildId/members', authenticate, guilds.getMembers);
 router.get('/:guildId/members/:userId', authenticate, guilds.getMember);
 router.patch('/:guildId/members/:userId', authenticate, guilds.updateMember);
-router.delete('/:guildId/members/:userId', authenticate, guilds.kickMember);
+router.put('/:guildId/members/:userId/roles/:roleId', authenticate, guilds.assignRoleToMember);
+router.delete('/:guildId/members/:userId/roles/:roleId', authenticate, guilds.removeRoleFromMember);
+router.post('/:guildId/members/:userId/warn', authenticate, ban.warnUser);
+router.delete('/:guildId/members/:userId', authenticate, ban.kickUser);
 router.delete('/:guildId/members/@me', authenticate, guilds.leaveGuild);
 
-router.get('/:guildId/bans', authenticate, guilds.getBans);
-router.get('/:guildId/bans/:userId', authenticate, guilds.getBan);
-router.put('/:guildId/bans/:userId', authenticate, guilds.createBan);
-router.delete('/:guildId/bans/:userId', authenticate, guilds.removeBan);
+router.get('/:guildId/bans', authenticate, ban.getBans);
+router.get('/:guildId/bans/:userId', authenticate, ban.getBan);
+router.put('/:guildId/bans/:userId', authenticate, ban.banUser);
+router.delete('/:guildId/bans/:userId', authenticate, ban.unbanUser);
+router.post('/:guildId/members/:userId/warn', authenticate, ban.warnUser);
 
 router.get('/:guildId/audit-logs', authenticate, guilds.getAuditLogs);
 
@@ -57,9 +66,16 @@ router.post('/:guildId/scheduled-events', authenticate, scheduledEvents.createSc
 router.get('/:guildId/scheduled-events/:eventId', authenticate, scheduledEvents.getScheduledEvent);
 router.patch('/:guildId/scheduled-events/:eventId', authenticate, scheduledEvents.updateScheduledEvent);
 router.delete('/:guildId/scheduled-events/:eventId', authenticate, scheduledEvents.deleteScheduledEvent);
+router.put('/:guildId/scheduled-events/:eventId/image', authenticate, uploadEventImage, scheduledEvents.uploadEventImage);
+router.put('/:guildId/scheduled-events/:eventId/users/@me', authenticate, scheduledEvents.rsvpEvent);
+router.delete('/:guildId/scheduled-events/:eventId/users/@me', authenticate, scheduledEvents.removeRsvp);
 router.get('/:guildId/scheduled-events/:eventId/users', authenticate, scheduledEvents.getEventUsers);
-router.post('/:guildId/scheduled-events/:eventId/users', authenticate, scheduledEvents.rsvpEvent);
-router.delete('/:guildId/scheduled-events/:eventId/users/:userId', authenticate, scheduledEvents.removeRsvp);
+
+router.get('/:guildId/slash-commands', authenticate, slashCommands.getSlashCommands);
+router.post('/:guildId/slash-commands', authenticate, slashCommands.createSlashCommand);
+router.patch('/:guildId/slash-commands/:commandId', authenticate, slashCommands.updateSlashCommand);
+router.delete('/:guildId/slash-commands/:commandId', authenticate, slashCommands.deleteSlashCommand);
+router.post('/:guildId/slash-commands/execute', authenticate, slashCommands.handleSlashCommandInteraction);
 
 router.get('/:guildId/widget', authenticate, guilds.getWidget);
 router.patch('/:guildId/widget', authenticate, guilds.updateWidget);
@@ -69,17 +85,37 @@ router.post('/:guildId/prune', authenticate, guilds.pruneMembers);
 
 router.get('/:guildId/templates', authenticate, guilds.getGuildTemplates);
 router.post('/:guildId/templates', authenticate, guilds.createGuildTemplate);
+router.patch('/:guildId/templates/:code', authenticate, guilds.updateGuildTemplate);
 router.put('/:guildId/templates/:code/sync', authenticate, guilds.syncGuildTemplate);
 router.delete('/:guildId/templates/:code', authenticate, guilds.deleteGuildTemplate);
 
+// Public template endpoints (no auth)
+router.get('/templates/:code', guilds.getPublicTemplate);
+router.post('/templates/:code', authenticate, guilds.createGuildFromTemplate);
+
 router.get('/:guildId/welcome-screen', authenticate, guilds.getWelcomeScreen);
 router.patch('/:guildId/welcome-screen', authenticate, guilds.updateWelcomeScreen);
+
+// Member Verification (Membership Screening)
+router.get('/:guildId/member-verification', authenticate, guilds.getMemberVerification);
+router.put('/:guildId/member-verification', authenticate, guilds.updateMemberVerification);
+router.patch('/:guildId/member-verification', authenticate, guilds.updateMemberVerification);
+router.post('/:guildId/member-verification/complete', authenticate, guilds.completeMemberVerification);
+
+// Guild Onboarding
+router.get('/:guildId/onboarding', authenticate, guilds.getGuildOnboarding);
+router.put('/:guildId/onboarding', authenticate, guilds.updateGuildOnboarding);
+router.post('/:guildId/onboarding/submit', authenticate, guilds.submitOnboarding);
 
 router.get('/:guildId/members/@me/permissions', authenticate, guilds.getMyGuildPermissions);
 
 router.use('/:guildId', guildBoostRouter);
 router.get('/:guildId/boosts', authenticate, guilds.getGuildBoosters);
 
+// Channel invites
+router.post('/:guildId/channels/:channelId/invites', authenticate, invites.createInvite);
+
+router.patch('/:guildId/channels', authenticate, channels.reorderChannels);
 router.get('/:guildId/stickers', authenticate, emojis.getStickers);
 router.post('/:guildId/stickers', authenticate, uploadSticker, emojis.createSticker);
 router.get('/:guildId/stickers/:stickerId', authenticate, emojis.getSticker);
@@ -90,5 +126,8 @@ router.get('/:guildId/analytics/overview', authenticate, analytics.getOverview);
 router.get('/:guildId/analytics/timeseries', authenticate, analytics.getTimeseries);
 router.get('/:guildId/analytics/hourly', authenticate, analytics.getHourly);
 router.get('/:guildId/analytics/retention', authenticate, analytics.getRetention);
+
+// Message search
+router.get('/:guildId/messages/search', authenticate, searchRateLimit, validate(searchMessagesSchema, 'query'), messages.searchMessages);
 
 export default router;

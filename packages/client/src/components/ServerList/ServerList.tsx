@@ -57,12 +57,25 @@ export function ServerList() {
   };
 
   return (
-    <div className={styles.container}>
-      <div className={`${styles.homeButton} ${!selectedGuildId ? styles.active : ''}`} onClick={() => selectGuild(null)}>
+    <nav className={styles.container} aria-label="Servers">
+      <div
+        className={`${styles.homeButton} ${!selectedGuildId ? styles.active : ''}`}
+        onClick={() => selectGuild(null)}
+        role="button"
+        tabIndex={0}
+        aria-label="Home"
+      >
         <Home size={24} />
       </div>
 
-      <div className={styles.homeButton} onClick={() => navigate('/discover')} title="Découverte">
+      <div
+        className={styles.homeButton}
+        onClick={() => navigate('/discover')}
+        title="Découverte"
+        role="button"
+        tabIndex={0}
+        aria-label="Explorer les serveurs publics"
+      >
         <Compass size={22} />
       </div>
 
@@ -80,10 +93,13 @@ export function ServerList() {
             onClick={() => selectGuild(guild.id)}
             onContextMenu={(event) => openServerMenu(event, guild)}
             title={guild.name}
+            role="button"
+            tabIndex={0}
+            aria-label={guild.name}
           >
             {isSelected && <div className={`${styles.indicator} ${styles.active}`} />}
             {!isSelected && hasUnread && <div className={`${styles.indicator} ${styles.unread}`} />}
-            {guild.icon ? <img src={guild.icon} alt={guild.name} /> : guild.name.slice(0, 2).toUpperCase()}
+            {guild.icon ? <img src={guild.icon} alt={`${guild.name}'s icon`} /> : guild.name.slice(0, 2).toUpperCase()}
           </div>
         );
       })}
@@ -93,14 +109,23 @@ export function ServerList() {
           className={styles.adminButton}
           onClick={() => navigate('/admin')}
           title="Panel Admin"
+          role="button"
+          tabIndex={0}
+          aria-label="Panel Admin"
         >
           <ShieldAlert size={22} />
         </div>
       )}
 
-      <div className={styles.addButton} onClick={() => setShowCreateGuild(true)}>
+      <div
+        className={styles.addButton}
+        onClick={() => setShowCreateGuild(true)}
+        role="button"
+        tabIndex={0}
+        aria-label="Ajouter un serveur"
+      >
         <Plus size={24} />
       </div>
-    </div>
+    </nav>
   );
 }

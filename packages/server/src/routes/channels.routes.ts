@@ -16,23 +16,24 @@ router.put('/:channelId/permissions/:overwriteId', authenticate, channels.update
 router.delete('/:channelId/permissions/:overwriteId', authenticate, channels.deletePermissionOverwrite);
 router.post('/:channelId/permissions', authenticate, channels.createPermissionOverwrite);
 
+// Thread routes - spec 28
 router.post('/:channelId/threads', authenticate, threads.startThread);
-router.post('/:channelId/thread', authenticate, threads.startThreadWithoutMessage);
-router.get('/:channelId/thread/:threadId', authenticate, threads.getThread);
-router.patch('/:channelId/thread/:threadId', authenticate, threads.updateThread);
-router.delete('/:channelId/thread/:threadId', authenticate, threads.deleteThread);
-router.patch('/:channelId/thread/:threadId/archive', authenticate, threads.archiveThread);
-router.patch('/:channelId/thread/:threadId/lock', authenticate, threads.lockThread);
-router.get('/:channelId/thread/:threadId/members', authenticate, threads.getThreadMembers);
-router.post('/:channelId/thread/:threadId/members/:userId', authenticate, threads.joinThread);
-router.delete('/:channelId/thread/:threadId/members/:userId', authenticate, threads.leaveThread);
+router.post('/:channelId/messages/:messageId/threads', authenticate, threads.startThreadFromMessage);
+router.get('/:channelId/threads/active', authenticate, threads.getActiveThreads);
 router.get('/:channelId/threads/archived/public', authenticate, threads.getArchivedThreads);
 router.get('/:channelId/threads/archived/private', authenticate, threads.getArchivedThreads);
-router.get('/:channelId/threads/archived/joined', authenticate, threads.getArchivedThreads);
+router.get('/:channelId/users/@me/threads/archived/private', authenticate, threads.getMyPrivateArchivedThreads);
+
+router.put('/:threadId/thread-members/@me', authenticate, threads.joinThread);
+router.delete('/:threadId/thread-members/@me', authenticate, threads.leaveThread);
+router.put('/:threadId/thread-members/:userId', authenticate, threads.addThreadMember);
+router.delete('/:threadId/thread-members/:userId', authenticate, threads.removeThreadMember);
+router.get('/:threadId/thread-members', authenticate, threads.getThreadMembers);
+
+router.patch('/:threadId', authenticate, threads.updateThread);
 
 router.post('/:channelId/typing', authenticate, typingRateLimit, channels.triggerTyping);
-router.post('/:channelId/follow', authenticate, channels.followChannel);
+router.post('/:channelId/followers', authenticate, channels.followChannel);
 
 export { router as guildChannelRouter };
-
 export default router;

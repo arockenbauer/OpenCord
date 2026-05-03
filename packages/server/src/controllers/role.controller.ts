@@ -5,9 +5,10 @@ import fs from 'fs';
 import { prisma } from '../utils/prisma.js';
 import { generateSnowflake } from '../utils/snowflake.js';
 import { AppError } from '../utils/app-error.js';
-import { getMemberPermissions, checkPermission, getHighestRolePosition, requireMembership, writeAuditLog } from './guild.controller.js';
+import { getMemberPermissions, checkPermission, getHighestRolePosition, requireMembership, writeAuditLog, AUDIT_LOG_ACTIONS } from './guild.controller.js';
 import { getIO } from '../gateway/index.js';
 import { GatewayEvents } from '@opencord/shared';
+import { markTemplateDirty } from './guild.controller.js';
 
 const uploadDir = process.env.UPLOAD_DIR || './uploads';
 
@@ -39,14 +40,21 @@ export async function createRole(req: Request, res: Response, next: NextFunction
         color: req.body.color || null,
         hoist: req.body.hoist || false,
         position: (maxPos._max.position || 0) + 1,
-        permissions: String(req.body.permissions || '0'),
+        permissions: BigInt(req.body.permissions || '0'),
         mentionable: req.body.mentionable || false,
       },
     });
 
     const io = getIO();
     if (io) io.to(`guild:${req.params.guildId}`).emit(GatewayEvents.GUILD_ROLE_CREATE, { guild_id: req.params.guildId, role });
-    await writeAuditLog(req.params.guildId, req.user!.userId, 'ROLE_CREATE', role.id, 'ROLE', { name: role.name });
+    await writeAuditLog(req.params.guildId, req.user!.userId, AUDIT_LOG_ACTIONS.ROLE_CREATE, role.id, 'ROLE', [
+      { key: 'name', old_value: null, new_value: role.name },
+      { key: 'color', old_value: null, new_value: role.color },
+      { key: 'permissions', old_value: null, new_value: role.permissions.toString() },
+      { key: 'hoist', old_value: null, new_value: role.hoist },
+      { key: 'mentionable', old_value: null, new_value: role.mentionable },
+    ]);
+    await markTemplateDirty(req.params.guildId);
 
     res.status(201).json(role);
   } catch (err) {
@@ -71,7 +79,7 @@ export async function updateRole(req: Request, res: Response, next: NextFunction
     if (req.body.color !== undefined) data.color = req.body.color;
     if (req.body.hoist !== undefined) data.hoist = req.body.hoist;
     if (req.body.mentionable !== undefined) data.mentionable = req.body.mentionable;
-    if (req.body.permissions !== undefined) data.permissions = String(req.body.permissions);
+    if (req.body.permissions !== undefined) data.permissions = BigInt(req.body.permissions);
     if (req.body.position !== undefined) data.position = req.body.position;
     if (req.body.unicode_emoji !== undefined) data.unicode_emoji = req.body.unicode_emoji;
 
@@ -79,7 +87,16 @@ export async function updateRole(req: Request, res: Response, next: NextFunction
 
     const io = getIO();
     if (io) io.to(`guild:${req.params.guildId}`).emit(GatewayEvents.GUILD_ROLE_UPDATE, { guild_id: req.params.guildId, role });
-    await writeAuditLog(req.params.guildId, req.user!.userId, 'ROLE_UPDATE', role.id, 'ROLE', { before: { name: targetRole.name, color: targetRole.color, permissions: targetRole.permissions }, after: data });
+    const changes = [];
+    if (req.body.name !== undefined) changes.push({ key: 'name', old_value: targetRole.name, new_value: req.body.name });
+    if (req.body.color !== undefined) changes.push({ key: 'color', old_value: targetRole.color, new_value: req.body.color });
+    if (req.body.permissions !== undefined) changes.push({ key: 'permissions', old_value: targetRole.permissions.toString(), new_value: req.body.permissions });
+    if (req.body.hoist !== undefined) changes.push({ key: 'hoist', old_value: targetRole.hoist, new_value: req.body.hoist });
+    if (req.body.mentionable !== undefined) changes.push({ key: 'mentionable', old_value: targetRole.mentionable, new_value: req.body.mentionable });
+    if (req.body.position !== undefined) changes.push({ key: 'position', old_value: targetRole.position, new_value: req.body.position });
+    if (req.body.unicode_emoji !== undefined) changes.push({ key: 'unicode_emoji', old_value: targetRole.unicode_emoji, new_value: req.body.unicode_emoji });
+    await writeAuditLog(req.params.guildId, req.user!.userId, AUDIT_LOG_ACTIONS.ROLE_UPDATE, role.id, 'ROLE', changes);
+    await markTemplateDirty(req.params.guildId);
 
     res.json(role);
   } catch (err) {
@@ -102,7 +119,10 @@ export async function deleteRole(req: Request, res: Response, next: NextFunction
 
     const io = getIO();
     if (io) io.to(`guild:${req.params.guildId}`).emit(GatewayEvents.GUILD_ROLE_DELETE, { guild_id: req.params.guildId, role_id: req.params.roleId });
-    await writeAuditLog(req.params.guildId, req.user!.userId, 'ROLE_DELETE', req.params.roleId, 'ROLE', { name: role.name });
+    await writeAuditLog(req.params.guildId, req.user!.userId, AUDIT_LOG_ACTIONS.ROLE_DELETE, req.params.roleId, 'ROLE', [
+      { key: 'name', old_value: role.name, new_value: null },
+    ]);
+    await markTemplateDirty(req.params.guildId);
 
     res.status(204).send();
   } catch (err) {
@@ -117,20 +137,39 @@ export async function updateRolePositions(req: Request, res: Response, next: Nex
     const actorHighestRole = await getHighestRolePosition(req.params.guildId, req.user!.userId);
 
     const positions: { id: string; position: number }[] = req.body;
+    
+    // Vérifier que @everyone n'est pas dans la liste et reste en position 0
+    const everyoneRole = await prisma.role.findFirst({ 
+      where: { guild_id: req.params.guildId, name: '@everyone' } 
+    });
+    if (!everyoneRole) throw new AppError(404, 'EVERYONE_ROLE_NOT_FOUND', '@everyone role not found');
+    
     for (const p of positions) {
       const role = await prisma.role.findFirst({ where: { id: p.id, guild_id: req.params.guildId } });
       if (!role) throw new AppError(404, 'ROLE_NOT_FOUND', 'Role not found');
-      if (role.name === '@everyone') throw new AppError(400, 'CANNOT_EDIT', 'Cannot move @everyone role');
-      if (actorHighestRole <= role.position || actorHighestRole <= p.position) {
+      if (role.name === '@everyone') {
+        throw new AppError(400, 'CANNOT_EDIT', 'Cannot move @everyone role');
+      }
+      // Vérifier que le rôle cible est inférieur à notre rôle le plus haut
+      if (actorHighestRole <= role.position) {
         throw new AppError(403, 'ROLE_HIERARCHY', 'Cannot move a role equal or higher than your top role');
+      }
+      // Vérifier que la nouvelle position demandée est inférieure à notre rôle le plus haut
+      if (actorHighestRole <= p.position) {
+        throw new AppError(403, 'ROLE_HIERARCHY', 'Cannot move a role to a position equal or higher than your top role');
       }
       await prisma.role.update({ where: { id: p.id }, data: { position: p.position } });
     }
 
-    const roles = await prisma.role.findMany({ where: { guild_id: req.params.guildId }, orderBy: { position: 'asc' } });
-    await writeAuditLog(req.params.guildId, req.user!.userId, 'ROLE_POSITIONS_UPDATE', undefined, 'ROLE', {
-      positions,
+    // Récupérer tous les rôles triés par position
+    const roles = await prisma.role.findMany({ 
+      where: { guild_id: req.params.guildId }, 
+      orderBy: { position: 'asc' } 
     });
+    
+    await writeAuditLog(req.params.guildId, req.user!.userId, AUDIT_LOG_ACTIONS.ROLE_CREATE, undefined, 'ROLE', [
+      { key: 'positions', old_value: null, new_value: JSON.stringify(positions) },
+    ]);
     res.json({ roles });
   } catch (err) {
     next(err);

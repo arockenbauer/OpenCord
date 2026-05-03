@@ -4,7 +4,7 @@ import { generateSnowflake } from '../utils/snowflake.js';
 import { AppError } from '../utils/app-error.js';
 import { getIO } from '../gateway/index.js';
 import { GatewayEvents } from '@opencord/shared';
-import { sendPremiumConfirmEmail } from '../utils/email.js';
+import { sendSubscriptionActivatedEmail } from '../utils/email.js';
 import Stripe from 'stripe';
 
 const stripe = process.env.STRIPE_SECRET_KEY
@@ -57,11 +57,12 @@ export async function createCheckoutSession(req: Request, res: Response, next: N
   try {
     if (!stripe) throw new AppError(503, 'STRIPE_NOT_CONFIGURED', 'Stripe is not configured on this server');
 
-    const user = await prisma.user.findUnique({ where: { id: req.user!.userId } });
+    const userId = (req as any).user?.userId;
+    const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new AppError(404, 'USER_NOT_FOUND', 'User not found');
 
     const existing = await prisma.userSubscription.findFirst({
-      where: { user_id: req.user!.userId, status: 'active' },
+      where: { user_id: (req as any).user?.userId, status: 'active' },
     });
     if (existing) throw new AppError(400, 'ALREADY_SUBSCRIBED', 'Already subscribed');
 
@@ -101,7 +102,7 @@ export async function createPortalSession(req: Request, res: Response, next: Nex
   try {
     if (!stripe) throw new AppError(503, 'STRIPE_NOT_CONFIGURED', 'Stripe is not configured');
 
-    const user = await prisma.user.findUnique({ where: { id: req.user!.userId } });
+    const user = await prisma.user.findUnique({ where: { id: (req as any).user?.userId } });
     if (!user?.stripe_customer_id) throw new AppError(400, 'NO_CUSTOMER', 'No Stripe customer found');
 
     const session = await stripe.billingPortal.sessions.create({
@@ -119,12 +120,12 @@ export async function cancelSubscription(req: Request, res: Response, next: Next
   try {
     if (!stripe) {
       // Fallback: local cancellation when Stripe is not configured
-      await doLocalCancel(req.user!.userId);
+      await doLocalCancel((req as any).user?.userId);
       res.status(204).send();
       return;
     }
 
-    const user = await prisma.user.findUnique({ where: { id: req.user!.userId } });
+    const user = await prisma.user.findUnique({ where: { id: (req as any).user?.userId } });
     if (!user?.stripe_customer_id) throw new AppError(400, 'NO_CUSTOMER', 'No Stripe customer found');
 
     const subscriptions = await stripe.subscriptions.list({
@@ -137,7 +138,7 @@ export async function cancelSubscription(req: Request, res: Response, next: Next
       await stripe.subscriptions.cancel(subscriptions.data[0].id);
     }
 
-    await doLocalCancel(req.user!.userId);
+    await doLocalCancel((req as any).user?.userId);
     res.status(204).send();
   } catch (err) {
     next(err);
@@ -226,8 +227,38 @@ export async function handleStripeWebhook(req: Request, res: Response, next: Nex
           },
         });
 
+        // Assign PREMIUM badge
+        const premiumBadge = await prisma.badge.findFirst({ where: { type: 'premium' } });
+        if (premiumBadge) {
+          await prisma.userBadge.upsert({
+            where: { user_id_badge_id: { user_id: userId, badge_id: premiumBadge.id } },
+            create: { id: generateSnowflake(), user_id: userId, badge_id: premiumBadge.id },
+            update: {},
+          });
+        }
+
+        // Allocate free boosts from PlatformSettings
+        const freeBoostsSetting = await prisma.platformSettings.findUnique({ where: { key: 'premium.free_boosts' } });
+        const freeBoosts = freeBoostsSetting ? (typeof freeBoostsSetting.value === 'string' ? JSON.parse(freeBoostsSetting.value) : freeBoostsSetting.value) ?? 2 : 2;
+        for (let i = 0; i < freeBoosts; i++) {
+          await prisma.boost.create({
+            data: { id: generateSnowflake(), user_id: userId, guild_id: undefined },
+          });
+        }
+
+        // Restore animated avatars/banners if applicable
         const user = await prisma.user.findUnique({ where: { id: userId } });
-        if (user) sendPremiumConfirmEmail(user.email, user.username, 'OpenCord+').catch(() => {});
+        if (user) {
+          if (user.avatar_animated && user.avatar_updated_at && user.premium_lost_at &&
+              user.avatar_updated_at <= user.premium_lost_at) {
+            // Restore animated avatar URL logic would go here
+          }
+          if (user.banner_animated && user.banner_updated_at && user.premium_lost_at &&
+              user.banner_updated_at <= user.premium_lost_at) {
+            // Restore animated banner URL logic would go here
+          }
+          sendSubscriptionActivatedEmail(user.email, user.username, 'OpenCord+').catch(() => {});
+        }
 
         const io = getIO();
         if (io) io.to(`user:${userId}`).emit(GatewayEvents.USER_UPDATE, { id: userId, premium: true, premium_type: 2 });
@@ -278,6 +309,25 @@ export async function handleStripeWebhook(req: Request, res: Response, next: Nex
         }
         break;
       }
+      case 'invoice.payment_succeeded': {
+        const invoice = event.data.object as Stripe.Invoice;
+        if (invoice.subscription) {
+          const subId = typeof invoice.subscription === 'string' ? invoice.subscription : invoice.subscription.id;
+          const existingSub = await prisma.userSubscription.findUnique({ where: { stripe_subscription_id: subId } });
+          if (existingSub) {
+            const subscription = await stripe!.subscriptions.retrieve(subId);
+            await prisma.userSubscription.update({
+              where: { stripe_subscription_id: subId },
+              data: {
+                status: 'active',
+                current_period_end: new Date(subscription.current_period_end * 1000),
+              },
+            });
+            await prisma.user.update({ where: { id: existingSub.user_id }, data: { premium: true, premium_type: 2 } });
+          }
+        }
+        break;
+      }
     }
   } catch (err) {
     console.error('Stripe webhook processing error:', err);
@@ -323,12 +373,34 @@ export async function getPremiumTiers(req: Request, res: Response, next: NextFun
 
 export async function getMySubscription(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
+    const user = await prisma.user.findUnique({ where: { id: (req as any).user?.userId } });
     const subscription = await prisma.userSubscription.findFirst({
-      where: { user_id: req.user!.userId, status: 'active' },
+      where: { user_id: (req as any).user?.userId, status: 'active' },
       include: { tier: true },
     });
 
-    res.json({ subscription: subscription || null });
+    if (!subscription || !user) {
+      res.json({ subscription: null, premium: false });
+      return;
+    }
+
+    res.json({
+      id: subscription.id,
+      tier: {
+        id: subscription.tier.id,
+        name: subscription.tier.name,
+        price_cents: subscription.tier.price_cents,
+        currency: subscription.tier.currency,
+        features: typeof subscription.tier.features === 'string'
+          ? JSON.parse(subscription.tier.features)
+          : subscription.tier.features,
+      },
+      status: subscription.status,
+      current_period_start: subscription.current_period_start,
+      current_period_end: subscription.current_period_end,
+      cancel_at_period_end: subscription.cancel_at_period_end,
+      premium_since: user.premium_since,
+    });
   } catch (err) {
     next(err);
   }
@@ -336,11 +408,11 @@ export async function getMySubscription(req: Request, res: Response, next: NextF
 
 export async function subscribe(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const user = await prisma.user.findUnique({ where: { id: req.user!.userId } });
+    const user = await prisma.user.findUnique({ where: { id: (req as any).user?.userId } });
     if (!user) throw new AppError(404, 'USER_NOT_FOUND', 'User not found');
 
     const existing = await prisma.userSubscription.findFirst({
-      where: { user_id: req.user!.userId, status: 'active' },
+      where: { user_id: (req as any).user?.userId, status: 'active' },
     });
     if (existing) throw new AppError(400, 'ALREADY_SUBSCRIBED', 'You already have an active subscription');
 
@@ -361,10 +433,10 @@ export async function subscribe(req: Request, res: Response, next: NextFunction)
     const sub = await prisma.userSubscription.create({
       data: {
         id: generateSnowflake(),
-        user_id: req.user!.userId,
+        user_id: (req as any).user?.userId,
         tier_id: tier.id,
         status: 'active',
-        stripe_customer_id: `cus_local_${req.user!.userId}`,
+        stripe_customer_id: `cus_local_${(req as any).user?.userId}`,
         stripe_subscription_id: `sub_local_${generateSnowflake()}`,
         current_period_start: new Date(),
         current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
@@ -373,20 +445,20 @@ export async function subscribe(req: Request, res: Response, next: NextFunction)
     });
 
     await prisma.user.update({
-      where: { id: req.user!.userId },
+      where: { id: (req as any).user?.userId },
       data: { premium: true, premium_type: 2, premium_since: new Date() },
     });
 
     const io = getIO();
     if (io) {
-      io.to(`user:${req.user!.userId}`).emit(GatewayEvents.USER_UPDATE, {
-        id: req.user!.userId,
+      io.to(`user:${(req as any).user?.userId}`).emit(GatewayEvents.USER_UPDATE, {
+        id: (req as any).user?.userId,
         premium: true,
         premium_type: 2,
       });
     }
 
-    sendPremiumConfirmEmail(user.email, user.username, tier.name).catch(() => {});
+    sendSubscriptionActivatedEmail(user.email, user.username, tier.name).catch(() => {});
 
     res.status(201).json({ subscription: sub });
   } catch (err) {
@@ -397,7 +469,7 @@ export async function subscribe(req: Request, res: Response, next: NextFunction)
 export async function getMyBoosts(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const boosts = await prisma.boost.findMany({
-      where: { user_id: req.user!.userId, ended_at: null },
+      where: { user_id: (req as any).user?.userId, ended_at: null },
       include: { guild: { select: { id: true, name: true, icon: true } } },
     });
     res.json({ boosts });
@@ -408,7 +480,7 @@ export async function getMyBoosts(req: Request, res: Response, next: NextFunctio
 
 export async function boostGuild(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const user = await prisma.user.findUnique({ where: { id: req.user!.userId } });
+    const user = await prisma.user.findUnique({ where: { id: (req as any).user?.userId } });
     if (!user) throw new AppError(404, 'USER_NOT_FOUND', 'User not found');
     if (!user.premium) throw new AppError(403, 'NOT_PREMIUM', 'You need OpenCord+ to boost servers');
 
@@ -416,12 +488,12 @@ export async function boostGuild(req: Request, res: Response, next: NextFunction
     if (!guild) throw new AppError(404, 'GUILD_NOT_FOUND', 'Server not found');
 
     const member = await prisma.guildMember.findUnique({
-      where: { guild_id_user_id: { guild_id: req.params.guildId, user_id: req.user!.userId } },
+      where: { guild_id_user_id: { guild_id: req.params.guildId, user_id: (req as any).user?.userId } },
     });
     if (!member) throw new AppError(403, 'NOT_MEMBER', 'You are not a member of this server');
 
     const existingBoosts = await prisma.boost.count({
-      where: { guild_id: req.params.guildId, user_id: req.user!.userId, ended_at: null },
+      where: { guild_id: req.params.guildId, user_id: (req as any).user?.userId, ended_at: null },
     });
     if (existingBoosts >= 2) throw new AppError(400, 'BOOST_LIMIT', 'You can boost a server up to 2 times');
 
@@ -429,7 +501,7 @@ export async function boostGuild(req: Request, res: Response, next: NextFunction
     const prevCount = guild.premium_subscription_count;
 
     const boost = await prisma.boost.create({
-      data: { id: generateSnowflake(), guild_id: req.params.guildId, user_id: req.user!.userId },
+      data: { id: generateSnowflake(), guild_id: req.params.guildId, user_id: (req as any).user?.userId },
     });
 
     const totalBoosts = await prisma.boost.count({ where: { guild_id: req.params.guildId, ended_at: null } });
@@ -485,7 +557,7 @@ export async function boostGuild(req: Request, res: Response, next: NextFunction
 export async function unboostGuild(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const boosts = await prisma.boost.findMany({
-      where: { guild_id: req.params.guildId, user_id: req.user!.userId, ended_at: null },
+      where: { guild_id: req.params.guildId, user_id: (req as any).user?.userId, ended_at: null },
       orderBy: { started_at: 'desc' },
     });
 
@@ -515,7 +587,7 @@ export async function unboostGuild(req: Request, res: Response, next: NextFuncti
 export async function removeBoost(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const boost = await prisma.boost.findFirst({
-      where: { id: req.params.boostId, guild_id: req.params.guildId, user_id: req.user!.userId, ended_at: null },
+      where: { id: req.params.boostId, guild_id: req.params.guildId, user_id: (req as any).user?.userId, ended_at: null },
     });
     if (!boost) throw new AppError(404, 'NOT_FOUND', 'Boost not found');
 

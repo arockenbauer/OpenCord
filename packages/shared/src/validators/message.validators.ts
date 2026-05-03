@@ -54,7 +54,16 @@ export const getMessagesSchema = z.object({
 });
 
 export const searchMessagesSchema = z.object({
-  q: z.string().min(1).max(200),
+  content: z.string().min(1).max(200).optional(), // texte libre (FTS5)
+  q: z.string().min(1).max(200).optional(), // alias pour content
+  from: z.string().optional(), // author_id
+  in: z.string().optional(), // channel_id (pour route guild)
+  mentions: z.string().optional(), // user_id mentionné
+  has: z.enum(['link', 'embed', 'file', 'video', 'image', 'sound', 'sticker']).optional(),
+  before: z.string().optional(),
+  after: z.string().optional(),
+  during: z.string().regex(/^\d{4}-\d{2}$/).optional(), // YYYY-MM
+  pinned: z.enum(['true', 'false']).optional(),
   limit: z.coerce.number().int().min(1).max(25).default(25),
   offset: z.coerce.number().int().min(0).default(0),
 });

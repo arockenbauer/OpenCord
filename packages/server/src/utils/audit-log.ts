@@ -6,7 +6,7 @@ export async function createAdminAuditLog(params: {
   action: string;
   targetType?: string;
   targetId?: string;
-  details?: Record<string, any>;
+  details?: any;
   ipAddress?: string;
 }): Promise<void> {
   await prisma.adminAuditLog.create({
@@ -16,7 +16,7 @@ export async function createAdminAuditLog(params: {
       action: params.action,
       target_type: params.targetType || null,
       target_id: params.targetId || null,
-      details: params.details ? JSON.stringify(params.details) : null,
+      details: params.details || null,
       ip_address: params.ipAddress || null,
     },
   });
@@ -25,10 +25,10 @@ export async function createAdminAuditLog(params: {
 export async function createGuildAuditLog(params: {
   guildId: string;
   userId: string;
-  actionType: string;
+  actionType: number;
   targetId?: string;
   targetType?: string;
-  changes?: Record<string, any>;
+  changes?: Array<{key: string; old_value: any; new_value: any}>;
   reason?: string;
 }): Promise<void> {
   await prisma.auditLog.create({
@@ -39,7 +39,7 @@ export async function createGuildAuditLog(params: {
       action_type: params.actionType,
       target_id: params.targetId || null,
       target_type: params.targetType || null,
-      changes: params.changes ? JSON.stringify(params.changes) : null,
+      changes: params.changes || null,
       reason: params.reason || null,
     },
   });

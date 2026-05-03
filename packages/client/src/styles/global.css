@@ -13,7 +13,7 @@ html, body, #root {
 }
 
 body {
-  font-family: 'gg sans', 'Noto Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-family: 'gg sans', 'Noto Sans', Helvetica, Arial, sans-serif;
   font-size: var(--font-size-md);
   line-height: var(--line-height-normal);
   color: var(--text-primary);
@@ -54,18 +54,17 @@ input, textarea, select {
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--scrollbar-thin);
-  border-radius: var(--radius-md);
+  background: var(--bg-primary);
 }
 
 ::-webkit-scrollbar-thumb {
   background: var(--scrollbar-thumb);
-  border-radius: var(--radius-md);
-  transition: background 150ms;
+  border-radius: var(--radius-full);
+  border: 2px solid var(--bg-primary);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--scrollbar-thumb-hover);
+  background: var(--border-strong);
 }
 
 ::-webkit-scrollbar-corner {
@@ -86,4 +85,18 @@ input, textarea, select {
 
 code {
   font-family: 'Consolas', 'Courier New', monospace;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--bg-primary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    --transition-speed: 0ms !important;
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }

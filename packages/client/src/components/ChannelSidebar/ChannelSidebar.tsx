@@ -1,5 +1,5 @@
 import { MouseEvent, useState, useRef, useEffect } from 'react';
-import { Hash, Volume2, Megaphone, ChevronDown, ChevronRight, Plus, Settings, Mic, Headphones, MessageCircle, UserPlus, LogOut, Trash2, Edit3, Trash, Copy, Link } from 'lucide-react';
+import { Hash, Volume2, Megaphone, ChevronDown, ChevronRight, Plus, Settings, Mic, MicOff, Headphones, MessageCircle, UserPlus, LogOut, Trash2, Edit3, Trash, Copy, Link } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useGuildStore } from '../../stores/guildStore';
 import { useAuthStore } from '../../stores/authStore';
@@ -87,7 +87,7 @@ export function ChannelSidebar() {
             </Tooltip>
           ))}
         </div>
-        {user && <UserPanel user={user} onSettings={() => useUIStore.getState().setShowUserSettings?.(true)} onOpenProfile={openOwnProfile} />}
+        {user && <UserPanel user={user!} onSettings={() => useUIStore.getState().setShowUserSettings?.(true)} onOpenProfile={openOwnProfile} />}
       </div>
     );
   }
@@ -211,7 +211,7 @@ export function ChannelSidebar() {
 
       <div className={styles.channelList}>
         {orphanChannels.map((ch) => (
-          <ChannelItem key={ch.id} channel={ch} isActive={selectedChannelId === ch.id} onClick={() => selectChannel(ch.id)} onContextMenu={(e) => openChannelContextMenu(e, ch)} />
+          <ChannelItem key={ch.id} channel={ch} isActive={selectedChannelId === ch.id} onClick={() => selectChannel(ch.id)} onContextMenu={(e) => openChannelContextMenu(e, ch)} user={user} />
         ))}
 
         {categories.map((cat) => {
@@ -226,14 +226,14 @@ export function ChannelSidebar() {
                 <Plus size={16} className={styles.categoryAction} onClick={(e) => { e.stopPropagation(); setCreateChannel({ categoryId: cat.id }); }} />
               </div>
               {!collapsed && children.map((ch) => (
-                <ChannelItem key={ch.id} channel={ch} isActive={selectedChannelId === ch.id} onClick={() => selectChannel(ch.id)} onContextMenu={(e) => openChannelContextMenu(e, ch)} />
+                <ChannelItem key={ch.id} channel={ch} isActive={selectedChannelId === ch.id} onClick={() => selectChannel(ch.id)} onContextMenu={(e) => openChannelContextMenu(e, ch)} user={user} />
               ))}
             </div>
           );
         })}
       </div>
 
-      {user && <UserPanel user={user} onSettings={() => setShowUserSettings(true)} onOpenProfile={openOwnProfile} />}
+      {user && <UserPanel user={user!} onSettings={() => setShowUserSettings?.(true)} onOpenProfile={openOwnProfile} />}
       {createChannel && (
         <CreateChannelModal
           guildId={guild.id}
@@ -246,7 +246,7 @@ export function ChannelSidebar() {
   );
 }
 
-function ChannelItem({ channel, isActive, onClick, onContextMenu }: { channel: any; isActive: boolean; onClick: () => void; onContextMenu?: (e: MouseEvent<HTMLDivElement>) => void }) {
+function ChannelItem({ channel, isActive, onClick, onContextMenu, user }: { channel: any; isActive: boolean; onClick: () => void; onContextMenu?: (e: MouseEvent<HTMLDivElement>) => void; user?: any }) {
   const Icon = channelIcons[channel.type] || Hash;
   const unread = useUnreadStore((s) => s.channelUnreads[channel.id]);
   const hasUnread = unread?.hasUnread && !isActive;
@@ -254,42 +254,88 @@ function ChannelItem({ channel, isActive, onClick, onContextMenu }: { channel: a
   const voiceStates = useGuildStore((s) => s.voiceStates);
   const members = useGuildStore((s) => s.getSelectedGuild()?.members) || [];
 
-  // For voice channels, show avatars of connected users
+  // For voice channels, show avatars of connected currentUsers
   const isVoice = channel.type === 2;
+  const isThread = channel.type === 11;
   const connectedUsers = isVoice
     ? (voiceStates.get(channel.guild_id || '') || []).filter((vs: any) => vs.channel_id === channel.id)
     : [];
   const userIds = connectedUsers.map((vs: any) => vs.user_id);
-  const userAvatars = members
+  const avatars = members
     .filter((m: any) => userIds.includes(m.user.id))
     .slice(0, 3)
     .map((m: any) => m.user);
+
+  const userLimit = channel.user_limit || 0;
+  const showLimit = userLimit > 0;
+  const isFull = showLimit && connectedUsers.length >= userLimit;
+  const isConnected = userIds.includes(user?.id || '');
+
+  // For threads, check membership and show member count
+  const threadMemberCount = isThread ? (channel.member_count || 0) : 0;
+  const isThreadMember = isThread ? (channel.thread_members?.some((m: any) => m.user_id === user?.id) ?? false) : false;
 
   return (
     <div className={`${styles.channelItemWrapper}`}>
       {hasUnread && <div className={styles.unreadDot} />}
       <div
-        className={`${styles.channel} ${isActive ? styles.active : ''} ${hasUnread ? styles.unread : ''}`}
+        className={`${styles.channel} ${isActive ? styles.active : ''} ${hasUnread ? styles.unread : ''} ${isVoice ? styles.voiceChannel : ''}`}
         onClick={onClick}
         onContextMenu={onContextMenu}
+        role="button"
+        tabIndex={0}
+        aria-label={`Salon ${channel.name}${hasUnread ? ' (non lu)' : ''}${mentionCount > 0 ? ` (${mentionCount} mentions)` : ''}`}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (onClick) onClick(); } }}
         style={{ flex: 1 }}
       >
-        {isVoice && userAvatars.length > 0 ? (
-          <div className={styles.avatarStack}>
-            {userAvatars.map((u: any) => (
-              <div key={u.id} className={styles.avatarStackAvatar}>
-                {u.avatar ? <img src={u.avatar} alt="" /> : u.username.slice(0, 1).toUpperCase()}
-              </div>
-            ))}
+        {isVoice ? (
+          <div className={styles.voiceIndicator}>
+            <Volume2 size={16} />
+            {connectedUsers.length > 0 && (
+              <span className={styles.voiceCount}>{connectedUsers.length}{showLimit ? `/${userLimit}` : ''}</span>
+            )}
           </div>
         ) : (
           <Icon size={16} />
         )}
-        <span className={styles.channelName}>{channel.name}</span>
+        <span className={`${styles.channelName} ${isFull ? styles.channelFull : ''}`}>{channel.name}</span>
+        {isThread && !isThreadMember && (
+          <button className={styles.joinButton} onClick={(e) => { e.stopPropagation(); onClick(); }}>
+            Rejoindre
+          </button>
+        )}
+        {isThread && isThreadMember && (
+          <span className={styles.connectedBadge}>Membre</span>
+        )}
+        {isThread && threadMemberCount > 0 && (
+          <span className={styles.threadCount}>{threadMemberCount} membre{threadMemberCount > 1 ? 's' : ''}</span>
+        )}
+        {isVoice && !isConnected && !isFull && (
+          <button className={styles.joinButton} onClick={(e) => { e.stopPropagation(); onClick(); }}>
+            Rejoindre
+          </button>
+        )}
+        {isVoice && isConnected && (
+          <span className={styles.connectedBadge}>Connecté</span>
+        )}
         {mentionCount > 0 && (
           <span className={styles.mentionBadge}>{mentionCount > 99 ? '99+' : mentionCount}</span>
         )}
       </div>
+      {isVoice && avatars.length > 0 && (
+        <div className={styles.voiceUsers}>
+          {avatars.map((u: any) => {
+            const vs = connectedUsers.find((v: any) => v.user_id === u.id);
+            return (
+              <div key={u.id} className={styles.voiceUserAvatar} title={u.username}>
+                {u.avatar ? <img src={u.avatar} alt="" /> : u.username.slice(0, 1).toUpperCase()}
+                {vs?.self_mute && <MicOff size={10} className={styles.voiceIconMute} />}
+                {vs?.self_deaf && <Headphones size={10} className={styles.voiceIconDeaf} />}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

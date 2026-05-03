@@ -44,10 +44,10 @@ export function MemberList() {
   };
 
   return (
-    <div className={styles.container}>
+    <div className={styles.container} role="listbox" aria-label="Membres">
       {Array.from(roleGroups.entries()).map(([name, members]) => (
-        <div key={name}>
-          <div className={styles.groupHeader}>{name} — {members.length}</div>
+        <div key={name} role="group" aria-labelledby={`group-${name}`}>
+          <div className={styles.groupHeader} id={`group-${name}`}>{name} — {members.length}</div>
           {members.map((member) => (
             <MemberItem
               key={member.user.id}
@@ -61,8 +61,8 @@ export function MemberList() {
       ))}
 
       {offlineMembers.length > 0 && (
-        <div>
-          <div className={styles.groupHeader}>HORS LIGNE — {offlineMembers.length}</div>
+        <div role="group" aria-labelledby="group-offline">
+          <div className={styles.groupHeader} id="group-offline">HORS LIGNE — {offlineMembers.length}</div>
           {offlineMembers.map((member) => (
             <MemberItem
               key={member.user.id}
@@ -101,6 +101,52 @@ function MemberItem({ member, guild, offline, onClick, onContextMenu }: { member
     .filter((r: any) => member.roles.includes(r.id) && r.color)
     .sort((a: any, b: any) => b.position - a.position)[0];
 
+  const activityEl = member.user.activities && member.user.activities.length > 0 ? (() => {
+    const activity = member.user.activities[0]; // Afficher la première activité
+    let timeEl = null;
+    let progressBar = null;
+    let liveBadge = null;
+
+    // Calculer la durée écoulée
+    if (activity.timestamps?.start) {
+      const start = activity.timestamps.start * 1000; // Convertir en ms
+      const now = Date.now();
+      const elapsed = Math.floor((now - start) / 1000);
+      const mins = Math.floor(elapsed / 60);
+      const secs = elapsed % 60;
+      timeEl = <div className={styles.richPresenceTime}>En cours depuis {mins}m {secs}s</div>;
+
+      // Barre de progression pour la musique (type=LISTENING)
+      if (activity.type === 2 && activity.timestamps.end) {
+        const end = activity.timestamps.end * 1000;
+        const total = end - start;
+        const progress = Math.min(100, Math.max(0, ((now - start) / total) * 100));
+        progressBar = (
+          <div className={styles.progressBarContainer}>
+            <div className={styles.progressBar} style={{ width: `${progress}%` }} />
+          </div>
+        );
+      }
+    }
+
+    // Badge LIVE pour STREAMING avec URL
+    if (activity.type === 1 && activity.url) {
+      liveBadge = <span className={styles.liveBadge}>LIVE</span>;
+    }
+
+    return (
+      <div className={styles.richPresence}>
+        <div className={styles.richPresenceName}>
+          {activity.name} {liveBadge}
+        </div>
+        {activity.state && <div className={styles.richPresenceDetail}>{activity.state}</div>}
+        {activity.details && <div className={styles.richPresenceDetail}>{activity.details}</div>}
+        {timeEl}
+        {progressBar}
+      </div>
+    );
+  })() : null;
+
   return (
     <div
       className={`${styles.member} ${offline ? styles.offline : ''}`}
@@ -108,6 +154,10 @@ function MemberItem({ member, guild, offline, onClick, onContextMenu }: { member
       onContextMenu={onContextMenu}
       data-user-popout-trigger="true"
       data-user-id={member.user.id}
+      role="button"
+      tabIndex={0}
+      aria-label={`${displayName}${offline ? ' (hors ligne)' : ''}`}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick?.(e as any); } }}
     >
       <div className={styles.avatar}>
         {member.user.avatar ? <img src={member.user.avatar} alt="" /> : displayName.slice(0, 1).toUpperCase()}
@@ -123,6 +173,7 @@ function MemberItem({ member, guild, offline, onClick, onContextMenu }: { member
             {member.user.custom_status_text && <span>{member.user.custom_status_text}</span>}
           </div>
         ) : null}
+        {activityEl}
       </div>
     </div>
   );

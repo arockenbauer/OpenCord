@@ -7,6 +7,7 @@ import { AppError } from '../utils/app-error.js';
 import { getIO } from '../gateway/index.js';
 import { createAdminAuditLog } from '../utils/audit-log.js';
 import { syncPremiumBadge } from '../services/badge.service.js';
+import { testSmtpConfig } from '../utils/email.js';
 import os from 'os';
 
 type PlatformSettingsResponse = {
@@ -174,7 +175,7 @@ export async function getRecentAuditActivity(req: Request, res: Response, next: 
       orderBy: { created_at: 'desc' },
       include: { admin: { select: { id: true, username: true, discriminator: true, avatar: true } } },
     });
-    res.json({ logs: logs.map((l) => ({ ...l, details: l.details ? JSON.parse(l.details) : null })) });
+    res.json({ logs: logs.map((l) => ({ ...l, details: l.details || null })) });
   } catch (err) {
     next(err);
   }
@@ -629,6 +630,7 @@ export async function getGuildsAdmin(req: Request, res: Response, next: NextFunc
       total,
       page,
       limit,
+      pages: Math.ceil(total / limit),
     });
   } catch (err) {
     next(err);
@@ -697,6 +699,96 @@ export async function updateGuildFeatures(req: Request, res: Response, next: Nex
   }
 }
 
+// ── STORAGE STATS ──────────────────────────────────────────────────────
+export async function getStorageStats(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const uploadDir = process.env.UPLOAD_DIR || './uploads';
+    const storageLimit = Number(process.env.STORAGE_LIMIT_PER_GUILD) || 5368709120;
+
+    // Calculate storage breakdown
+    const attachmentsSize = await prisma.attachment.aggregate({
+      where: { deleted_at: null },
+      _sum: { size: true },
+    });
+
+    const getDirSize = (dirPath: string): number => {
+      let total = 0;
+      try {
+        if (!fs.existsSync(dirPath)) return 0;
+        const files = fs.readdirSync(dirPath, { withFileTypes: true });
+        for (const file of files) {
+          const fullPath = path.join(dirPath, file.name);
+          if (file.isDirectory()) {
+            total += getDirSize(fullPath);
+          } else {
+            total += fs.statSync(fullPath).size;
+          }
+        }
+      } catch { /* ignore */ }
+      return total;
+    };
+
+    const avatarsSize = getDirSize(path.join(uploadDir, 'avatars'));
+    const bannersSize = getDirSize(path.join(uploadDir, 'banners'));
+    const guildIconsSize = getDirSize(path.join(uploadDir, 'guild-icons'));
+    const guildBannersSize = getDirSize(path.join(uploadDir, 'guild-banners'));
+    const emojisSize = getDirSize(path.join(uploadDir, 'emojis'));
+    const stickersSize = getDirSize(path.join(uploadDir, 'stickers'));
+    const attachmentsDiskSize = getDirSize(path.join(uploadDir, 'attachments'));
+
+    const totalUsed = avatarsSize + bannersSize + guildIconsSize + guildBannersSize + emojisSize + stickersSize + attachmentsDiskSize;
+
+    // Top guilds by storage
+    const guilds = await prisma.guild.findMany({
+      select: { id: true, name: true },
+    });
+
+    const topGuilds = [];
+    for (const guild of guilds) {
+      const channels = await prisma.channel.findMany({
+        where: { guild_id: guild.id },
+        select: { id: true },
+      });
+      const channelIds = channels.map(c => c.id);
+
+      const usage = await prisma.attachment.aggregate({
+        where: {
+          message: { channel_id: { in: channelIds } },
+          deleted_at: null,
+        },
+        _sum: { size: true },
+      });
+
+      if (usage._sum.size) {
+        topGuilds.push({
+          guildId: guild.id,
+          guildName: guild.name,
+          usedBytes: usage._sum.size,
+        });
+      }
+    }
+
+    topGuilds.sort((a, b) => b.usedBytes - a.usedBytes);
+    const topGuildsByStorage = topGuilds.slice(0, 10);
+
+    res.json({
+      totalUsedBytes: totalUsed,
+      breakdown: {
+        attachments: attachmentsDiskSize,
+        avatars: avatarsSize,
+        guildsMedia: guildIconsSize + guildBannersSize,
+        emojis: emojisSize,
+        stickers: stickersSize,
+      },
+      topGuildsByStorage,
+      limitBytes: storageLimit,
+      usagePercent: totalUsed / storageLimit,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 // ── REPORTS ───────────────────────────────────────────────────────────────
 
 export async function getReportsAdmin(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -720,7 +812,19 @@ export async function getReportsAdmin(req: Request, res: Response, next: NextFun
       prisma.report.count({ where }),
     ]);
 
-    res.json({ reports, total, page });
+    res.json({
+      reports: reports.map((r) => ({
+        id: r.id,
+        reporter: r.reporter,
+        target_type: r.target_type,
+        target_id: r.target_id,
+        reason: r.reason,
+        status: r.status,
+        created_at: r.created_at,
+      })),
+      total,
+      page,
+    });
   } catch (err) {
     next(err);
   }
@@ -733,7 +837,7 @@ export async function updateReportAdmin(req: Request, res: Response, next: NextF
       where: { id: req.params.reportId },
       data: {
         status,
-        notes: notes !== undefined ? notes : undefined,
+        notes: notes !== undefined ? String(notes) : undefined,
         reviewer_id: req.user!.userId,
         resolved_at: status === 'resolved' || status === 'dismissed' ? new Date() : undefined,
       },
@@ -889,7 +993,7 @@ export async function getAuditLogs(req: Request, res: Response, next: NextFuncti
     ]);
 
     res.json({
-      logs: logs.map((l) => ({ ...l, details: l.details ? JSON.parse(l.details) : null })),
+      logs: logs.map((l) => ({ ...l, details: l.details || null })),
       total,
       page,
     });
@@ -924,34 +1028,12 @@ export async function getAllChannelsAdmin(req: Request, res: Response, next: Nex
   }
 }
 
+import { createBackup as svcCreateBackup, getBackupList as svcGetBackupList, restoreBackup as svcRestoreBackup, deleteBackup as svcDeleteBackup, startBackupCron, uploadBackup as svcUploadBackup } from '../services/backup.service.js';
+
 export async function getBackupList(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const backupDir = process.env.BACKUP_DIR || './backups';
-
-    if (!fs.existsSync(backupDir)) {
-      res.json({ backups: [], total_size_bytes: 0 });
-      return;
-    }
-
-    const backups = fs.readdirSync(backupDir)
-      .filter((f) => f.endsWith('.db') || f.endsWith('.json'))
-      .map((f) => {
-        const stats = fs.statSync(path.join(backupDir, f));
-        return {
-          id: f,
-          filename: f,
-          size_bytes: stats.size,
-          created_at: stats.mtime.toISOString(),
-          status: 'completed' as const,
-          note: null,
-        };
-      })
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
-    res.json({
-      backups,
-      total_size_bytes: backups.reduce((total, backup) => total + backup.size_bytes, 0),
-    });
+    const result = await svcGetBackupList();
+    res.json(result);
   } catch (err) {
     next(err);
   }
@@ -959,23 +1041,12 @@ export async function getBackupList(req: Request, res: Response, next: NextFunct
 
 export async function createBackup(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const backupDir = process.env.BACKUP_DIR || './backups';
-    fs.mkdirSync(backupDir, { recursive: true });
-
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const dbUrl = process.env.DATABASE_URL || 'file:./prisma/opencord.db';
-    const dbPath = path.resolve(dbUrl.replace('file:', '').replace(/\?.*$/, ''));
-    const backupPath = path.join(backupDir, `backup-${timestamp}.db`);
-
-    if (fs.existsSync(dbPath)) {
-      fs.copyFileSync(dbPath, backupPath);
-      const stats = fs.statSync(backupPath);
-      res.status(201).json({
-        backup: { name: `backup-${timestamp}.db`, size: stats.size, created_at: stats.mtime },
-      });
-    } else {
-      throw new AppError(500, 'DB_NOT_FOUND', 'Database file not found');
-    }
+    const includeUploads = req.body.include_uploads !== false;
+    const result = await svcCreateBackup(includeUploads, req.user!.userId);
+    res.status(202).json({
+      status: 'in_progress',
+      estimated_duration_seconds: 120,
+    });
   } catch (err) {
     next(err);
   }
@@ -983,15 +1054,13 @@ export async function createBackup(req: Request, res: Response, next: NextFuncti
 
 export async function restoreBackup(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const backupDir = process.env.BACKUP_DIR || './backups';
-    const backupPath = path.join(backupDir, req.params.backupId);
-    if (!fs.existsSync(backupPath)) throw new AppError(404, 'NOT_FOUND', 'Backup not found');
-    const dbUrl = process.env.DATABASE_URL || 'file:./prisma/opencord.db';
-    const dbPath = path.resolve(dbUrl.replace('file:', '').replace(/\?.*$/, ''));
-    fs.copyFileSync(backupPath, dbPath);
-    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || 'unknown';
-    await createAdminAuditLog({ adminId: req.user!.userId, action: 'BACKUP_RESTORE', targetType: 'backup', targetId: req.params.backupId, ipAddress: ip });
-    res.json({ success: true });
+    const { confirm, restore_uploads } = req.body;
+    if (confirm !== 'RESTORE') throw new AppError(400, 'INVALID_CONFIRM', 'confirm field must be exactly "RESTORE"');
+    const result = await svcRestoreBackup(req.params.backupId, restore_uploads === true, req.user!.userId);
+    res.status(202).json({
+      status: 'in_progress',
+      warning: 'Le serveur va redémarrer après la restauration. Toutes les sessions seront terminées.',
+    });
   } catch (err) {
     next(err);
   }
@@ -999,13 +1068,66 @@ export async function restoreBackup(req: Request, res: Response, next: NextFunct
 
 export async function deleteBackup(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const backupDir = process.env.BACKUP_DIR || './backups';
-    const backupPath = path.join(backupDir, req.params.backupId);
-    if (!fs.existsSync(backupPath)) throw new AppError(404, 'NOT_FOUND', 'Backup not found');
-    fs.unlinkSync(backupPath);
-    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || 'unknown';
-    await createAdminAuditLog({ adminId: req.user!.userId, action: 'BACKUP_DELETE', targetType: 'backup', targetId: req.params.backupId, ipAddress: ip });
+    await svcDeleteBackup(req.params.backupId, req.user!.userId);
     res.status(204).send();
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function downloadBackup(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const backupDir = process.env.BACKUP_DIR || './backups';
+    const backupPath = path.join(backupDir, req.params.filename);
+    if (!backupPath.startsWith(path.resolve(backupDir))) throw new AppError(403, 'FORBIDDEN', 'Invalid path');
+    if (!fs.existsSync(backupPath)) throw new AppError(404, 'NOT_FOUND', 'Backup not found');
+    res.set('Content-Disposition', `attachment; filename="${req.params.filename}"`);
+    res.set('Cache-Control', 'no-store');
+    res.sendFile(backupPath);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function uploadBackup(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    // Assume multer middleware handled the upload
+    const file = (req as any).file;
+    if (!file) throw new AppError(400, 'NO_FILE', 'No backup file uploaded');
+    const result = await svcUploadBackup(file.path, req.user!.userId);
+    res.status(201).json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+
+export async function testEmailConfig(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const user = (req as any).user;
+    if (!user?.email) throw new AppError(400, 'NO_EMAIL', 'Admin email not found');
+    const result = await testSmtpConfig(user.email);
+    if (!result.sent) throw new AppError(500, 'SMTP_TEST_FAILED', result.error || 'Unknown error');
+    res.json({ sent: true, message_id: result.messageId });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ── GDPR - FORCE DELETE USER ──────────────────────────────────────────
+export async function forceDeleteUser(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { executeAccountDeletion } = await import('../services/export.service.js');
+    const reason = req.body.reason || 'Admin forced deletion';
+    await executeAccountDeletion(req.params.userId, reason);
+    await createAdminAuditLog({
+      adminId: (req as any).user.userId,
+      action: 'USER_FORCE_DELETE',
+      targetId: req.params.userId,
+      targetType: 'user',
+      details: { reason },
+    });
+    res.json({ status: 'deleted', message: 'User has been permanently deleted' });
   } catch (err) {
     next(err);
   }

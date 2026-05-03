@@ -12,7 +12,7 @@ export async function getAnnouncements(req: Request, res: Response, next: NextFu
       orderBy: { created_at: 'desc' },
       include: { creator: { select: { id: true, username: true, discriminator: true } } },
     });
-    res.json({ announcements });
+    res.json(announcements);
   } catch (err) {
     next(err);
   }
@@ -28,7 +28,7 @@ export async function getActiveAnnouncements(req: Request, res: Response, next: 
       },
       orderBy: { created_at: 'desc' },
     });
-    res.json({ announcements });
+    res.json(announcements);
   } catch (err) {
     next(err);
   }

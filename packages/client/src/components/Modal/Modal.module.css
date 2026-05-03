@@ -11,25 +11,31 @@
 .overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.85);
-  backdrop-filter: blur(4px);
+  background: rgba(0, 0, 0, 0.7);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  animation: overlayFadeIn 200ms var(--ease-out);
+  animation: overlayFadeIn 200ms ease-out;
 }
 
 .modal {
-  background: var(--bg-modal);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-medium), 0 0 0 1px rgba(0, 0, 0, 0.2);
+  background: var(--bg-floating);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-high);
   max-width: 440px;
   width: 90%;
   max-height: 80vh;
   overflow-y: auto;
   padding: var(--spacing-8);
-  animation: modalScaleIn 200ms var(--ease-out);
+  animation: modalScaleIn 200ms ease-out;
+}
+
+.modalTitle {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  margin-bottom: var(--spacing-4);
+  text-align: center;
 }
 
 .title {

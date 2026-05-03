@@ -5,6 +5,11 @@
   overflow: hidden;
 }
 
+.mainRegion {
+  flex: 1;
+  min-width: 0;
+}
+
 .contextMenu {
   position: fixed;
   z-index: 1200;

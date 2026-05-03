@@ -1,0 +1,90 @@
+.reaction {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: 2px 6px;
+  border-radius: var(--radius-lg);
+  background: var(--bg-modifier-hover);
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  position: relative;
+  overflow: visible;
+  transition: background 150ms, border-color 150ms;
+}
+
+.reaction:hover {
+  border-color: var(--border);
+}
+
+.reacted {
+  background: rgba(88, 101, 242, 0.15);
+  border-color: rgba(88, 101, 242, 0.3);
+}
+
+.emoji {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.count {
+  color: var(--text-muted);
+  font-weight: 600;
+  min-width: 8px;
+  text-align: center;
+}
+
+.burstCount {
+  color: #5865F2;
+}
+
+.bursting {
+  animation: burstPulse 0.6s ease-out;
+}
+
+@keyframes burstPulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.2);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.burstParticles {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.particle {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--particle-color, #5865F2);
+  animation: particleExplode 1s ease-out forwards;
+  animation-delay: var(--particle-delay, 0s);
+  transform-origin: center;
+}
+
+@keyframes particleExplode {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(
+      calc(cos(var(--particle-angle, 0deg)) * 30px),
+      calc(sin(var(--particle-angle, 0deg)) * 30px)
+    ) scale(0);
+    opacity: 0;
+  }
+}

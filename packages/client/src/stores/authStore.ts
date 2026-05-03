@@ -60,7 +60,7 @@ interface AuthState {
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   relationships: [],
-  isAuthenticated: !!localStorage.getItem('access_token'),
+  isAuthenticated: false, // Will be set to true after successful login or fetchMe
   isLoading: false,
   error: null,
 
@@ -77,7 +77,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         return { twoFactorRequired: true, partialToken: data.partial_token };
       }
 
-      setTokens(data.access_token, data.refresh_token);
+      setTokens();
       set({ user: data.user, relationships: data.relationships || [], isAuthenticated: true, isLoading: false });
       return {};
     } catch (err: any) {
@@ -93,7 +93,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         method: 'POST',
         body: JSON.stringify(data),
       });
-      setTokens(res.access_token, res.refresh_token);
+      setTokens();
       set({ user: res.user, relationships: res.relationships || [], isAuthenticated: true, isLoading: false });
     } catch (err: any) {
       set({ error: err.message, isLoading: false });
@@ -108,7 +108,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         method: 'POST',
         body: JSON.stringify({ code, partial_token: partialToken }),
       });
-      setTokens(data.access_token, data.refresh_token);
+      setTokens();
       set({ user: data.user, relationships: data.relationships || [], isAuthenticated: true, isLoading: false });
     } catch (err: any) {
       set({ error: err.message, isLoading: false });
@@ -118,13 +118,7 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   logout: async () => {
     try {
-      const refreshToken = localStorage.getItem('refresh_token');
-      if (refreshToken) {
-        await api('/api/auth/logout', {
-          method: 'POST',
-          body: JSON.stringify({ refresh_token: refreshToken }),
-        });
-      }
+      await api('/api/auth/logout', { method: 'POST' });
     } catch {}
     clearTokens();
     set({ user: null, relationships: [], isAuthenticated: false });
@@ -135,7 +129,6 @@ export const useAuthStore = create<AuthState>((set) => ({
       const user = await api<any>('/api/users/@me');
       set({ user, isAuthenticated: true });
     } catch {
-      clearTokens();
       set({ user: null, relationships: [], isAuthenticated: false });
     }
   },

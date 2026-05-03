@@ -1,0 +1,13 @@
+{
+  "name": "Message Logger",
+  "slug": "message-logger",
+  "description": "Journalise les messages édités et supprimés.",
+  "version": "1.0.0",
+  "author": "Équipe OpenCord",
+  "type": "SERVER",
+  "hooks": [
+    "message.beforeCreate",
+    "message.afterCreate",
+    "message.beforeDelete"
+  ]
+}

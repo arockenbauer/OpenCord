@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Upload, Trash2, Plus, Check, ChevronDown, ShieldAlert } from 'lucide-react';
+import { X, Upload, Trash2, Plus, Check, ChevronDown, ShieldAlert, GripVertical, Search, X as XIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import { useGuildStore } from '../../stores/guildStore';
 import { useAuthStore } from '../../stores/authStore';
@@ -8,6 +8,10 @@ import { api } from '../../services/api';
 import { Modal } from '../../components/Modal/Modal';
 import { GuildBoostPage } from '../Guild/GuildBoostPage';
 import { buildDefaultPluginSettings, parsePluginSchema } from '../../utils/plugins';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import styles from './ServerSettingsPage.module.css';
 
 const PERMISSION_DEFS = [
@@ -558,6 +562,31 @@ function MembersTab({ guild, currentUser }: { guild: any; currentUser: any }) {
   );
 }
 
+function SortableRoleItem({ role, isSelected, onSelect, onMoveUp, onMoveDown, isFirst, isLast }: any) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: role.id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`${styles.roleItemRow} ${isSelected ? styles.roleItemRowActive : ''} ${isDragging ? styles.roleItemRowDragging : ''}`}
+    >
+      <div className={styles.roleDragHandle} {...attributes} {...listeners}>
+        <GripVertical size={14} />
+      </div>
+      <button className={styles.roleItemBtn} onClick={() => onSelect(role)}>
+        <span className={styles.roleColorDot} style={role.color ? { background: role.color } : undefined} />
+        {role.unicode_emoji && <span className={styles.roleEmoji}>{role.unicode_emoji}</span>}
+        <span className={styles.roleItemName}>{role.name}</span>
+      </button>
+    </div>
+  );
+}
+
 function RolesTab({ guild }: { guild: any }) {
   const updateGuildStore = useGuildStore((s) => s.updateGuild);
   const [selectedRole, setSelectedRole] = useState<any>(null);
@@ -573,7 +602,9 @@ function RolesTab({ guild }: { guild: any }) {
   const [roleIcon, setRoleIcon] = useState<string | null>(null);
   const [roleMembers, setRoleMembers] = useState<any[]>([]);
   const [roleMembersLoading, setRoleMembersLoading] = useState(false);
+  const [roleSearch, setRoleSearch] = useState('');
   const iconInputRef = useRef<HTMLInputElement>(null);
+  const [roles, setRoles] = useState<any[]>(guild.roles || []);
 
   useEffect(() => {
     if (!selectedRole || activeRoleTab !== 'members') return;
@@ -689,12 +720,38 @@ function RolesTab({ guild }: { guild: any }) {
     setRolePerms((prev) => (prev & bit) !== 0n ? prev & ~bit : prev | bit);
   };
 
-  const sortedRoles = [...(guild.roles || [])].sort((a: any, b: any) => b.position - a.position);
+  const sortedRoles = [...roles].sort((a: any, b: any) => b.position - a.position);
+  const filteredRoles = sortedRoles.filter((r: any) =>
+    roleSearch.trim() === '' || r.name.toLowerCase().includes(roleSearch.toLowerCase())
+  );
   const permGroups = PERMISSION_DEFS.reduce<Record<string, typeof PERMISSION_DEFS>>((acc, p) => {
     if (!acc[p.group]) acc[p.group] = [];
     acc[p.group]!.push(p);
     return acc;
   }, {});
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  const handleDragEnd = async (event: any) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = sortedRoles.findIndex((r: any) => r.id === active.id);
+    const newIndex = sortedRoles.findIndex((r: any) => r.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+    const newRoles = arrayMove(sortedRoles, oldIndex, newIndex);
+    setRoles(newRoles);
+    try {
+      const positions = newRoles.map((r: any, i: number) => ({ id: r.id, position: newRoles.length - i }));
+      await api(`/api/guilds/${guild.id}/roles/positions`, {
+        method: 'PATCH',
+        body: JSON.stringify(positions),
+      });
+      updateGuildStore(guild.id, { roles: newRoles });
+    } catch (e: any) { setMsg(e.message); }
+  };
 
   return (
     <div className={styles.splitLayout}>
@@ -703,24 +760,37 @@ function RolesTab({ guild }: { guild: any }) {
         <button className={styles.primaryBtn} style={{ marginBottom: 12, width: '100%' }} onClick={handleCreate}>
           <Plus size={16} /> Créer un rôle
         </button>
-        <div className={styles.roleList}>
-          {sortedRoles.map((role: any, idx: number) => (
-            <div
-              key={role.id}
-              className={`${styles.roleItemRow} ${selectedRole?.id === role.id ? styles.roleItemRowActive : ''}`}
-            >
-              <div className={styles.roleArrows}>
-                <button className={styles.roleArrow} onClick={() => moveRole(role.id, -1)} disabled={idx === 0}>↑</button>
-                <button className={styles.roleArrow} onClick={() => moveRole(role.id, 1)} disabled={idx === sortedRoles.length - 1}>↓</button>
-              </div>
-              <button className={styles.roleItemBtn} onClick={() => selectRole(role)}>
-                <span className={styles.roleColorDot} style={role.color ? { background: role.color } : undefined} />
-                {role.unicode_emoji && <span className={styles.roleEmoji}>{role.unicode_emoji}</span>}
-                <span className={styles.roleItemName}>{role.name}</span>
-              </button>
-            </div>
-          ))}
+        <div className={styles.roleSearchWrap}>
+          <Search size={14} className={styles.roleSearchIcon} />
+          <input
+            className={styles.roleSearchInput}
+            placeholder="Rechercher un rôle..."
+            value={roleSearch}
+            onChange={(e) => setRoleSearch(e.target.value)}
+          />
+          {roleSearch && (
+            <button className={styles.roleSearchClear} onClick={() => setRoleSearch('')}>
+              <XIcon size={12} />
+            </button>
+          )}
         </div>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={filteredRoles.map((r: any) => r.id)} strategy={verticalListSortingStrategy}>
+            <div className={styles.roleList}>
+              {filteredRoles.map((role: any) => (
+                <SortableRoleItem
+                  key={role.id}
+                  role={role}
+                  isSelected={selectedRole?.id === role.id}
+                  onSelect={selectRole}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
+        {filteredRoles.length === 0 && (
+          <div className={styles.roleListEmpty}>Aucun rôle trouvé.</div>
+        )}
         {msg && <div className={styles.feedback}>{msg}</div>}
       </div>
 
@@ -1748,7 +1818,7 @@ function GuildPluginsTab({ guild }: { guild: any }) {
     try {
       const [catalog, preferences] = await Promise.all([
         api.plugins.list<any[]>(),
-        api.plugins.getGuildSettings<any[]>(guild.id),
+        api.plugins.getGuildSettings<any[]>(guild?.id),
       ]);
 
       const preferenceMap = new Map((preferences || []).map((entry: any) => [entry.plugin.slug, entry]));
@@ -1758,8 +1828,8 @@ function GuildPluginsTab({ guild }: { guild: any }) {
           const saved = preferenceMap.get(plugin.slug);
           return {
             plugin,
-            enabled: saved?.enabled ?? plugin.enabled_by_default ?? false,
-            settings: saved?.settings ?? buildDefaultPluginSettings(plugin.settings_schema),
+            enabled: saved?.settings?.enabled ?? plugin.enabled_by_default ?? false,
+            settings: saved?.settings?.settings ?? buildDefaultPluginSettings(plugin.settings_schema),
             dirty: false,
           };
         });
@@ -1786,7 +1856,7 @@ function GuildPluginsTab({ guild }: { guild: any }) {
     setSavingSlug(slug);
     setMessage('');
     try {
-      const response = await api.plugins.updateGuildSettings<any>(guild.id, slug, {
+      const response = await api.plugins.updateGuildSettings<any>(guild?.id, slug, {
         enabled: current.enabled,
         settings: current.settings,
       });

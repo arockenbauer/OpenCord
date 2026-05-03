@@ -296,6 +296,25 @@ async function main() {
     });
   }
 
+  const discoveryCategories = [
+    { id: 'cat_gaming', name: 'gaming', label_key: 'discovery.categories.gaming', icon: '🎮', position: 1 },
+    { id: 'cat_music', name: 'music', label_key: 'discovery.categories.music', icon: '🎵', position: 2 },
+    { id: 'cat_education', name: 'education', label_key: 'discovery.categories.education', icon: '📚', position: 3 },
+    { id: 'cat_science_tech', name: 'science_tech', label_key: 'discovery.categories.science_tech', icon: '🔬', position: 4 },
+    { id: 'cat_entertainment', name: 'entertainment', label_key: 'discovery.categories.entertainment', icon: '🎬', position: 5 },
+    { id: 'cat_community', name: 'community', label_key: 'discovery.categories.community', icon: '🤝', position: 6 },
+    { id: 'cat_creative', name: 'creative', label_key: 'discovery.categories.creative', icon: '🎨', position: 7 },
+    { id: 'cat_other', name: 'other', label_key: 'discovery.categories.other', icon: '💬', position: 8 },
+  ];
+
+  for (const category of discoveryCategories) {
+    await prisma.discoveryCategory.upsert({
+      where: { id: category.id },
+      create: category,
+      update: category,
+    });
+  }
+
   console.log('Seed completed successfully');
 }
 
@@ -305,3 +324,16 @@ main()
     process.exit(1);
   })
   .finally(() => prisma.$disconnect());
+// Seed status monitors
+const monitorCount = await prisma.statusMonitor.count();
+if (monitorCount === 0) {
+  console.log('Seeding status monitors...');
+  await prisma.statusMonitor.createMany({
+    data: [
+      { id: generateSnowflake(), name: 'API', description: 'Vérifie GET /api/health', type: 'http', endpoint: 'http://localhost:3001/api/health', interval_seconds: 60, enabled: true, position: 0 },
+      { id: generateSnowflake(), name: 'WebSocket', description: 'Vérifie la connexion Socket.IO', type: 'websocket', interval_seconds: 60, enabled: true, position: 1 },
+      { id: generateSnowflake(), name: 'Base de données', description: 'Vérifie SELECT 1 sur SQLite', type: 'database', interval_seconds: 60, enabled: true, position: 2 },
+      { id: generateSnowflake(), name: 'Stockage fichiers', description: 'Vérifie l\'accès en lecture/écriture au dossier uploads', type: 'custom', interval_seconds: 300, enabled: true, position: 3 },
+    ],
+  });
+}

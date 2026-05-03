@@ -1,0 +1,25 @@
+{
+  "name": "Always Animate",
+  "slug": "always-animate",
+  "description": "Anime tout ce qui peut être animé.",
+  "version": "1.0.0",
+  "author": "Équipe OpenCord",
+  "icon": "✨",
+  "type": "CLIENT",
+  "settingsSchema": {
+    "type": "object",
+    "properties": {
+      "speed": {
+        "type": "number",
+        "title": "Vitesse d'animation",
+        "default": 1,
+        "minimum": 0.1,
+        "maximum": 3
+      }
+    }
+  },
+  "hooks": [
+    "message.render",
+    "channel.header"
+  ]
+}

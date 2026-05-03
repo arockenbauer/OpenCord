@@ -19,7 +19,7 @@ export function ForgotPasswordPage() {
     setMessage('');
 
     try {
-      const data = await api.auth.requestPasswordReset<{ message: string }>({ email });
+      const data = await api.post<{ message: string }>('/auth/forgot-password', { email });
       setMessage(data.message);
     } catch (err: any) {
       setError(err.message || t('app.error'));

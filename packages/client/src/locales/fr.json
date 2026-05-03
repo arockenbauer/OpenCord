@@ -566,6 +566,22 @@
     "message_failed": "Échec de l'envoi",
     "retry": "Réessayer"
   },
+  "notifications": {
+    "title": "Notifications",
+    "mark_all_read": "Tout marquer comme lu",
+    "empty": "Aucune notification pour le moment.",
+    "loading": "Chargement…",
+    "unread_count": "{{count}} non lue{{count > 1 ? 's' : ''}}",
+    "types": {
+      "MENTION": "{{user}} vous a mentionné dans #{{channel}}",
+      "DM": "Nouveau message de {{user}}",
+      "FRIEND_REQUEST": "{{user}} vous a envoyé une demande d'ami",
+      "FRIEND_ACCEPT": "{{user}} a accepté votre demande d'ami",
+      "GUILD_INVITE": "{{user}} vous invite à rejoindre {{guild}}",
+      "SYSTEM": "Notification système",
+      "ADMIN_ANNOUNCEMENT": "Annonce : {{title}}"
+    }
+  },
   "common": {
     "save": "Enregistrer",
     "cancel": "Annuler",

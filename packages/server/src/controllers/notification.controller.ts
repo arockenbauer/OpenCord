@@ -7,19 +7,26 @@ import { GatewayEvents } from '@opencord/shared';
 
 export async function getNotifications(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const limit = Math.min(Number(req.query.limit) || 25, 100);
-    const before = req.query.before as string | undefined;
+    const page = Math.max(Number(req.query.page) || 1, 1);
+    const limit = Math.min(Number(req.query.limit) || 20, 100);
+    const unreadOnly = req.query.unread_only === 'true';
+    const skip = (page - 1) * limit;
 
     const where: any = { user_id: req.user!.userId };
-    if (before) where.id = { lt: before };
+    if (unreadOnly) where.read = false;
 
-    const notifications = await prisma.notification.findMany({
-      where,
-      take: limit,
-      orderBy: { created_at: 'desc' },
-    });
+    const [notifications, total, unreadCount] = await Promise.all([
+      prisma.notification.findMany({
+        where,
+        take: limit,
+        skip,
+        orderBy: { created_at: 'desc' },
+      }),
+      prisma.notification.count({ where: { user_id: req.user!.userId } }),
+      prisma.notification.count({ where: { user_id: req.user!.userId, read: false } }),
+    ]);
 
-    res.json({ notifications });
+    res.json({ notifications, total, unread_count: unreadCount, page, limit });
   } catch (err) {
     next(err);
   }
@@ -147,19 +154,26 @@ export async function getChannelNotificationSettings(req: Request, res: Response
 
 export async function updateChannelNotificationSettings(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const setting = await prisma.notificationSettings.upsert({
-      where: { user_id_channel_id: { user_id: req.user!.userId, channel_id: req.params.channelId } },
-      create: {
-        id: generateSnowflake(),
-        user_id: req.user!.userId,
-        channel_id: req.params.channelId,
-        muted: req.body.muted ?? false,
-        suppress_everyone: req.body.suppress_everyone ?? false,
-        suppress_roles: req.body.suppress_roles ?? false,
-        message_notifications: req.body.message_notifications ?? 0,
-      },
-      update: req.body,
-    });
+    const where = { user_id: req.user!.userId, channel_id: req.params.channelId };
+    let setting = await prisma.notificationSettings.findFirst({ where });
+    if (!setting) {
+      setting = await prisma.notificationSettings.create({
+        data: {
+          id: generateSnowflake(),
+          user_id: req.user!.userId,
+          channel_id: req.params.channelId,
+          muted: req.body.muted ?? false,
+          suppress_everyone: req.body.suppress_everyone ?? false,
+          suppress_roles: req.body.suppress_roles ?? false,
+          message_notifications: req.body.message_notifications ?? 0,
+        },
+      });
+    } else {
+      setting = await prisma.notificationSettings.update({
+        where: { user_id_guild_id_channel_id: { user_id: req.user!.userId, guild_id: undefined as any, channel_id: req.params.channelId } },
+        data: req.body,
+      });
+    }
     res.json(setting);
   } catch (err) {
     next(err);
@@ -179,19 +193,26 @@ export async function getGuildNotificationSettings(req: Request, res: Response, 
 
 export async function updateGuildNotificationSettings(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const setting = await prisma.notificationSettings.upsert({
-      where: { user_id_guild_id: { user_id: req.user!.userId, guild_id: req.params.guildId } },
-      create: {
-        id: generateSnowflake(),
-        user_id: req.user!.userId,
-        guild_id: req.params.guildId,
-        muted: req.body.muted ?? false,
-        suppress_everyone: req.body.suppress_everyone ?? false,
-        suppress_roles: req.body.suppress_roles ?? false,
-        message_notifications: req.body.message_notifications ?? 0,
-      },
-      update: req.body,
-    });
+    const where = { user_id: req.user!.userId, guild_id: req.params.guildId };
+    let setting = await prisma.notificationSettings.findFirst({ where });
+    if (!setting) {
+      setting = await prisma.notificationSettings.create({
+        data: {
+          id: generateSnowflake(),
+          user_id: req.user!.userId,
+          guild_id: req.params.guildId,
+          muted: req.body.muted ?? false,
+          suppress_everyone: req.body.suppress_everyone ?? false,
+          suppress_roles: req.body.suppress_roles ?? false,
+          message_notifications: req.body.message_notifications ?? 0,
+        },
+      });
+    } else {
+      setting = await prisma.notificationSettings.update({
+        where: { user_id_guild_id_channel_id: { user_id: req.user!.userId, guild_id: req.params.guildId, channel_id: undefined as any } },
+        data: req.body,
+      });
+    }
     res.json(setting);
   } catch (err) {
     next(err);

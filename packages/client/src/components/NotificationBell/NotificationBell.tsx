@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Bell } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { fr, enUS } from 'date-fns/locale';
 import { api } from '../../services/api';
 import { useNotificationStore } from '../../stores/notificationStore';
 import { useGuildStore } from '../../stores/guildStore';
 
-function parseNotification(notification: any) {
+function parseNotification(notification: any, t: any) {
   let parsed = notification.data;
   if (typeof parsed === 'string') {
     try {
@@ -15,30 +16,39 @@ function parseNotification(notification: any) {
       parsed = {};
     }
   }
+
+  let title = notification.title || parsed?.title;
+  let body = notification.body || parsed?.body;
+
+  if (!title) {
+    const type = notification.type?.toUpperCase();
+    if (type === 'FRIEND_REQUEST' && parsed.sender) {
+      title = t('notifications.types.FRIEND_REQUEST', { user: parsed.sender.username });
+    } else if (type === 'GUILD_INVITE' && parsed.guild) {
+      title = t('notifications.types.GUILD_INVITE', { user: parsed.inviter?.username, guild: parsed.guild.name });
+    } else if (type === 'MESSAGE_MENTION' || type === 'message_mention') {
+      title = t('notifications.types.MENTION', { user: parsed.sender?.username, channel: parsed.channel_name });
+    } else if (type === 'ANNOUNCEMENT' || type === 'announcement') {
+      title = t('notifications.types.ADMIN_ANNOUNCEMENT', { title: parsed.title });
+    } else {
+      title = t('notifications.title');
+    }
+  }
+
+  if (!body && parsed.body) {
+    body = parsed.body;
+  }
+
   return {
     ...notification,
     parsedData: parsed || {},
-    title: notification.title || parsed?.title || getNotificationTitle(notification.type),
-    body: notification.body || parsed?.body || getNotificationBody(notification.type, parsed || {}),
+    title,
+    body,
   };
 }
 
-function getNotificationTitle(type: string) {
-  if (type === 'friend_request') return 'Nouvelle demande d’ami';
-  if (type === 'guild_invite') return 'Invitation de serveur';
-  if (type === 'message_mention') return 'Nouvelle mention';
-  if (type === 'announcement') return 'Nouvelle annonce';
-  return 'Notification';
-}
-
-function getNotificationBody(type: string, data: any) {
-  if (type === 'friend_request' && data.sender) return `${data.sender.username} vous a envoyé une demande d’ami.`;
-  if (type === 'guild_invite' && data.guild) return `Invitation vers ${data.guild.name}.`;
-  if (type === 'announcement' && data.announcement?.title) return data.announcement.title;
-  return '';
-}
-
 export function NotificationBell() {
+  const { t, i18n } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
   const selectGuild = useGuildStore((s) => s.selectGuild);
   const selectChannel = useGuildStore((s) => s.selectChannel);
@@ -51,7 +61,12 @@ export function NotificationBell() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const parsedNotifications = useMemo(() => notifications.map(parseNotification), [notifications]);
+  const locale = i18n.language === 'fr' ? fr : enUS;
+
+  const parsedNotifications = useMemo(
+    () => notifications.map((n) => parseNotification(n, t)),
+    [notifications, t]
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -78,7 +93,7 @@ export function NotificationBell() {
       const data = await api<{ notifications: any[] }>('/api/notifications');
       setNotifications(data.notifications || []);
     } catch (err: any) {
-      setError(err.message || 'Impossible de charger les notifications.');
+      setError(t('notifications.loading'));
     }
     setLoading(false);
   };
@@ -125,7 +140,7 @@ export function NotificationBell() {
           boxShadow: 'var(--shadow-high)',
           backdropFilter: 'blur(16px)',
         }}
-        title="Notifications"
+        title={t('notifications.title')}
       >
         <Bell size={20} />
         {unreadCount > 0 && (
@@ -172,20 +187,22 @@ export function NotificationBell() {
         >
           <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
             <div>
-              <div style={{ fontWeight: 700, fontSize: 16 }}>Notifications</div>
-              <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>{unreadCount} non lue{unreadCount > 1 ? 's' : ''}</div>
+              <div style={{ fontWeight: 700, fontSize: 16 }}>{t('notifications.title')}</div>
+              <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+                {t('notifications.unread_count', { count: unreadCount })}
+              </div>
             </div>
             <button onClick={() => void handleMarkAllRead()} style={{ color: 'var(--text-link)', fontSize: 12, fontWeight: 600 }}>
-              Tout marquer lu
+              {t('notifications.mark_all_read')}
             </button>
           </div>
 
           <div style={{ overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
             {error && <div style={{ color: 'var(--text-danger)', fontSize: 13 }}>{error}</div>}
             {loading ? (
-              <div style={{ color: 'var(--text-muted)', fontSize: 14 }}>Chargement…</div>
+              <div style={{ color: 'var(--text-muted)', fontSize: 14 }}>{t('notifications.loading')}</div>
             ) : parsedNotifications.length === 0 ? (
-              <div style={{ color: 'var(--text-muted)', fontSize: 14 }}>Aucune notification pour le moment.</div>
+              <div style={{ color: 'var(--text-muted)', fontSize: 14 }}>{t('notifications.empty')}</div>
             ) : (
               parsedNotifications.map((notification) => (
                 <button
@@ -209,7 +226,7 @@ export function NotificationBell() {
                   </div>
                   {notification.body && <div style={{ color: 'var(--text-muted)', fontSize: 13, lineHeight: 1.4 }}>{notification.body}</div>}
                   <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>
-                    {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true, locale: fr })}
+                    {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true, locale })}
                   </div>
                 </button>
               ))

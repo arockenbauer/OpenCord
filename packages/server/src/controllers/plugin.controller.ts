@@ -121,17 +121,27 @@ function serializePlugin(plugin: {
   slug: string;
   description: string | null;
   version: string;
-  type: string;
+  type: 'CLIENT' | 'SERVER' | 'BOTH';
   author: string;
   icon: string | null;
   enabled_by_default: boolean;
-  settings_schema: string | null;
+  settings_schema: any | null;
   created_at: Date;
   updated_at: Date;
 }) {
   return {
-    ...plugin,
-    settings_schema: parseStoredJson(plugin.settings_schema),
+    id: plugin.id,
+    name: plugin.name,
+    slug: plugin.slug,
+    description: plugin.description,
+    version: plugin.version,
+    type: plugin.type,
+    author: plugin.author,
+    icon: plugin.icon,
+    enabled_by_default: plugin.enabled_by_default,
+    settings_schema: plugin.settings_schema,
+    created_at: plugin.created_at,
+    updated_at: plugin.updated_at,
   };
 }
 
@@ -194,16 +204,23 @@ async function ensureOfficialPlugins(): Promise<void> {
       create: {
         id: generateSnowflake(),
         enabled_by_default: false,
-        ...plugin,
+        type: plugin.type as any,
+        settings_schema: plugin.settings_schema ? JSON.parse(plugin.settings_schema) : null,
+        name: plugin.name,
+        slug: plugin.slug,
+        description: plugin.description,
+        version: plugin.version,
+        author: plugin.author,
+        icon: plugin.icon,
       },
       update: {
         name: plugin.name,
         description: plugin.description,
         version: plugin.version,
-        type: plugin.type,
+        type: plugin.type as any,
         author: plugin.author,
         icon: plugin.icon,
-        settings_schema: plugin.settings_schema,
+        settings_schema: plugin.settings_schema ? JSON.parse(plugin.settings_schema) : null,
       },
     }))
   );
@@ -216,20 +233,20 @@ function buildPreferenceResponse(
     slug: string;
     description: string | null;
     version: string;
-    type: string;
+    type: 'CLIENT' | 'SERVER' | 'BOTH';
     author: string;
     icon: string | null;
     enabled_by_default: boolean;
-    settings_schema: string | null;
+    settings_schema: any | null;
     created_at: Date;
     updated_at: Date;
   },
-  row?: { enabled: boolean; settings: string | null } | null,
+  row?: { enabled: boolean; settings: any | null } | null,
 ) {
   return {
     plugin: serializePlugin(plugin),
     enabled: row?.enabled ?? plugin.enabled_by_default,
-    settings: parseStoredJson(row?.settings),
+    settings: row?.settings ?? null,
   };
 }
 
@@ -237,7 +254,7 @@ export async function getPlugins(req: Request, res: Response, next: NextFunction
   try {
     await ensureOfficialPlugins();
     const plugins = await prisma.plugin.findMany({ orderBy: [{ type: 'asc' }, { name: 'asc' }] });
-    res.json(plugins.map(serializePlugin));
+    res.json(plugins.map((p) => serializePlugin(p as any)));
   } catch (err) {
     next(err);
   }
@@ -248,7 +265,7 @@ export async function getPlugin(req: Request, res: Response, next: NextFunction)
     await ensureOfficialPlugins();
     const plugin = await prisma.plugin.findUnique({ where: { slug: req.params.slug } });
     if (!plugin) throw new AppError(404, 'PLUGIN_NOT_FOUND', 'Plugin not found');
-    res.json(serializePlugin(plugin));
+    res.json(serializePlugin(plugin as any));
   } catch (err) {
     next(err);
   }
@@ -266,7 +283,7 @@ export async function getUserPlugins(req: Request, res: Response, next: NextFunc
     ]);
 
     const settingsByPluginId = new Map(settings.map((row) => [row.plugin_id, row]));
-    res.json(plugins.map((plugin) => buildPreferenceResponse(plugin, settingsByPluginId.get(plugin.id))));
+    res.json(plugins.map((plugin) => buildPreferenceResponse(plugin as any, settingsByPluginId.get(plugin.id))));
   } catch (err) {
     next(err);
   }
@@ -291,7 +308,7 @@ export async function updateUserPlugin(req: Request, res: Response, next: NextFu
 
     const enabled = req.body.enabled !== undefined ? !!req.body.enabled : (existing?.enabled ?? plugin.enabled_by_default);
     const settings = req.body.settings !== undefined
-      ? (req.body.settings === null ? null : JSON.stringify(req.body.settings))
+      ? (req.body.settings === null ? null : req.body.settings)
       : (existing?.settings ?? null);
 
     const record = await prisma.userPluginSettings.upsert({
@@ -334,7 +351,7 @@ export async function getGuildPlugins(req: Request, res: Response, next: NextFun
     ]);
 
     const settingsByPluginId = new Map(settings.map((row) => [row.plugin_id, row]));
-    res.json(plugins.map((plugin) => buildPreferenceResponse(plugin, settingsByPluginId.get(plugin.id))));
+    res.json(plugins.map((plugin) => buildPreferenceResponse(plugin as any, settingsByPluginId.get(plugin.id))));
   } catch (err) {
     next(err);
   }
@@ -363,7 +380,7 @@ export async function updateGuildPlugin(req: Request, res: Response, next: NextF
 
     const enabled = req.body.enabled !== undefined ? !!req.body.enabled : (existing?.enabled ?? plugin.enabled_by_default);
     const settings = req.body.settings !== undefined
-      ? (req.body.settings === null ? null : JSON.stringify(req.body.settings))
+      ? (req.body.settings === null ? null : req.body.settings)
       : (existing?.settings ?? null);
 
     const record = await prisma.guildPluginSettings.upsert({

@@ -1,8 +1,8 @@
 .menu {
-  min-width: 220px;
+  min-width: 200px;
   background: var(--bg-floating);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   box-shadow: var(--shadow-high);
   padding: 6px;
   animation: menuIn 100ms ease-out;
@@ -18,26 +18,27 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 7px 10px;
+  padding: 6px 8px;
+  height: 32px;
   border-radius: var(--radius-md);
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
   text-align: left;
   cursor: pointer;
-  transition: background 80ms, color 80ms;
+  transition: background 150ms;
   white-space: nowrap;
 }
 .item:hover {
-  background: var(--bg-accent);
-  color: white;
+  background: var(--bg-modifier-hover);
+  color: var(--text-primary);
 }
 
 .itemDanger {
-  color: var(--text-danger);
+  color: var(--danger);
 }
 .itemDanger:hover {
-  background: var(--danger);
-  color: white;
+  background: var(--bg-modifier-hover);
+  color: var(--danger);
 }
 
 .itemDisabled {

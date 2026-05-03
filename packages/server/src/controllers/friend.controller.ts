@@ -314,3 +314,65 @@ export async function removeOrUnblock(req: Request, res: Response, next: NextFun
     next(err);
   }
 }
+
+export async function getMutualRelationships(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const targetId = req.params.userId;
+
+    // Vérifier les paramètres de confidentialité de la cible
+    const targetPrivacy = await prisma.$queryRaw<Array<{ show_mutual_guilds: boolean; show_mutual_friends: boolean }>>`
+      SELECT show_mutual_guilds, show_mutual_friends FROM User WHERE id = ${targetId} LIMIT 1
+    `;
+    
+    const showMutualGuilds = targetPrivacy[0]?.show_mutual_guilds ?? true;
+    const showMutualFriends = targetPrivacy[0]?.show_mutual_friends ?? true;
+
+    // Amis mutuels (uniquement si autorisé)
+    let mutualFriends: Array<{ id: string; username: string; avatar: string | null; global_name: string | null; status: string }> = [];
+    if (showMutualFriends) {
+      const myFriends = await prisma.friend.findMany({
+        where: { status: 1, OR: [{ user_id: req.user!.userId }, { target_id: req.user!.userId }] },
+        select: { user_id: true, target_id: true },
+      });
+      const myFriendIds = new Set(
+        myFriends.map((f) => (f.user_id === req.user!.userId ? f.target_id : f.user_id)),
+      );
+
+      const targetFriends = await prisma.friend.findMany({
+        where: { status: 1, OR: [{ user_id: targetId }, { target_id: targetId }] },
+        select: { user_id: true, target_id: true },
+      });
+      const targetFriendIds = new Set(
+        targetFriends.map((f) => (f.user_id === targetId ? f.target_id : f.user_id)),
+      );
+
+      const mutualIds = Array.from(myFriendIds).filter((id) => targetFriendIds.has(id));
+      if (mutualIds.length > 0) {
+        mutualFriends = await prisma.user.findMany({
+          where: { id: { in: mutualIds } },
+          select: { id: true, username: true, avatar: true, global_name: true, status: true },
+        });
+      }
+    }
+
+    // Serveurs mutuels (uniquement si autorisé)
+    let mutualGuilds: Array<{ id: string; name: string; icon: string | null }> = [];
+    if (showMutualGuilds) {
+      const myGuilds = await prisma.guildMember.findMany({
+        where: { user_id: req.user!.userId },
+        select: { guild_id: true },
+      });
+      const myGuildIds = new Set(myGuilds.map((g) => g.guild_id));
+
+      const targetGuilds = await prisma.guildMember.findMany({
+        where: { user_id: targetId, guild_id: { in: Array.from(myGuildIds) } },
+        include: { guild: { select: { id: true, name: true, icon: true } } },
+      });
+      mutualGuilds = targetGuilds.map((m) => m.guild);
+    }
+
+    res.json({ mutual_friends: mutualFriends, mutual_guilds: mutualGuilds });
+  } catch (err) {
+    next(err);
+  }
+}

@@ -565,6 +565,22 @@
     "message_failed": "Failed to send",
     "retry": "Retry"
   },
+  "notifications": {
+    "title": "Notifications",
+    "mark_all_read": "Mark all as read",
+    "empty": "No notifications yet.",
+    "loading": "Loading…",
+    "unread_count": "{{count}} unread",
+    "types": {
+      "MENTION": "{{user}} mentioned you in #{{channel}}",
+      "DM": "New message from {{user}}",
+      "FRIEND_REQUEST": "{{user}} sent you a friend request",
+      "FRIEND_ACCEPT": "{{user}} accepted your friend request",
+      "GUILD_INVITE": "{{user}} invited you to join {{guild}}",
+      "SYSTEM": "System notification",
+      "ADMIN_ANNOUNCEMENT": "Announcement: {{title}}"
+    }
+  },
   "common": {
     "save": "Save",
     "cancel": "Cancel",

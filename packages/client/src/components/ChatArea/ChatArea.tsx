@@ -13,6 +13,7 @@ import { MessageContextMenu } from '../context-menus/MessageContextMenu';
 import { Tooltip } from '../Tooltip/Tooltip';
 import { emitTyping } from '../../hooks/useGateway';
 import { api } from '../../services/api';
+import { announceMessage, announceTyping, announceChannelChange } from '../../utils/ariaAnnounce';
 import styles from './ChatArea.module.css';
 
 const md = new MarkdownIt({
@@ -196,9 +197,10 @@ export function ChatArea() {
     }
   };
 
-  const handleReaction = async (messageId: string, emoji: string) => {
+  const handleReaction = async (messageId: string, emoji: string, isBurst?: boolean) => {
     if (!selectedChannelId) return;
-    await api(`/api/channels/${selectedChannelId}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}/@me`, { method: 'PUT' });
+    const url = `/api/channels/${selectedChannelId}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}/@me${isBurst ? '?type=1' : ''}`;
+    await api(url, { method: 'PUT' });
   };
 
   const handleStartThreadFromMessage = async (message: any) => {
@@ -343,6 +345,27 @@ export function ChatArea() {
     })
     .filter(Boolean) : [];
 
+  useEffect(() => {
+    if (typingNames.length > 0) {
+      announceTyping(typingNames.join(', '));
+    }
+  }, [typingNames]);
+
+  useEffect(() => {
+    if (messages.length > 0) {
+      const last = messages[messages.length - 1];
+      if (last && last.author.id !== currentUser?.id) {
+        announceMessage(last.author.username, last.content || '');
+      }
+    }
+  }, [messages.length]);
+
+  useEffect(() => {
+    if (channelTitle) {
+      announceChannelChange(channelTitle);
+    }
+  }, [channelTitle]);
+
   return (
     <div className={styles.container}>
       <div className={styles.header}>
@@ -396,6 +419,7 @@ export function ChatArea() {
               </div>
             </div>
 
+            <div role="list" aria-label="Messages">
             {groupedMessages.map((group) => {
               const headerMessage = group[0]!;
 
@@ -406,7 +430,7 @@ export function ChatArea() {
               const displayName = getMessageDisplayName(headerMessage.author.id, headerMessage.author, guild);
 
               return (
-                <div key={headerMessage.id} className={styles.messageGroup}>
+                <div key={headerMessage.id} className={styles.messageGroup} role="listitem" aria-label={`Message de ${displayName}, ${format(new Date(headerMessage.created_at), 'dd/MM/yyyy HH:mm')}`}>
                   <div className={styles.messageGroupHeader} onContextMenu={(e) => handleMessageContextMenu(e, headerMessage)}>
                     <div className={styles.avatar} onClick={(event) => openProfile(event, headerMessage.author.id)} data-user-popout-trigger="true">
                       {headerMessage.author.avatar
@@ -443,7 +467,7 @@ export function ChatArea() {
                   </div>
 
                   {group.slice(1).map((message) => (
-                    <div key={message.id} className={styles.compactMessage} onContextMenu={(e) => handleMessageContextMenu(e, message)}>
+                    <div key={message.id} className={styles.compactMessage} onContextMenu={(e) => handleMessageContextMenu(e, message)} role="listitem" aria-label={`Message de ${message.author?.username || 'utilisateur'}, ${format(new Date(message.created_at), 'HH:mm')}`}>
                       <span className={styles.compactTimestamp}>{format(new Date(message.created_at), 'HH:mm')}</span>
                       <MessageContent msg={message} editingId={editingId} editValue={editValue} setEditValue={setEditValue} onEditSubmit={handleEditSubmit} />
                       {message.attachments?.map((attachment: any) => <Attachment key={attachment.id} attachment={attachment} />)}
@@ -461,6 +485,7 @@ export function ChatArea() {
                 </div>
               );
             })}
+            </div>
             <div ref={messagesEndRef} />
           </div>
 
@@ -504,6 +529,9 @@ export function ChatArea() {
                   onChange={(e) => setInputValue(e.target.value)}
                   onKeyDown={handleKeyDown}
                   rows={1}
+                  role="textbox"
+                  aria-label={`Message ${channelTitle}`}
+                  aria-multiline="true"
                 />
                 <Tooltip content="Choisir un emoji" position="top" delay={300}>
                   <button ref={emojiButtonRef} onClick={() => setShowEmojiPicker((v) => !v)}><Smile size={20} /></button>
@@ -618,13 +646,54 @@ function MessageContent({ msg, editingId, editValue, setEditValue, onEditSubmit 
     ? ` <span class="${styles.messageFailed}">${t('chat.message_failed')}${msg.error ? `: ${msg.error}` : ''}</span>`
     : '';
 
+  // Check if message is forwarded (FORWARDED flag = 1 << 13 = 8192)
+  const isForwarded = (Number(msg.flags) & 8192) !== 0;
+  const forwardedHeader = isForwarded
+    ? `<div class="${styles.forwardedHeader}"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M2 2v12h12V2H2zm1 1h10v10H3V3z"/><path d="M6 7l3-3v2h2v2h-2v2l-3-3z"/></svg> Message transféré</div>`
+    : '';
+
+  // Check if message is crossposted (IS_CROSSPOST flag = 1 << 1 = 2)
+  const isCrosspost = (Number(msg.flags) & 2) !== 0;
+  const crosspostHeader = isCrosspost
+    ? `<div class="${styles.crosspostHeader}"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M13.5 3l-7 7-3-3 1.5-1.5L6.5 8l5.5 5.5L15 4.5z"/></svg> ${t('chat.crosspost')}</div>`
+    : '';
+
+  // Render forwarded message snapshots if available
+  let snapshotsHtml = '';
+  if (isForwarded && msg.message_snapshots) {
+    try {
+      const snapshots = Array.isArray(msg.message_snapshots) ? msg.message_snapshots : JSON.parse(msg.message_snapshots);
+      if (snapshots.length > 0) {
+        const snap = snapshots[0].message;
+        const snapAuthor = snap.author || {};
+        const snapContent = snap.content ? md.render(snap.content) : '';
+        snapshotsHtml = `
+          <div class="${styles.forwardedSnapshot}">
+            <div class="${styles.forwardedSnapshotAuthor}">
+              <strong>${snapAuthor.global_name || snapAuthor.username || 'Utilisateur'}</strong>
+              <span class="${styles.forwardedSnapshotTime}">${new Date(snap.created_at).toLocaleDateString()}</span>
+            </div>
+            <div class="${styles.forwardedSnapshotContent}">${snapContent}</div>
+          </div>
+        `;
+      }
+    } catch (e) {
+      // Ignore parse errors
+    }
+  }
+
   return (
-    <div
-      className={`${styles.messageContent} ${msg.pending ? styles.messagePending : ''}`}
-      dangerouslySetInnerHTML={{ __html: contentHtml + editedHtml + failedHtml }}
-    />
+    <div>
+      <div
+        className={`${styles.messageContent} ${msg.pending ? styles.messagePending : ''}`}
+        dangerouslySetInnerHTML={{ __html: forwardedHeader + crosspostHeader + snapshotsHtml + contentHtml + editedHtml + failedHtml }}
+      />
+      {msg.components && <MessageComponents components={msg.components} />}
+    </div>
   );
 }
+
+import { MessageComponents } from '../MessageComponents/MessageComponents';
 
 function Attachment({ attachment }: { attachment: any }) {
   const isImage = attachment.mime_type?.startsWith('image/');
@@ -642,8 +711,18 @@ function Reactions({ reactions, onReact }: { reactions: any[]; onReact: (emoji: 
   return (
     <div className={styles.reactions}>
       {reactions.map((reaction: any, index: number) => (
-        <button key={index} className={styles.reaction} onClick={() => onReact(reaction.emoji_name)}>
-          {reaction.emoji_name} <span className={styles.reactionCount}>{reaction.count || 1}</span>
+        <button
+          key={index}
+          className={`${styles.reaction} ${reaction.me_burst ? styles.reactionBurst : ''}`}
+          onClick={() => onReact(reaction.emoji_name)}
+          title={reaction.burst_count > 0 ? `Super réaction (${reaction.burst_count})` : `Réaction (${reaction.count || 1})`}
+        >
+          {reaction.emoji_name}
+          {reaction.burst_count > 0 ? (
+            <span className={`${styles.reactionCount} ${styles.burstCount}`}>{reaction.burst_count}</span>
+          ) : (
+            <span className={styles.reactionCount}>{reaction.count || 1}</span>
+          )}
         </button>
       ))}
     </div>

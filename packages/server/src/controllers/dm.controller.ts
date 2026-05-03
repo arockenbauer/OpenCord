@@ -32,12 +32,25 @@ export async function getDMChannels(req: Request, res: Response, next: NextFunct
       },
     });
 
-    const channels = memberships.map((m) => ({
-      ...m.channel,
-      recipients: m.channel.members.filter((mem) => mem.user_id !== req.user!.userId).map((mem) => mem.user),
-    }));
+    const channels = memberships
+      .filter((m) => {
+        // Inclure si pas fermé, ou si fermé mais avec des messages non lus
+        if (!m.closed) return true;
+        if (m.last_read_message_id !== m.channel.last_message_id) return true;
+        return false;
+      })
+      .map((m) => ({
+        ...m.channel,
+        recipients: m.channel.members.filter((mem) => mem.user_id !== req.user!.userId).map((mem) => mem.user),
+      }))
+      .sort((a, b) => {
+        // Trier par last_message_id décroissant
+        if (!a.last_message_id) return 1;
+        if (!b.last_message_id) return -1;
+        return b.last_message_id.localeCompare(a.last_message_id);
+      });
 
-    res.json({ dm_channels: channels });
+    res.json(channels);
   } catch (err) {
     next(err);
   }
@@ -68,14 +81,14 @@ export async function createDM(req: Request, res: Response, next: NextFunction):
     ]);
 
     if (blockByTarget || blockBySender) throw new AppError(403, 'BLOCKED', 'Cannot create DM with this user');
-    if (recipient.allow_dms_from === 0) throw new AppError(403, 'DM_DISABLED', 'This user does not accept DMs');
-    if (recipient.allow_dms_from === 1 && !friendship) {
+    if (recipient.allow_dms_from === 'none') throw new AppError(403, 'DM_DISABLED', 'This user does not accept DMs');
+    if (recipient.allow_dms_from === 'friends' && !friendship) {
       throw new AppError(403, 'DM_FRIENDS_ONLY', 'This user only accepts DMs from friends');
     }
 
     const existing = await prisma.dMChannel.findFirst({
       where: {
-        type: 0,
+        type: 1,
         members: { every: { user_id: { in: [req.user!.userId, recipient_id] } } },
       },
       include: {
@@ -97,7 +110,7 @@ export async function createDM(req: Request, res: Response, next: NextFunction):
     const dm = await prisma.dMChannel.create({
       data: {
         id: channelId,
-        type: 0,
+        type: 1,
         members: {
           create: [
             { user_id: req.user!.userId },
@@ -145,7 +158,7 @@ export async function createGroupDM(req: Request, res: Response, next: NextFunct
     const dm = await prisma.dMChannel.create({
       data: {
         id: channelId,
-        type: 1,
+        type: 3,
         name: name || null,
         owner_id: req.user!.userId,
         members: {
@@ -264,9 +277,37 @@ export async function deleteDMChannel(req: Request, res: Response, next: NextFun
     });
     if (!membership) throw new AppError(404, 'NOT_FOUND', 'DM channel not found');
 
+    const dmChannel = await prisma.dMChannel.findUnique({ where: { id: req.params.channelId } });
+    if (!dmChannel) throw new AppError(404, 'NOT_FOUND', 'DM channel not found');
+
+    // Type 1 = DM individuel: masquer (closed=true) au lieu de supprimer
+    if (dmChannel.type === 1) {
+      await prisma.dMChannelMember.update({
+        where: { channel_id_user_id: { channel_id: req.params.channelId, user_id: req.user!.userId } },
+        data: { closed: true },
+      });
+      res.json(dmChannel);
+      return;
+    }
+
+    // Type 3 = Groupe DM: quitter le groupe
     await prisma.dMChannelMember.delete({
       where: { channel_id_user_id: { channel_id: req.params.channelId, user_id: req.user!.userId } },
     });
+
+    // Si c'est l'owner qui part, transférer la propriété
+    if (dmChannel.owner_id === req.user!.userId) {
+      const remainingMember = await prisma.dMChannelMember.findFirst({
+        where: { channel_id: req.params.channelId },
+        orderBy: { joined_at: 'asc' },
+      });
+      if (remainingMember) {
+        await prisma.dMChannel.update({
+          where: { id: req.params.channelId },
+          data: { owner_id: remainingMember.user_id },
+        });
+      }
+    }
 
     const remaining = await prisma.dMChannelMember.count({ where: { channel_id: req.params.channelId } });
     if (remaining === 0) {
@@ -285,7 +326,7 @@ export async function addDMRecipient(req: Request, res: Response, next: NextFunc
     const dmChannel = await prisma.dMChannel.findUnique({ where: { id: req.params.channelId } });
     if (!dmChannel) throw new AppError(404, 'NOT_FOUND', 'DM channel not found');
 
-    if (dmChannel.type === 0) throw new AppError(400, 'NOT_A_GROUP', 'Cannot add recipients to a DM');
+    if (dmChannel.type === 1) throw new AppError(400, 'NOT_A_GROUP', 'Cannot add recipients to a DM');
     if (dmChannel.owner_id !== req.user!.userId) throw new AppError(403, 'FORBIDDEN', 'Only the owner can add recipients');
 
     const existing = await prisma.dMChannelMember.findUnique({
@@ -347,7 +388,7 @@ export async function removeDMRecipient(req: Request, res: Response, next: NextF
     const dmChannel = await prisma.dMChannel.findUnique({ where: { id: req.params.channelId } });
     if (!dmChannel) throw new AppError(404, 'NOT_FOUND', 'DM channel not found');
 
-    if (dmChannel.type === 0) throw new AppError(400, 'NOT_A_GROUP', 'Cannot remove recipients from a DM');
+    if (dmChannel.type === 1) throw new AppError(400, 'NOT_A_GROUP', 'Cannot remove recipients from a DM');
     if (dmChannel.owner_id !== req.user!.userId && req.params.userId !== req.user!.userId) {
       throw new AppError(403, 'FORBIDDEN', 'Only the owner can remove recipients');
     }

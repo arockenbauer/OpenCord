@@ -1,8 +1,13 @@
 import { Request, Response, NextFunction } from 'express';
 import { AppError } from '../utils/app-error.js';
+import { logError } from '../utils/logger.js';
 
 export function errorHandler(err: Error, _req: Request, res: Response, _next: NextFunction): void {
   if (err instanceof AppError) {
+    if (err.code === 'VALIDATION_ERROR' && Array.isArray(err.details)) {
+      res.status(400).json({ errors: err.details });
+      return;
+    }
     res.status(err.statusCode).json({
       error: {
         code: err.code,
@@ -23,6 +28,6 @@ export function errorHandler(err: Error, _req: Request, res: Response, _next: Ne
     return;
   }
 
-  console.error('Unhandled error:', err);
+  logError('Unhandled error:', err);
   res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } });
 }

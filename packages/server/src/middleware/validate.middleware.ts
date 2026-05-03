@@ -10,11 +10,13 @@ export function validate(schema: ZodSchema, source: 'body' | 'query' | 'params' 
       next();
     } catch (err) {
       if (err instanceof ZodError) {
-        const details = err.errors.map((e) => ({
+        const errors = err.errors.map((e) => ({
           field: e.path.join('.'),
           message: e.message,
         }));
-        next(new AppError(422, 'VALIDATION_ERROR', 'Invalid data', details));
+        const appError = new AppError(400, 'VALIDATION_ERROR', 'Invalid data', errors);
+        appError.details = errors;
+        next(appError);
       } else {
         next(err);
       }

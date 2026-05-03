@@ -1,0 +1,25 @@
+{
+  "id": "spotify-rpc",
+  "name": "Spotify Rich Presence",
+  "description": "Affiche votre activité Spotify en tant que Rich Presence sur OpenCord",
+  "version": "1.0.0",
+  "author": "OpenCord",
+  "type": "client",
+  "enabledByDefault": false,
+  "permissions": ["spotify_api"],
+  "settingsSchema": {
+    "type": "object",
+    "properties": {
+      "showAlbumArt": {
+        "type": "boolean",
+        "title": "Afficher la pochette d'album",
+        "default": true
+      },
+      "showProgress": {
+        "type": "boolean",
+        "title": "Afficher la barre de progression",
+        "default": true
+      }
+    }
+  }
+}

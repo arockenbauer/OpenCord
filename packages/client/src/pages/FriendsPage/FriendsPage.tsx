@@ -5,16 +5,11 @@ import { useAuthStore } from '../../stores/authStore';
 import type { Relationship } from '../../stores/authStore';
 import { useGuildStore } from '../../stores/guildStore';
 import type { DMChannel } from '../../stores/guildStore';
+import { UserNoteEditor } from '../../components/UserNoteEditor/UserNoteEditor';
 import { api } from '../../services/api';
 import styles from './FriendsPage.module.css';
 
 type TabId = 'friends' | 'add' | 'pending' | 'blocked';
-
-interface UserNote {
-  id: string;
-  note_content: string;
-  note_user_id: string;
-}
 
 function getStatusClass(status: string, css: Record<string, string>) {
   if (status === 'online') return css.statusOnline;
@@ -52,10 +47,7 @@ export function FriendsPage() {
 
   const [activeTab, setActiveTab] = useState<TabId>('friends');
   const [search, setSearch] = useState('');
-  const [notes, setNotes] = useState<UserNote[]>([]);
   const [noteTarget, setNoteTarget] = useState<Relationship | null>(null);
-  const [noteText, setNoteText] = useState('');
-  const [noteSaving, setNoteSaving] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; rel: Relationship } | null>(null);
 
   const contextMenuRef = useRef<HTMLDivElement>(null);
@@ -65,6 +57,10 @@ export function FriendsPage() {
   const pendingIncoming = relationships.filter((r) => r.type === 3);
   const blocked = relationships.filter((r) => r.type === 2);
 
+  const fetchNotes = useCallback(async () => {
+    // Notes are now handled by UserNoteEditor component
+  }, []);
+
   const onlineFriends = friends.filter((r) => r.user.status && r.user.status !== 'offline');
 
   const filteredFriends = search
@@ -73,16 +69,9 @@ export function FriendsPage() {
       )
     : friends;
 
-  const fetchNotes = useCallback(async () => {
-    try {
-      const data = await api<{ notes: UserNote[] }>('/api/users/@me/notes');
-      setNotes(data.notes || []);
-    } catch { /* ignore */ }
-  }, []);
-
   useEffect(() => {
-    fetchNotes();
-  }, [fetchNotes]);
+    // Notes are now handled by UserNoteEditor component
+  }, []);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -143,39 +132,9 @@ export function FriendsPage() {
     } catch { /* ignore */ }
   };
 
-  const handleOpenNote = async (rel: Relationship) => {
+  const handleOpenNote = (rel: Relationship) => {
     setNoteTarget(rel);
-    const existing = notes.find((n) => n.note_user_id === rel.user.id);
-    setNoteText(existing?.note_content || '');
   };
-
-  const handleSaveNote = async () => {
-    if (!noteTarget) return;
-    setNoteSaving(true);
-    try {
-      const saved = await api<UserNote>(`/api/users/@me/notes/${noteTarget.user.id}`, {
-        method: 'PUT',
-        body: JSON.stringify({ note_content: noteText }),
-      });
-      setNotes((prev) => {
-        const filtered = prev.filter((n) => n.note_user_id !== noteTarget.user.id);
-        return [...filtered, saved];
-      });
-      setNoteTarget(null);
-    } catch { /* ignore */ }
-    setNoteSaving(false);
-  };
-
-  const handleDeleteNote = async () => {
-    if (!noteTarget) return;
-    try {
-      await api(`/api/users/@me/notes/${noteTarget.user.id}`, { method: 'DELETE' });
-      setNotes((prev) => prev.filter((n) => n.note_user_id !== noteTarget.user.id));
-      setNoteTarget(null);
-    } catch { /* ignore */ }
-  };
-
-  const getNoteForUser = (userId: string) => notes.find((n) => n.note_user_id === userId)?.note_content;
 
   const tabs: { id: TabId; label: string; count?: number }[] = [
     { id: 'friends', label: 'Tous les amis', count: friends.length },
@@ -306,7 +265,6 @@ export function FriendsPage() {
                   <FriendRow
                     key={rel.user.id}
                     rel={rel}
-                    note={getNoteForUser(rel.user.id)}
                     onOpenDM={handleOpenDM}
                     onRemove={handleRemove}
                     onBlock={handleBlock}
@@ -328,7 +286,6 @@ export function FriendsPage() {
                   <FriendRow
                     key={rel.user.id}
                     rel={rel}
-                    note={getNoteForUser(rel.user.id)}
                     onOpenDM={handleOpenDM}
                     onRemove={handleRemove}
                     onBlock={handleBlock}
@@ -438,7 +395,7 @@ export function FriendsPage() {
         </div>
       </div>
 
-      {/* Note Modal */}
+      {/* Note Editor Modal */}
       {noteTarget && (
         <div className={styles.noteOverlay} onClick={(e) => e.target === e.currentTarget && setNoteTarget(null)}>
           <div className={styles.noteModal}>
@@ -449,36 +406,11 @@ export function FriendsPage() {
               </button>
             </div>
             <div className={styles.noteBody}>
-              <div className={styles.noteUserInfo}>
-                <UserAvatar user={noteTarget.user} size={36} />
-                <div>
-                  <div style={{ fontWeight: 'var(--font-weight-semibold)', color: 'var(--text-primary)', fontSize: 'var(--font-size-sm)' }}>
-                    {noteTarget.user.global_name || noteTarget.user.username}
-                  </div>
-                  <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>
-                    {noteTarget.user.discriminator !== '0000' ? `#${noteTarget.user.discriminator}` : ''}
-                  </div>
-                </div>
-              </div>
-              <textarea
-                className={styles.noteTextarea}
-                placeholder="Écris une note privée sur cet utilisateur..."
-                value={noteText}
-                onChange={(e) => setNoteText(e.target.value)}
+              <UserNoteEditor
+                targetUserId={noteTarget.user.id}
+                targetUsername={noteTarget.user.global_name || noteTarget.user.username}
+                onSaved={() => setNoteTarget(null)}
               />
-            </div>
-            <div className={styles.noteFooter}>
-              {noteText || notes.find((n) => n.note_user_id === noteTarget.user.id) ? (
-                <button className={`${styles.noteBtn} ${styles.noteBtnDanger}`} onClick={handleDeleteNote}>
-                  Supprimer
-                </button>
-              ) : null}
-              <button className={`${styles.noteBtn} ${styles.noteBtnCancel}`} onClick={() => setNoteTarget(null)}>
-                Annuler
-              </button>
-              <button className={`${styles.noteBtn} ${styles.noteBtnSave}`} onClick={handleSaveNote} disabled={noteSaving}>
-                {noteSaving ? 'Enregistrement...' : 'Enregistrer'}
-              </button>
             </div>
           </div>
         </div>
@@ -514,18 +446,15 @@ export function FriendsPage() {
 }
 
 function FriendRow({
-  rel, note, onOpenDM, onRemove, onBlock, onOpenNote, onContextMenu,
+  rel, onOpenDM, onRemove, onBlock, onOpenNote, onContextMenu,
 }: {
   rel: Relationship;
-  note?: string;
   onOpenDM: (userId: string) => void;
   onRemove: (userId: string) => void;
   onBlock: (userId: string) => void;
   onOpenNote: (rel: Relationship) => void;
   onContextMenu: (x: number, y: number) => void;
 }) {
-  const [showNote, setShowNote] = useState(false);
-
   return (
     <div
       className={styles.friendRow}
@@ -540,22 +469,10 @@ function FriendRow({
         <div className={styles.friendMeta}>{getStatusLabel(rel.user.status || 'offline', rel.user.custom_status_text)}</div>
       </div>
 
-      {/* Note icon with tooltip */}
-      <div style={{ position: 'relative' }}>
-        <button
-          className={styles.noteIcon}
-          style={{ opacity: note ? 1 : undefined }}
-          onClick={() => onOpenNote(rel)}
-          title="Note"
-        >
+      <div className={styles.friendActions}>
+        <button className={styles.actionBtn} onClick={() => onOpenNote(rel)} title="Note">
           <FileText size={14} />
         </button>
-        {note && (
-          <div className={styles.noteTooltip}>{note}</div>
-        )}
-      </div>
-
-      <div className={styles.friendActions}>
         <button className={styles.actionBtn} onClick={() => onOpenDM(rel.user.id)} title="Envoyer un message">
           <MessageCircle size={16} />
         </button>

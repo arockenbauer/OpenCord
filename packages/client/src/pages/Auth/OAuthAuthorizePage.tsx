@@ -31,8 +31,8 @@ export function OAuthAuthorizePage() {
     }
 
     Promise.all([
-      api.applications.get<any>(applicationId),
-      api.users.getGuilds<{ guilds: any[] }>(),
+      api<any>(`/applications/${applicationId}`, { method: 'GET' }),
+      api<{ guilds: any[] }>('/users/@me/guilds', { method: 'GET' }),
     ])
       .then(([appData, guildData]) => {
         setApplication(appData.application);
@@ -54,10 +54,10 @@ export function OAuthAuthorizePage() {
         application_id: applicationId,
         guild_id: guildId,
         permissions,
-      });
+      } as any);
       setMessage('Bot autorisé sur le serveur.');
     } catch (err: any) {
-      setMessage(err.message || 'Impossible d’autoriser ce bot.');
+      setMessage(err.message || 'Impossible d\'autoriser ce bot.');
     }
     setSubmitting(false);
   };

@@ -163,7 +163,7 @@ export function useGateway() {
             user: {
               ...member.user,
               status: data.status,
-              custom_status_text: data.custom_status_text ?? member.user.custom_status_text,
+              activities: data.activities || member.user.activities,
             },
           });
         }
@@ -185,9 +185,9 @@ export function emitTyping(channelId: string, guildId?: string) {
   }
 }
 
-export function updatePresence(status: string, customStatusText?: string) {
+export function updatePresence(status: string, activities?: any[], clientStatus?: { desktop?: string; mobile?: string; web?: string }) {
   const socket = getSocket();
   if (socket) {
-    socket.emit(GatewayEvents.PRESENCE_UPDATE, { status, custom_status_text: customStatusText });
+    socket.emit(GatewayEvents.PRESENCE_UPDATE, { status, activities, client_status: clientStatus });
   }
 }

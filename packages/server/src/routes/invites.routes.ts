@@ -29,5 +29,8 @@ router.delete('/users/@me/channels/:channelId/recipients/:userId', authenticate,
 export const guildInvitesRouter = Router({ mergeParams: true });
 guildInvitesRouter.post('/', authenticate, invites.createInvite);
 guildInvitesRouter.get('/', authenticate, invites.getGuildInvites);
+guildInvitesRouter.get('/channels/:channelId/invites', authenticate, invites.getChannelInvites);
+guildInvitesRouter.get('/vanity-url', authenticate, invites.getVanityURL);
+guildInvitesRouter.patch('/vanity-url', authenticate, invites.updateVanityURL);
 
 export default router;

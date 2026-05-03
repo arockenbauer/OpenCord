@@ -1,26 +1,28 @@
+import { useAuthStore } from '../stores/authStore';
+
 const API_URL = import.meta.env.VITE_API_URL || '';
 const API_PREFIX = '/api';
 const ABSOLUTE_URL_PATTERN = /^https?:\/\//i;
 
-let accessToken: string | null = localStorage.getItem('access_token');
-let refreshToken: string | null = localStorage.getItem('refresh_token');
-
-export function setTokens(access: string, refresh: string): void {
-  accessToken = access;
-  refreshToken = refresh;
-  localStorage.setItem('access_token', access);
-  localStorage.setItem('refresh_token', refresh);
+export function setTokens(): void {
+  // Tokens are now in httpOnly cookies, nothing to store in JS
 }
 
 export function clearTokens(): void {
-  accessToken = null;
-  refreshToken = null;
-  localStorage.removeItem('access_token');
-  localStorage.removeItem('refresh_token');
+  // Tokens are cleared via logout endpoint which clears cookies
+}
+
+export async function authorizeOAuth(data: { application_id: string; guild_id: string; permissions: string }): Promise<void> {
+  await fetchWithAuth('/oauth/authorize', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
 }
 
 export function getAccessToken(): string | null {
-  return accessToken;
+  // Token is in httpOnly cookie, not accessible via JavaScript
+  // Return null - the cookie is sent automatically with fetch requests
+  return null;
 }
 
 type QueryValue = string | number | boolean | null | undefined;
@@ -61,23 +63,6 @@ function buildPagedQuery(params?: { page?: number; limit?: number; offset?: numb
   return buildQuery(next);
 }
 
-async function tryRefresh(): Promise<boolean> {
-  if (!refreshToken) return false;
-  try {
-    const res = await fetch(resolveUrl('/api/auth/refresh'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refresh_token: refreshToken }),
-    });
-    if (!res.ok) return false;
-    const data = await res.json();
-    setTokens(data.access_token, data.refresh_token);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 async function handleResponse<T>(res: Response): Promise<T> {
   if (res.status === 204) return undefined as T;
   const text = await res.text();
@@ -104,38 +89,28 @@ async function handleResponse<T>(res: Response): Promise<T> {
   return data as T;
 }
 
-function getHeaders(): Record<string, string> {
-  const headers: Record<string, string> = {};
-  if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
-  return headers;
-}
-
 async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<Response> {
-  const headers: Record<string, string> = { ...getHeaders(), ...(options.headers as Record<string, string> || {}) };
-  if (!(options.body instanceof FormData)) {
-    headers['Content-Type'] = headers['Content-Type'] || 'application/json';
-  }
+  const res = await fetch(resolveUrl(url), { ...options, credentials: 'include' });
 
-  let res = await fetch(resolveUrl(url), { ...options, headers });
-
-  if (res.status === 401 && accessToken) {
-    const refreshed = await tryRefresh();
-    if (refreshed) {
-      headers['Authorization'] = `Bearer ${accessToken}`;
-      res = await fetch(resolveUrl(url), { ...options, headers });
-    } else {
-      clearTokens();
-      window.location.href = '/login';
-      throw new Error('Session expired');
-    }
+  if (res.status === 401) {
+    useAuthStore.getState().setUser(null as any);
+    useAuthStore.getState().setRelationships([]);
+    window.location.href = '/login';
+    throw new Error('Session expired');
   }
 
   return res;
 }
 
-// ── Core typed function (callable as `api<T>(url, options?)`) ─────────────────
-
+// ── Core typed function (callable as `api<T>(url, options?)` ─────────────────
 async function apiFn<T>(url: string, options?: RequestInit): Promise<T> {
+  if (options?.body && typeof options.body === 'string') {
+    const headers = new Headers(options.headers || {});
+    if (!headers.has('Content-Type')) {
+      headers.set('Content-Type', 'application/json');
+    }
+    options = { ...options, headers };
+  }
   return fetchWithAuth(url, options).then(r => handleResponse<T>(r));
 }
 
@@ -153,11 +128,9 @@ export const api = Object.assign(apiFn, {
     apiFn<T>(url, { ...options, method: 'PUT', body: JSON.stringify(data) }),
   patch: <T>(url: string, data?: unknown, options?: RequestInit) =>
     apiFn<T>(url, { ...options, method: 'PATCH', body: data instanceof FormData ? data : JSON.stringify(data) }),
-    delete: <T>(url: string, options?: RequestInit) => apiFn<T>(url, { ...options, method: 'DELETE' }),
-    postFormData: <T>(url: string, formData: FormData) => {
-      const headers = getHeaders();
-      delete headers['Content-Type'];
-      return apiFn<T>(url, { method: 'POST', headers, body: formData });
+  delete: <T>(url: string, options?: RequestInit) => apiFn<T>(url, { ...options, method: 'DELETE' }),
+  postFormData: <T>(url: string, formData: FormData) => {
+    return apiFn<T>(url, { method: 'POST', body: formData });
   },
 
   guilds: {
@@ -212,10 +185,14 @@ export const api = Object.assign(apiFn, {
       }, {} as Record<string, string>)).toString();
       return typedGet<T>(`/channels/${channelId}/messages/search${query}`);
     },
-    addReaction: <T>(channelId: string, messageId: string, emoji: string) =>
-      apiFn<T>(`/channels/${channelId}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}/@me`, { method: 'PUT' }),
-    removeReaction: <T>(channelId: string, messageId: string, emoji: string) =>
-      apiFn<T>(`/channels/${channelId}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}/@me`, { method: 'DELETE' }),
+    addReaction: <T>(channelId: string, messageId: string, emoji: string, isBurst?: boolean) => {
+      const url = `/channels/${channelId}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}/@me${isBurst ? '?type=1' : ''}`;
+      return apiFn<T>(url, { method: 'PUT' });
+    },
+    removeReaction: <T>(channelId: string, messageId: string, emoji: string, isBurst?: boolean) => {
+      const url = `/channels/${channelId}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}/@me${isBurst ? '?type=1' : ''}`;
+      return apiFn<T>(url, { method: 'DELETE' });
+    },
     getReactions: <T>(channelId: string, messageId: string, emoji: string) =>
       typedGet<T>(`/channels/${channelId}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`),
   },
@@ -320,41 +297,67 @@ export const api = Object.assign(apiFn, {
     joinGuild: <T>(guildId: string) => typedPost<T>(`/discover/${guildId}/join`),
   },
 
+  stickers: {
+    getPacks: <T>() => typedGet<T>('/sticker-packs'),
+    getGuildStickers: <T>(guildId: string) => typedGet<T>(`/guilds/${guildId}/stickers`),
+    create: <T>(guildId: string, data: FormData) => {
+      const url = normalizeUrl(`/guilds/${guildId}/stickers`);
+      return apiFn<T>(url, { method: 'POST', body: data as any, headers: {} });
+    },
+    delete: <T>(guildId: string, stickerId: string) =>
+      apiFn<T>(`/guilds/${guildId}/stickers/${stickerId}`, { method: 'DELETE' }),
+  },
+
+  forumTags: {
+    get: <T>(channelId: string) => typedGet<T>(`/guilds/@me/channels/${channelId}/tags`),
+    create: <T>(channelId: string, data: { name: string; emoji?: string; moderated?: boolean }) =>
+      typedPost<T>(`/guilds/@me/channels/${channelId}/tags`, data),
+    update: <T>(channelId: string, tagId: string, data: { name?: string; emoji?: string; moderated?: boolean }) =>
+      apiFn<T>(`/guilds/@me/channels/${channelId}/tags/${tagId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    delete: <T>(channelId: string, tagId: string) =>
+      apiFn<T>(`/guilds/@me/channels/${channelId}/tags/${tagId}`, { method: 'DELETE' }),
+  },
+
+  connected_accounts: {
+    get: <T>(userId?: string) => typedGet<T>(`/connected-accounts${userId ? `/${userId}` : ''}`),
+    add: <T>(data: { platform: string; platform_user_id: string; platform_username?: string }) =>
+      typedPost<T>('/connected-accounts', data),
+    remove: <T>(accountId: string) =>
+      apiFn<T>(`/connected-accounts/${accountId}`, { method: 'DELETE' }),
+  },
+
+  notes: {
+    getAll: <T>() => typedGet<T>('/users/@me/notes'),
+    getForUser: <T>(targetId: string) => typedGet<T>(`/users/@me/notes/${targetId}`),
+    upsert: <T>(targetId: string, content: string) =>
+      apiFn<T>(`/users/@me/notes/${targetId}`, { method: 'POST', body: JSON.stringify({ content }) }),
+    delete: <T>(targetId: string) =>
+      apiFn<T>(`/users/@me/notes/${targetId}`, { method: 'DELETE' }),
+  },
+
   plugins: {
     list: <T>() => typedGet<T>('/plugins'),
-    get: <T>(slug: string) => typedGet<T>(`/plugins/${slug}`),
-    getUserSettings: <T>() => typedGet<T>('/users/@me/plugins'),
-    updateUserSettings: <T>(slug: string, data: unknown) =>
-      apiFn<T>(`/users/@me/plugins/${slug}`, { method: 'PATCH', body: JSON.stringify(data) }),
-    getGuildSettings: <T>(guildId: string) => typedGet<T>(`/guilds/${guildId}/plugins`),
-    updateGuildSettings: <T>(guildId: string, slug: string, data: unknown) =>
-      apiFn<T>(`/guilds/${guildId}/plugins/${slug}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    getUserSettings: <T>() => typedGet<T>('/plugins/user-settings'),
+    saveUserSettings: <T>(preferences: any) => typedPost<T>('/plugins/user-settings', preferences),
+    getGuildSettings: <T>(guildId: string) => typedGet<T>(`/plugins/guild-settings/${guildId}`),
+    updateGuildSettings: <T>(guildId: string, slug: string, data: any) => typedPost<T>(`/plugins/guild-settings/${guildId}/${slug}`, data),
   },
 
   applications: {
     list: <T>() => typedGet<T>('/applications'),
-    create: <T>(data: unknown) => typedPost<T>('/applications', data),
-    get: <T>(applicationId: string) => typedGet<T>(`/applications/${applicationId}`),
+    create: <T>(data: any) => typedPost<T>('/applications', data),
     createBot: <T>(applicationId: string) => typedPost<T>(`/applications/${applicationId}/bot`),
   },
 
+  slashCommands: {
+    listCommands: <T>(guildId: string) => typedGet<T>(`/guilds/${guildId}/slash-commands`),
+  },
+
   oauth: {
-    authorize: <T>(data: unknown) => typedPost<T>('/oauth2/authorize', data),
+    authorize: <T>(data: unknown) => typedPost<T>('/oauth/authorize', data),
   },
 
   auth: {
-    login: <T>(data: unknown) => typedPost<T>('/auth/login', data),
-    register: <T>(data: unknown) => typedPost<T>('/auth/register', data),
-    logout: () => apiFn('/auth/logout', { method: 'POST' }),
-    refresh: <T>(refreshToken: string) => apiFn<T>('/auth/refresh', { method: 'POST', body: JSON.stringify({ refresh_token: refreshToken }) }),
-    changePassword: <T>(data: unknown) => apiFn<T>('/auth/change-password', { method: 'POST', body: JSON.stringify(data) }),
-    requestPasswordReset: <T>(data: unknown) => apiFn<T>('/auth/password/reset-request', { method: 'POST', body: JSON.stringify(data) }),
-    resetPassword: <T>(data: unknown) => apiFn<T>('/auth/password/reset', { method: 'POST', body: JSON.stringify(data) }),
-    enable2FA: <T>(data: unknown) => apiFn<T>('/auth/2fa/enable', { method: 'POST', body: JSON.stringify(data) }),
-    verify2FA: <T>(data: unknown) => apiFn<T>('/auth/2fa/verify', { method: 'POST', body: JSON.stringify(data) }),
-    disable2FA: <T>(data: unknown) => apiFn<T>('/auth/2fa/disable', { method: 'POST', body: JSON.stringify(data) }),
-    login2FA: <T>(data: unknown) => apiFn<T>('/auth/2fa/login', { method: 'POST', body: JSON.stringify(data) }),
-    getSessions: <T>() => typedGet<T>('/auth/sessions'),
-    deleteSession: (sessionId: string) => apiFn(`/auth/sessions/${sessionId}`, { method: 'DELETE' }),
+    resetPassword: <T>(data: unknown) => typedPost<T>('/auth/reset-password', data),
   },
 });

@@ -3,10 +3,11 @@ import crypto from 'crypto';
 import { prisma } from '../utils/prisma.js';
 import { generateSnowflake } from '../utils/snowflake.js';
 import { AppError } from '../utils/app-error.js';
-import { getMemberPermissions, checkPermission, requireMembership, writeAuditLog } from './guild.controller.js';
+import { getMemberPermissions, checkPermission, requireMembership, writeAuditLog, AUDIT_LOG_ACTIONS } from './guild.controller.js';
 import { getIO } from '../gateway/index.js';
 import { GatewayEvents } from '@opencord/shared';
 import { getChannelPermissions } from './message.controller.js';
+import { markTemplateDirty } from './guild.controller.js';
 
 export async function createChannel(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
@@ -31,7 +32,11 @@ export async function createChannel(req: Request, res: Response, next: NextFunct
 
     const io = getIO();
     if (io) io.to(`guild:${req.params.guildId}`).emit(GatewayEvents.CHANNEL_CREATE, { channel });
-    await writeAuditLog(req.params.guildId, req.user!.userId, 'CHANNEL_CREATE', channel.id, 'CHANNEL', { name: channel.name, type: channel.type });
+    await writeAuditLog(req.params.guildId, req.user!.userId, AUDIT_LOG_ACTIONS.CHANNEL_CREATE, channel.id, 'CHANNEL', [
+      { key: 'name', old_value: null, new_value: channel.name },
+      { key: 'type', old_value: null, new_value: channel.type },
+    ]);
+    await markTemplateDirty(req.params.guildId);
 
     res.status(201).json(channel);
   } catch (err) {
@@ -83,7 +88,17 @@ export async function updateChannel(req: Request, res: Response, next: NextFunct
     if (channel.guild_id) {
       const io = getIO();
       if (io) io.to(`guild:${channel.guild_id}`).emit(GatewayEvents.CHANNEL_UPDATE, { channel: updated });
-      await writeAuditLog(channel.guild_id, req.user!.userId, 'CHANNEL_UPDATE', channel.id, 'CHANNEL', { before: channel, after: updated });
+      await writeAuditLog(channel.guild_id, req.user!.userId, AUDIT_LOG_ACTIONS.CHANNEL_UPDATE, channel.id, 'CHANNEL', [
+        { key: 'name', old_value: channel.name, new_value: updated.name },
+        { key: 'topic', old_value: channel.topic, new_value: updated.topic },
+        { key: 'nsfw', old_value: channel.nsfw, new_value: updated.nsfw },
+        { key: 'parent_id', old_value: channel.parent_id, new_value: updated.parent_id },
+        { key: 'position', old_value: channel.position, new_value: updated.position },
+        { key: 'slowmode_delay', old_value: channel.slowmode_delay, new_value: updated.slowmode_delay },
+        { key: 'bitrate', old_value: channel.bitrate?.toString(), new_value: updated.bitrate?.toString() },
+        { key: 'user_limit', old_value: channel.user_limit, new_value: updated.user_limit },
+      ].filter(c => c.old_value !== c.new_value));
+      await markTemplateDirty(channel.guild_id);
     }
 
     res.json(updated);
@@ -113,7 +128,11 @@ export async function deleteChannel(req: Request, res: Response, next: NextFunct
     if (channel.guild_id) {
       const io = getIO();
       if (io) io.to(`guild:${channel.guild_id}`).emit(GatewayEvents.CHANNEL_DELETE, { id: channel.id, guild_id: channel.guild_id });
-      await writeAuditLog(channel.guild_id, req.user!.userId, 'CHANNEL_DELETE', channel.id, 'CHANNEL', { name: channel.name, type: channel.type });
+      await writeAuditLog(channel.guild_id, req.user!.userId, AUDIT_LOG_ACTIONS.CHANNEL_DELETE, channel.id, 'CHANNEL', [
+        { key: 'name', old_value: channel.name, new_value: null },
+        { key: 'type', old_value: channel.type?.toString(), new_value: null },
+      ]);
+      await markTemplateDirty(channel.guild_id);
     }
 
     res.status(204).send();
@@ -143,21 +162,21 @@ export async function updatePermissionOverwrite(req: Request, res: Response, nex
         channel_id: req.params.channelId,
         target_id: req.params.overwriteId,
         target_type: req.body.type || 'role',
-        allow: String(req.body.allow || '0'),
-        deny: String(req.body.deny || '0'),
+        allow: BigInt(req.body.allow || '0'),
+        deny: BigInt(req.body.deny || '0'),
       },
       update: {
-        allow: String(req.body.allow || '0'),
-        deny: String(req.body.deny || '0'),
+        allow: BigInt(req.body.allow || '0'),
+        deny: BigInt(req.body.deny || '0'),
       },
     });
-    await writeAuditLog(channel.guild_id, req.user!.userId, 'CHANNEL_OVERWRITE_UPDATE', updated.id, 'PERMISSION_OVERWRITE', {
-      channel_id: req.params.channelId,
-      target_id: req.params.overwriteId,
-      target_type: req.body.type || 'role',
-      allow: updated.allow,
-      deny: updated.deny,
-    });
+    await writeAuditLog(channel.guild_id, req.user!.userId, AUDIT_LOG_ACTIONS.CHANNEL_OVERWRITE_UPDATE, updated.id, 'PERMISSION_OVERWRITE', [
+      { key: 'channel_id', old_value: null, new_value: req.params.channelId },
+      { key: 'target_id', old_value: null, new_value: req.params.overwriteId },
+      { key: 'target_type', old_value: null, new_value: req.body.type || 'role' },
+      { key: 'allow', old_value: null, new_value: updated.allow.toString() },
+      { key: 'deny', old_value: null, new_value: updated.deny.toString() },
+    ]);
 
     res.json(updated);
   } catch (err) {
@@ -176,10 +195,9 @@ export async function deletePermissionOverwrite(req: Request, res: Response, nex
     const deleted = await prisma.permissionOverwrite.deleteMany({
       where: { channel_id: req.params.channelId, target_id: req.params.overwriteId },
     });
-    await writeAuditLog(channel.guild_id, req.user!.userId, 'CHANNEL_OVERWRITE_DELETE', req.params.overwriteId, 'PERMISSION_OVERWRITE', {
-      channel_id: req.params.channelId,
-      deleted_count: deleted.count,
-    });
+    await writeAuditLog(channel.guild_id, req.user!.userId, AUDIT_LOG_ACTIONS.CHANNEL_OVERWRITE_DELETE, req.params.overwriteId, 'PERMISSION_OVERWRITE', [
+      { key: 'channel_id', old_value: req.params.channelId, new_value: null },
+    ]);
 
     res.status(204).send();
   } catch (err) {
@@ -205,7 +223,7 @@ export async function createPermissionOverwrite(req: Request, res: Response, nex
     if (existing) {
       const updated = await prisma.permissionOverwrite.update({
         where: { id: existing.id },
-        data: { allow: String(req.body.allow || '0'), deny: String(req.body.deny || '0') },
+        data: { allow: BigInt(req.body.allow || '0'), deny: BigInt(req.body.deny || '0') },
       });
       res.json(updated);
       return;
@@ -217,17 +235,17 @@ export async function createPermissionOverwrite(req: Request, res: Response, nex
         channel_id: req.params.channelId,
         target_id: targetId,
         target_type: targetType,
-        allow: String(req.body.allow || '0'),
-        deny: String(req.body.deny || '0'),
+        allow: BigInt(req.body.allow || '0'),
+        deny: BigInt(req.body.deny || '0'),
       },
     });
-    await writeAuditLog(channel.guild_id, req.user!.userId, 'CHANNEL_OVERWRITE_CREATE', overwrite.id, 'PERMISSION_OVERWRITE', {
-      channel_id: req.params.channelId,
-      target_id: targetId,
-      target_type: targetType,
-      allow: overwrite.allow,
-      deny: overwrite.deny,
-    });
+    await writeAuditLog(channel.guild_id, req.user!.userId, AUDIT_LOG_ACTIONS.CHANNEL_OVERWRITE_CREATE, overwrite.id, 'PERMISSION_OVERWRITE', [
+      { key: 'channel_id', old_value: null, new_value: req.params.channelId },
+      { key: 'target_id', old_value: null, new_value: targetId },
+      { key: 'target_type', old_value: null, new_value: targetType },
+      { key: 'allow', old_value: null, new_value: overwrite.allow.toString() },
+      { key: 'deny', old_value: null, new_value: overwrite.deny.toString() },
+    ]);
 
     res.status(201).json(overwrite);
   } catch (err) {
@@ -264,41 +282,128 @@ export async function triggerTyping(req: Request, res: Response, next: NextFunct
 
 export async function followChannel(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const channel = await prisma.channel.findUnique({ where: { id: req.params.channelId } });
-    if (!channel) throw new AppError(404, 'CHANNEL_NOT_FOUND', 'Channel not found');
-    if (channel.type !== 5) throw new AppError(400, 'INVALID_CHANNEL_TYPE', 'Can only follow announcement channels');
-
-    if (!channel.guild_id) throw new AppError(400, 'INVALID_CHANNEL', 'Channel must be in a server');
-
-    const perms = await getMemberPermissions(channel.guild_id, req.user!.userId);
-    checkPermission(perms, BigInt(0x20000000)); // MANAGE_WEBHOOKS
+    const sourceChannel = await prisma.channel.findUnique({ where: { id: req.params.channelId } });
+    if (!sourceChannel) throw new AppError(404, 'CHANNEL_NOT_FOUND', 'Channel not found');
+    if (sourceChannel.type !== 5) throw new AppError(400, 'INVALID_CHANNEL_TYPE', 'Can only follow announcement channels');
+    if (!sourceChannel.guild_id) throw new AppError(400, 'INVALID_CHANNEL', 'Source channel must be in a server');
 
     const { webhook_channel_id } = req.body;
     if (!webhook_channel_id) throw new AppError(400, 'MISSING_FIELD', 'webhook_channel_id is required');
 
     const targetChannel = await prisma.channel.findUnique({ where: { id: webhook_channel_id } });
     if (!targetChannel) throw new AppError(404, 'CHANNEL_NOT_FOUND', 'Target channel not found');
+    if (!targetChannel.guild_id) throw new AppError(400, 'INVALID_CHANNEL', 'Target channel must be in a server');
 
+    // Check MANAGE_WEBHOOKS in target guild
+    const targetPerms = await getMemberPermissions(targetChannel.guild_id, req.user!.userId);
+    checkPermission(targetPerms, BigInt(0x20000000)); // MANAGE_WEBHOOKS
+
+    // Check limit: max 10 follows per target channel
+    const existingFollows = await prisma.channelFollower.count({ where: { target_channel_id: webhook_channel_id } });
+    if (existingFollows >= 10) throw new AppError(400, 'FOLLOW_LIMIT_REACHED', 'Maximum 10 follows per target channel');
+
+    // Check if already following
+    const existingFollow = await prisma.channelFollower.findUnique({
+      where: { source_channel_id_target_channel_id: { source_channel_id: req.params.channelId, target_channel_id: webhook_channel_id } },
+    });
+    if (existingFollow) throw new AppError(400, 'ALREADY_FOLLOWING', 'Already following this channel');
+
+    // Create webhook of type CHANNEL_FOLLOWER (2)
     const webhook = await prisma.webhook.create({
       data: {
         id: generateSnowflake(),
-        type: 2, // Channel Follow webhook
-        guild_id: channel.guild_id,
-        channel_id: req.params.channelId,
-        name: `${channel.name} updates`,
+        type: 2, // CHANNEL_FOLLOWER
+        guild_id: targetChannel.guild_id,
+        channel_id: webhook_channel_id,
+        name: `${sourceChannel.name} updates`,
         token: crypto.randomBytes(32).toString('hex'),
         creator_id: req.user!.userId,
         source_channel_id: req.params.channelId,
-        source_guild_id: channel.guild_id,
+        source_guild_id: sourceChannel.guild_id,
       },
     });
-    await writeAuditLog(channel.guild_id, req.user!.userId, 'WEBHOOK_FOLLOW_CREATE', webhook.id, 'WEBHOOK', {
-      source_channel_id: req.params.channelId,
-      target_channel_id: webhook_channel_id,
-      type: 2,
+
+    // Create ChannelFollower entry
+    await prisma.channelFollower.create({
+      data: {
+        source_channel_id: req.params.channelId,
+        target_channel_id: webhook_channel_id,
+        created_by_id: req.user!.userId,
+      },
     });
 
-    res.status(201).json({ channel_id: req.params.channelId, webhook_id: webhook.id });
+    await writeAuditLog(targetChannel.guild_id, req.user!.userId, AUDIT_LOG_ACTIONS.WEBHOOK_CREATE, webhook.id, 'WEBHOOK', [
+      { key: 'source_channel_id', old_value: null, new_value: req.params.channelId },
+      { key: 'target_channel_id', old_value: null, new_value: webhook_channel_id },
+      { key: 'type', old_value: null, new_value: 2 },
+    ]);
+
+    // Emit WEBHOOKS_UPDATE in target guild
+    const io = getIO();
+    if (io) {
+      io.to(`guild:${targetChannel.guild_id}`).emit(GatewayEvents.WEBHOOK_UPDATE, {
+        channel_id: webhook_channel_id,
+        webhook_id: webhook.id,
+      });
+    }
+
+    res.status(201).json({ source_channel_id: req.params.channelId, target_channel_id: webhook_channel_id, webhook_id: webhook.id });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function markChannelRead(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const channel = await prisma.channel.findUnique({ where: { id: req.params.channelId } });
+    if (!channel) throw new AppError(404, 'CHANNEL_NOT_FOUND', 'Channel not found');
+
+    const messageId = req.body.message_id;
+    if (!messageId) throw new AppError(400, 'MISSING_FIELD', 'message_id is required');
+
+    await prisma.readState.upsert({
+      where: { user_id_channel_id: { user_id: req.user!.userId, channel_id: req.params.channelId } },
+      create: {
+        user_id: req.user!.userId,
+        channel_id: req.params.channelId,
+        last_read_message_id: messageId,
+        mention_count: 0,
+      },
+      update: {
+        last_read_message_id: messageId,
+        mention_count: 0,
+      },
+    });
+
+    res.status(204).send();
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function reorderChannels(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
+    checkPermission(perms, BigInt(0x10));
+
+    const updates = req.body as Array<{ id: string; position: number; parent_id?: string | null }>;
+    if (!Array.isArray(updates)) throw new AppError(400, 'INVALID_BODY', 'Expected an array of channel updates');
+
+    const updatePromises = updates.map((ch) =>
+      prisma.channel.updateMany({
+        where: { id: ch.id, guild_id: req.params.guildId },
+        data: {
+          position: ch.position,
+          parent_id: ch.parent_id !== undefined ? ch.parent_id : undefined,
+        },
+      })
+    );
+    await Promise.all(updatePromises);
+
+    const io = getIO();
+    if (io) io.to(`guild:${req.params.guildId}`).emit(GatewayEvents.CHANNEL_UPDATE, { guild_id: req.params.guildId, updates });
+
+    res.status(204).send();
   } catch (err) {
     next(err);
   }

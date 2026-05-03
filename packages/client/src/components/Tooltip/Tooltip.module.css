@@ -17,7 +17,6 @@
 
 .content {
   background: var(--bg-floating);
-  border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: 6px 10px;
   font-size: var(--font-size-xs);
@@ -28,5 +27,4 @@
   overflow: hidden;
   text-overflow: ellipsis;
   box-shadow: var(--shadow-medium);
-  backdrop-filter: blur(16px);
 }

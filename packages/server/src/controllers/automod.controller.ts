@@ -149,16 +149,32 @@ export async function evaluateAutoMod(
     const result: { blocked: boolean; blockMessage?: string; timeoutSeconds?: number; warnMessage?: string; closeChannel?: boolean } = { blocked: false };
     let matchedKeyword: string | null = null;
 
+    let sendAlertChannelId: string | null = null;
     for (const action of actions) {
       if (action.type === 1) {
         result.blocked = true;
         result.blockMessage = action.metadata?.custom_message || 'Message bloqué par AutoMod';
       } else if (action.type === 2) {
-        result.timeoutSeconds = action.metadata?.duration_seconds || 3600;
+        sendAlertChannelId = action.metadata?.channel_id || null;
       } else if (action.type === 3) {
-        result.warnMessage = action.metadata?.custom_message || 'Vous avez reçu un avertissement';
-      } else if (action.type === 4) {
-        result.closeChannel = true;
+        result.timeoutSeconds = action.metadata?.duration_seconds || 60;
+      }
+    }
+
+    // Envoyer le message d'alerte si configuré
+    if (sendAlertChannelId) {
+      try {
+        await prisma.message.create({
+          data: {
+            id: generateSnowflake(),
+            channel_id: sendAlertChannelId,
+            author_id: '0',
+            content: `⚠️ AutoMod a bloqué un message de <@${authorId}> dans <#${channelId}>\nRaison: ${rule.name}`,
+            type: 20,
+          },
+        });
+      } catch (err) {
+        // Ignorer silencieusement si le salon n'existe plus
       }
     }
 

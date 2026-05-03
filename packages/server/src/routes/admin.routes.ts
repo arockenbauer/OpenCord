@@ -11,6 +11,7 @@ router.use(authenticate, requireAdmin(1));
 router.get('/stats', admin.getStats);
 router.get('/stats/charts', admin.getStatsCharts);
 router.get('/stats/activity', admin.getRecentAuditActivity);
+router.get('/storage/stats', admin.getStorageStats);
 
 // Platform settings
 router.get('/settings', admin.getPlatformSettings);
@@ -71,7 +72,15 @@ router.get('/channels', requireAdmin(2), admin.getAllChannelsAdmin);
 // Backups
 router.get('/backups', admin.getBackupList);
 router.post('/backups', admin.createBackup);
+router.get('/backups/:filename/download', requireAdmin(3), admin.downloadBackup);
 router.post('/backups/:backupId/restore', admin.restoreBackup);
 router.delete('/backups/:backupId', requireAdmin(3), admin.deleteBackup);
+router.post('/backups/upload', requireAdmin(3), admin.uploadBackup);
+
+// Email test (admin level 3)
+router.post('/email/test', requireAdmin(3), admin.testEmailConfig);
+
+// GDPR - Force delete user (admin level 3)
+router.delete('/users/:userId/force-delete', requireAdmin(3), admin.forceDeleteUser);
 
 export default router;

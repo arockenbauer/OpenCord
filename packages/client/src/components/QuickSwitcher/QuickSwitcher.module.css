@@ -1,0 +1,125 @@
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 15vh;
+  z-index: 1000;
+}
+
+.container {
+  background: var(--bg-floating, #18191c);
+  border-radius: var(--radius-lg, 8px);
+  box-shadow: var(--shadow-high, 0 8px 24px rgba(0,0,0,0.4));
+  width: 500px;
+  max-height: 60vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.searchInput {
+  width: 100%;
+  padding: 16px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border, #2b2d31);
+  color: var(--text-primary, #dcddde);
+  font-size: 16px;
+  outline: none;
+}
+
+.searchInput::placeholder {
+  color: var(--text-muted, #72767d);
+}
+
+.loading, .noResults {
+  padding: 20px;
+  text-align: center;
+  color: var(--text-muted, #72767d);
+}
+
+.resultsList {
+  list-style: none;
+  margin: 0;
+  padding: 8px;
+  overflow-y: auto;
+  max-height: 50vh;
+}
+
+.resultItem {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: var(--radius-md, 4px);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.resultItem:hover, .resultItem.selected {
+  background: var(--bg-modifier-hover, rgba(255,255,255,0.06));
+}
+
+.resultIcon {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 12px;
+  font-size: 18px;
+  color: var(--text-muted, #72767d);
+  flex-shrink: 0;
+}
+
+.icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.resultText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.resultName {
+  color: var(--text-primary, #dcddde);
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.resultSubtitle {
+  color: var(--text-muted, #72767d);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hint {
+  padding: 8px 16px;
+  border-top: 1px solid var(--border, #2b2d31);
+  color: var(--text-muted, #72767d);
+  font-size: 12px;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.hint kbd {
+  background: var(--bg-secondary, #2b2d31);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-family: monospace;
+}
