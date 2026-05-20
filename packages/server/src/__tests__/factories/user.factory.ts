@@ -1,13 +1,11 @@
-import { faker } from '@faker-js/faker';
-import type { User } from '@prisma/client';
-
-export function buildUser(overrides?: Partial<User>): Partial<User> {
+export function buildUser(data: any = {}) {
   return {
-    id: faker.string.nanoid(),
-    username: faker.internet.userName(),
-    email: faker.internet.email(),
-    discriminator: faker.string.numeric(4),
-    password_hash: '$2b$12$fakehash',
-    ...overrides,
+    id: data.id || 'test-id',
+    email: data.email || 'test@example.com',
+    username: data.username || 'testuser',
+    discriminator: data.discriminator || '1234',
+    password_hash: data.password_hash || 'hashed',
+    date_of_birth: data.date_of_birth || new Date('2000-01-01'),
+    ...data,
   };
 }

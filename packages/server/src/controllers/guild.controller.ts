@@ -155,10 +155,10 @@ export async function writeAuditLog(guildId: string, userId: string, actionType:
 
       const payload = {
         entry: {
-          ...entry,
-          user: entry.user,
-          target: entry.target_id ? await prisma.user.findUnique({
-            where: { id: entry.target_id },
+          ...entryWithUser!,
+          user: entryWithUser!.user,
+          target: entryWithUser!.target_id ? await prisma.user.findUnique({
+            where: { id: entryWithUser!.target_id },
             select: { id: true, username: true, discriminator: true, avatar: true },
           }) : null,
         },
@@ -174,43 +174,70 @@ export async function createGuild(req: Request, res: Response, next: NextFunctio
     const { name } = req.body;
     const userId = req.user!.userId;
 
-    const guildId = generateSnowflake();
-    const categoryTextId = generateSnowflake();
-    const categoryVoiceId = generateSnowflake();
-    const generalChannelId = generateSnowflake();
-    const voiceChannelId = generateSnowflake();
-    const everyoneRoleId = generateSnowflake();
+    if (!userId) {
+      throw new AppError(401, 'UNAUTHORIZED', 'User not authenticated');
+    }
 
-    const guild = await prisma.guild.create({
-      data: {
-        id: guildId,
-        name,
-        owner_id: userId,
-        system_channel_id: generalChannelId,
-      },
-    });
+    // Verify user exists
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new AppError(404, 'USER_NOT_FOUND', 'User not found');
+    }
 
-    await prisma.role.create({
-      data: {
-        id: everyoneRoleId,
-        guild_id: guildId,
-        name: '@everyone',
-        position: 0,
-        permissions: DEFAULT_EVERYONE_PERMISSIONS,
-      },
-    });
+    const guildId = String(generateSnowflake());
+    const categoryTextId = String(generateSnowflake());
+    const categoryVoiceId = String(generateSnowflake());
+    const generalChannelId = String(generateSnowflake());
+    const voiceChannelId = String(generateSnowflake());
+    const everyoneRoleId = String(generateSnowflake());
 
-    await prisma.channel.createMany({
-      data: [
-        { id: categoryTextId, guild_id: guildId, name: 'TEXTE', type: 4, position: 0 },
-        { id: generalChannelId, guild_id: guildId, name: 'général', type: 0, position: 0, parent_id: categoryTextId },
-        { id: categoryVoiceId, guild_id: guildId, name: 'VOCAL', type: 4, position: 1 },
-        { id: voiceChannelId, guild_id: guildId, name: 'Général', type: 2, position: 0, parent_id: categoryVoiceId },
-      ],
-    });
+    const guild = await prisma.$transaction(async (tx) => {
+      // Create guild without system_channel_id first (channel doesn't exist yet)
+      const newGuild = await tx.guild.create({
+        data: {
+          id: guildId,
+          name,
+          owner_id: userId,
+        },
+      });
 
-    await prisma.guildMember.create({
-      data: { guild_id: guildId, user_id: userId },
+      await tx.role.create({
+        data: {
+          id: everyoneRoleId,
+          guild_id: guildId,
+          name: '@everyone',
+          position: 0,
+          permissions: DEFAULT_EVERYONE_PERMISSIONS,
+        },
+      });
+
+      // Create parent categories first
+      await tx.channel.createMany({
+        data: [
+          { id: categoryTextId, guild_id: guildId, name: 'TEXTE', type: 4, position: 0 },
+          { id: categoryVoiceId, guild_id: guildId, name: 'VOCAL', type: 4, position: 1 },
+        ],
+      });
+
+      // Then create child channels with parent_id references
+      await tx.channel.createMany({
+        data: [
+          { id: generalChannelId, guild_id: guildId, name: 'général', type: 0, position: 0, parent_id: categoryTextId },
+          { id: voiceChannelId, guild_id: guildId, name: 'Général', type: 2, position: 0, parent_id: categoryVoiceId },
+        ],
+      });
+
+      // Now update guild with system_channel_id
+      const updatedGuild = await tx.guild.update({
+        where: { id: guildId },
+        data: { system_channel_id: generalChannelId },
+      });
+
+      await tx.guildMember.create({
+        data: { guild_id: guildId, user_id: userId },
+      });
+
+      return updatedGuild;
     });
 
     const fullGuild = await prisma.guild.findUnique({
@@ -218,19 +245,37 @@ export async function createGuild(req: Request, res: Response, next: NextFunctio
       include: { channels: true, roles: true, members: { include: { user: { select: { id: true, username: true, discriminator: true, avatar: true, status: true } } } } },
     });
 
+    if (!fullGuild) {
+      throw new AppError(500, 'GUILD_NOT_FOUND', 'Guild not found after creation');
+    }
+
     const io = getIO();
     if (io) {
-      const sockets = await io.in(`user:${userId}`).fetchSockets();
-      for (const s of sockets) {
-        s.join(`guild:${guildId}`);
-        for (const ch of fullGuild!.channels) {
-          s.join(`channel:${ch.id}`);
+      try {
+        const sockets = await io.in(`user:${userId}`).fetchSockets();
+        for (const s of sockets) {
+          s.join(`guild:${guildId}`);
+          for (const ch of fullGuild.channels) {
+            s.join(`channel:${ch.id}`);
+          }
         }
+      } catch (socketErr) {
+        logError('Error joining socket rooms:', socketErr);
       }
     }
 
-    res.status(201).json(fullGuild);
+    // Convert BigInts to strings for JSON serialization
+    const serializedGuild = JSON.parse(
+      JSON.stringify(fullGuild, (key, value) => 
+        typeof value === 'bigint' ? value.toString() : value
+      )
+    );
+    res.status(201).json(serializedGuild);
   } catch (err) {
+    const e = err as any;
+    console.error('CREATE GUILD ERROR:', e.message, e.code, e.meta);
+    console.error('CREATE GUILD ERROR stack:', e.stack);
+    logError('Error in createGuild:', err);
     next(err);
   }
 }
@@ -919,7 +964,7 @@ export async function getAuditLogs(req: Request, res: Response, next: NextFuncti
     }) : [];
 
     res.json({
-      audit_log_entries: logs.map(({ user, ...log }) => ({
+      audit_log_entries: logs.map((log) => ({
         ...log,
         changes: typeof log.changes === 'string' ? JSON.parse(log.changes) : log.changes,
         options: log.options ? (typeof log.options === 'string' ? JSON.parse(log.options) : log.options) : null,
@@ -1129,7 +1174,10 @@ export async function pruneMembers(req: Request, res: Response, next: NextFuncti
       }
     }
 
-    await writeAuditLog(req.params.guildId, req.user!.userId, AUDIT_LOG_ACTIONS.MEMBER_KICK, undefined, 'guild', { days, count: toPrune.length });
+    await writeAuditLog(req.params.guildId, req.user!.userId, AUDIT_LOG_ACTIONS.MEMBER_KICK, undefined, 'guild', [
+      { key: 'days', old_value: null, new_value: days },
+      { key: 'count', old_value: null, new_value: toPrune.length }
+    ]);
 
     res.json({ pruned: toPrune.length });
   } catch (err) {
@@ -1192,11 +1240,13 @@ export async function createGuildTemplate(req: Request, res: Response, next: Nex
 
     const template = await prisma.guildTemplate.create({
       data: {
+        id: generateSnowflake(),
+        code: Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10),
         name: req.body.name,
         description: req.body.description || null,
         creator_id: req.user!.userId,
         guild_id: req.params.guildId,
-        serialized_source_guild: serialized_source_guild as any,
+        serialized: JSON.stringify(serialized_source_guild),
         is_dirty: false,
       },
     });
@@ -1472,11 +1522,11 @@ export async function getWelcomeScreen(req: Request, res: Response, next: NextFu
     const response = {
       enabled: guild.welcome_enabled,
       description: guild.description,
-      welcome_channels: welcomeChannels.map((wc: { channel_id: string; channel: { name: string }; emoji_id: string | null; emoji_name: string | null; description: string }) => ({
+      welcome_channels: welcomeChannels.map((wc) => ({
         channel_id: wc.channel_id,
         description: wc.description,
         emoji_id: wc.emoji_id,
-        emoji_name: wc.emoji_name,
+        screen_id: wc.screen_id,
       })),
     };
 
@@ -1525,11 +1575,11 @@ export async function updateWelcomeScreen(req: Request, res: Response, next: Nex
     const response = {
       enabled: guild.welcome_enabled,
       description: guild.description,
-      welcome_channels: savedChannels.map((wc: { channel_id: string; channel: { name: string }; emoji_id: string | null; emoji_name: string | null; description: string }) => ({
+      welcome_channels: savedChannels.map((wc) => ({
         channel_id: wc.channel_id,
         description: wc.description,
         emoji_id: wc.emoji_id,
-        emoji_name: wc.emoji_name,
+        screen_id: wc.screen_id,
       })),
     };
 
@@ -1602,6 +1652,7 @@ export async function updateMemberVerification(req: Request, res: Response, next
       where: { guild_id: guildId },
       update: data,
       create: {
+        id: generateSnowflake(),
         guild_id: guildId,
         enabled: enabled ?? false,
         description: description ?? null,
@@ -1718,6 +1769,7 @@ export async function updateGuildOnboarding(req: Request, res: Response, next: N
       where: { guild_id: guildId },
       update: data,
       create: {
+        id: generateSnowflake(),
         guild_id: guildId,
         enabled: enabled ?? false,
         mode: mode ?? 0,

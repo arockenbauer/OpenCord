@@ -27,29 +27,29 @@ export function RegisterPage() {
       <form className={styles.card} onSubmit={handleSubmit}>
         <div className={styles.title}>{t('auth.register')}</div>
 
-        {error && <div className={styles.error}>{error}</div>}
+        {error && <div className={styles.error} data-testid="register-error">{error}</div>}
 
         <div className={styles.field}>
           <label className={styles.label}>{t('auth.email')}</label>
-          <input className={styles.input} type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          <input className={styles.input} type="email" value={email} onChange={(e) => setEmail(e.target.value)} required data-testid="register-email" />
         </div>
 
         <div className={styles.field}>
           <label className={styles.label}>{t('auth.username')}</label>
-          <input className={styles.input} type="text" value={username} onChange={(e) => setUsername(e.target.value)} required minLength={2} maxLength={32} />
+          <input className={styles.input} type="text" value={username} onChange={(e) => setUsername(e.target.value)} required minLength={2} maxLength={32} data-testid="register-username" />
         </div>
 
         <div className={styles.field}>
           <label className={styles.label}>{t('auth.password')}</label>
-          <input className={styles.input} type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} />
+          <input className={styles.input} type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} data-testid="register-password" />
         </div>
 
         <div className={styles.field}>
           <label className={styles.label}>{t('auth.date_of_birth')}</label>
-          <input className={styles.input} type="date" value={dob} onChange={(e) => setDob(e.target.value)} required />
+          <input className={styles.input} type="date" value={dob} onChange={(e) => setDob(e.target.value)} required data-testid="register-date-of-birth" />
         </div>
 
-        <button className={styles.submitButton} type="submit" disabled={isLoading}>
+        <button className={styles.submitButton} type="submit" disabled={isLoading} data-testid="register-submit">
           {isLoading ? t('common.loading') : t('auth.register_button')}
         </button>
 

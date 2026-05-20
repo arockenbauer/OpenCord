@@ -242,7 +242,7 @@ export async function handleStripeWebhook(req: Request, res: Response, next: Nex
         const freeBoosts = freeBoostsSetting ? (typeof freeBoostsSetting.value === 'string' ? JSON.parse(freeBoostsSetting.value) : freeBoostsSetting.value) ?? 2 : 2;
         for (let i = 0; i < freeBoosts; i++) {
           await prisma.boost.create({
-            data: { id: generateSnowflake(), user_id: userId, guild_id: undefined },
+            data: { id: generateSnowflake(), user_id: userId, guild_id: '' },
           });
         }
 

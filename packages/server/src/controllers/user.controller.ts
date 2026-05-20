@@ -34,7 +34,7 @@ export async function getMe(req: Request, res: Response, next: NextFunction): Pr
     });
     if (!user) throw new AppError(404, 'USER_NOT_FOUND', 'User not found');
 
-    const { password_hash, two_factor_secret, two_factor_backup_codes, email_verify_token, password_reset_token, password_reset_expires, bot_token, ...safe } = user;
+    const { password_hash, two_factor_secret, two_factor_backup_codes, email_verify_token, password_reset_token, password_reset_expires, bot_token, ...safe } = user as any;
     res.json(safe);
   } catch (err) {
     next(err);
@@ -410,9 +410,8 @@ export async function createConnection(req: Request, res: Response, next: NextFu
       data: {
         id: generateSnowflake(),
         user_id: req.user!.userId,
-        platform: req.body.platform,
-        platform_user_id: req.body.platform_user_id,
-        platform_username: req.body.platform_username,
+        type: req.body.platform,
+        name: req.body.platform_username,
         access_token: req.body.access_token,
         refresh_token: req.body.refresh_token,
       },
@@ -426,7 +425,7 @@ export async function createConnection(req: Request, res: Response, next: NextFu
 export async function deleteConnection(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     await prisma.connectedAccount.delete({
-      where: { user_id_platform_platform_user_id: { user_id: req.user!.userId, platform: req.params.platform, platform_user_id: req.params.platformUserId } },
+      where: { user_id_type: { user_id: req.user!.userId, type: req.params.platform } },
     });
     res.status(204).send();
   } catch (err) {

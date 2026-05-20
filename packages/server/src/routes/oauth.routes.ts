@@ -4,6 +4,7 @@ import * as applications from '../controllers/application.controller.js';
 
 const router = Router();
 
-router.post('/authorize', authenticate, applications.authorizeApplication);
+router.get('/authorize', authenticate, applications.getAuthorize);
+router.post('/authorize', authenticate, applications.postAuthorize);
 
 export default router;

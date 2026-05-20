@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Navigate, NavLink, Outlet } from 'react-router-dom';
 import { useAuthStore } from '../../stores/authStore';
 import {
@@ -8,7 +9,28 @@ import styles from './AdminLayout.module.css';
 
 export function AdminLayout() {
   const user = useAuthStore((s) => s.user);
+  const fetchMe = useAuthStore((s) => s.fetchMe);
+  const [resolved, setResolved] = useState(Boolean(user));
 
+  useEffect(() => {
+    if (user) {
+      setResolved(true);
+      return;
+    }
+
+    let cancelled = false;
+    fetchMe()
+      .catch(() => undefined)
+      .finally(() => {
+        if (!cancelled) setResolved(true);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchMe, user]);
+
+  if (!resolved) return null;
   if (!user) return <Navigate to="/login" replace />;
   if ((user.admin_level ?? 0) < 1) return <Navigate to="/channels/@me" replace />;
 

@@ -56,7 +56,7 @@ export async function authenticateOAuth2(req: Request, res: Response, next: Next
       applicationId: matchedToken.app_id,
       userId: matchedToken.user_id || undefined,
       scopes: oauth2Service.parseJsonField(matchedToken.scopes),
-      application: matchedToken.application,
+      application: matchedToken.app,
       user: matchedToken.user || undefined,
     };
 

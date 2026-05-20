@@ -116,10 +116,11 @@ type ApplicationCommandOption {
 | **PATCH** | `/api/webhooks/:appId/:interactionToken/messages/:messageId` | Modifier un follow‑up |
 
 ### Types de réponse (code d’interaction)
+- Les deux types différés ci-dessous sont maintenant pris en charge côté backend et reflétés côté client.
 - `1` : PONG
 - `4` : CHANNEL_MESSAGE_WITH_SOURCE
-- `5` : DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE
-- `6` : DEFERRED_UPDATE_MESSAGE
+- `5` : DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE — implémenté
+- `6` : DEFERRED_UPDATE_MESSAGE — implémenté
 - `7` : UPDATE_MESSAGE
 - `8` : APPLICATION_COMMAND_AUTOCOMPLETE_RESULT (max 25 choix)
 - `9` : MODAL

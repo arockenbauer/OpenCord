@@ -128,8 +128,11 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       const user = await api<any>('/api/users/@me');
       set({ user, isAuthenticated: true });
-    } catch {
-      set({ user: null, relationships: [], isAuthenticated: false });
+    } catch (err: any) {
+      // Don't immediately logout on 401, let the user retry
+      if (err.status !== 401) {
+        set({ user: null, relationships: [], isAuthenticated: false });
+      }
     }
   },
 

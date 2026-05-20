@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { prisma } from '../utils/prisma.js';
 import { GatewayEvents } from '@opencord/shared';
 import { logInfo, logError } from '../utils/logger.js';
+import { serializeBigInt } from '../utils/serialize.js';
 
 let io: SocketServer | null = null;
 
@@ -225,9 +226,9 @@ export function setupGateway(httpServer: HttpServer): SocketServer {
       if (!tokenMatch) return next(new Error('UNAUTHORIZED'));
       const token = tokenMatch[1];
 
-      const secret = process.env.JWT_SECRET;
-      if (!secret && process.env.NODE_ENV === 'production') return next(new Error('JWT_SECRET not configured'));
-      const payload = jwt.verify(token, secret || 'dev_jwt_secret') as any;
+      const secret = process.env.JWT_ACCESS_SECRET || process.env.JWT_SECRET;
+      if (!secret && process.env.NODE_ENV === 'production') return next(new Error('JWT_ACCESS_SECRET not configured'));
+      const payload = jwt.verify(token, secret || 'opencord_dev_jwt_secret_change_me_in_production_1234567890') as any;
       if (!payload.userId || payload.type !== 'access') return next(new Error('INVALID_TOKEN'));
 
       const user = await prisma.user.findUnique({ where: { id: payload.userId } });
@@ -289,7 +290,7 @@ export function setupGateway(httpServer: HttpServer): SocketServer {
 
     // Envoyer READY
     const readyPayload = await buildReadyPayload(userId);
-    socket.emit(GatewayEvents.READY, readyPayload);
+    socket.emit(GatewayEvents.READY, serializeBigInt(readyPayload));
 
     // REQUEST_GUILD_MEMBERS
     socket.on('REQUEST_GUILD_MEMBERS' as any, async (data: { guild_id: string; query?: string; limit?: number }) => {

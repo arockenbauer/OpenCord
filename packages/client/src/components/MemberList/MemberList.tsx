@@ -26,7 +26,7 @@ export function MemberList() {
   const roleGroups = new Map<string, typeof onlineMembers>();
   for (const member of onlineMembers) {
     const hoistRole = guild.roles
-      .filter((r) => r.hoist && member.roles.includes(r.id))
+      .filter((r) => r.hoist && member.roles && member.roles.includes(r.id))
       .sort((a, b) => b.position - a.position)[0];
     const groupName = hoistRole ? hoistRole.name : 'EN LIGNE';
     if (!roleGroups.has(groupName)) roleGroups.set(groupName, []);
@@ -98,7 +98,7 @@ export function MemberList() {
 function MemberItem({ member, guild, offline, onClick, onContextMenu }: { member: any; guild: any; offline?: boolean; onClick: (event: MouseEvent<HTMLDivElement>) => void; onContextMenu: (event: MouseEvent<HTMLDivElement>) => void }) {
   const displayName = member.nickname || member.user.global_name || member.user.username;
   const topRole = guild.roles
-    .filter((r: any) => member.roles.includes(r.id) && r.color)
+    .filter((r: any) => member.roles && member.roles.includes(r.id) && r.color)
     .sort((a: any, b: any) => b.position - a.position)[0];
 
   const activityEl = member.user.activities && member.user.activities.length > 0 ? (() => {

@@ -89,10 +89,29 @@ async function handleResponse<T>(res: Response): Promise<T> {
   return data as T;
 }
 
+let _refreshing: Promise<boolean> | null = null;
+
+async function tryRefreshToken(): Promise<boolean> {
+  if (_refreshing) return _refreshing;
+  _refreshing = fetch(resolveUrl('/auth/refresh'), { method: 'POST', credentials: 'include' })
+    .then(r => r.ok)
+    .catch(() => false)
+    .finally(() => { _refreshing = null; });
+  return _refreshing;
+}
+
 async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<Response> {
   const res = await fetch(resolveUrl(url), { ...options, credentials: 'include' });
 
-  if (res.status === 401) {
+  const isAuthEndpoint = url.includes('/auth/login') || url.includes('/auth/register') || url.includes('/auth/refresh');
+  const isUserMe = url.includes('/users/@me');
+
+  if (res.status === 401 && !isAuthEndpoint && !isUserMe) {
+    const refreshed = await tryRefreshToken();
+    if (refreshed) {
+      return fetch(resolveUrl(url), { ...options, credentials: 'include' });
+    }
+    fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }).catch(() => {});
     useAuthStore.getState().setUser(null as any);
     useAuthStore.getState().setRelationships([]);
     window.location.href = '/login';
@@ -177,7 +196,7 @@ export const api = Object.assign(apiFn, {
       apiFn<T>(`/channels/${channelId}/messages/${messageId}`, { method: 'DELETE' }),
     getInvites: <T>(channelId: string) => typedGet<T>(`/channels/${channelId}/invites`),
     createInvite: <T>(channelId: string, data: unknown) => typedPost<T>(`/channels/${channelId}/invites`, data),
-    getPins: <T>(channelId: string) => typedGet<T>(`/channels/${channelId}/pins`),
+    getPins: <T>(channelId: string) => typedGet<T>(`/channels/${channelId}/messages/pins`),
     searchMessages: <T>(channelId: string, params: { q: string; limit?: number; offset?: number }) => {
       const query = '?' + new URLSearchParams(Object.entries(params).reduce((acc, [key, value]) => {
         if (value !== undefined && value !== null) acc[key] = String(value);
@@ -215,13 +234,13 @@ export const api = Object.assign(apiFn, {
   },
 
   dm: {
-    getGroups: <T>() => typedGet<T>('/dm/groups'),
-    createGroup: <T>(data: unknown) => typedPost<T>('/dm/groups', data),
+    getGroups: <T>() => typedGet<T>('/dms'),
+    createGroup: <T>(data: unknown) => typedPost<T>('/dms/group', data),
     getMessages: <T>(dmId: string, params?: { limit?: number; before?: string }) => {
       const query = params ? '?' + new URLSearchParams(params as Record<string, string>).toString() : '';
-      return typedGet<T>(`/dm/${dmId}/messages${query}`);
+      return typedGet<T>(`/channels/${dmId}/messages${query}`);
     },
-    createMessage: <T>(dmId: string, data: unknown) => typedPost<T>(`/dm/${dmId}/messages`, data),
+    createMessage: <T>(dmId: string, data: unknown) => typedPost<T>(`/channels/${dmId}/messages`, data),
   },
 
   friends: {
@@ -309,13 +328,13 @@ export const api = Object.assign(apiFn, {
   },
 
   forumTags: {
-    get: <T>(channelId: string) => typedGet<T>(`/guilds/@me/channels/${channelId}/tags`),
-    create: <T>(channelId: string, data: { name: string; emoji?: string; moderated?: boolean }) =>
-      typedPost<T>(`/guilds/@me/channels/${channelId}/tags`, data),
-    update: <T>(channelId: string, tagId: string, data: { name?: string; emoji?: string; moderated?: boolean }) =>
-      apiFn<T>(`/guilds/@me/channels/${channelId}/tags/${tagId}`, { method: 'PATCH', body: JSON.stringify(data) }),
-    delete: <T>(channelId: string, tagId: string) =>
-      apiFn<T>(`/guilds/@me/channels/${channelId}/tags/${tagId}`, { method: 'DELETE' }),
+    get: <T>(guildId: string, channelId: string) => typedGet<T>(`/guilds/${guildId}/channels/${channelId}/tags`),
+    create: <T>(guildId: string, channelId: string, data: { name: string; emoji?: string; moderated?: boolean }) =>
+      typedPost<T>(`/guilds/${guildId}/channels/${channelId}/tags`, data),
+    update: <T>(guildId: string, channelId: string, tagId: string, data: { name?: string; emoji?: string; moderated?: boolean }) =>
+      apiFn<T>(`/guilds/${guildId}/channels/${channelId}/tags/${tagId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    delete: <T>(guildId: string, channelId: string, tagId: string) =>
+      apiFn<T>(`/guilds/${guildId}/channels/${channelId}/tags/${tagId}`, { method: 'DELETE' }),
   },
 
   connected_accounts: {
@@ -337,8 +356,8 @@ export const api = Object.assign(apiFn, {
 
   plugins: {
     list: <T>() => typedGet<T>('/plugins'),
-    getUserSettings: <T>() => typedGet<T>('/plugins/user-settings'),
-    saveUserSettings: <T>(preferences: any) => typedPost<T>('/plugins/user-settings', preferences),
+    getUserSettings: <T>() => typedGet<T>('/users/@me/plugins'),
+    saveUserSettings: <T>(slug: string, data: any) => typedPost<T>(`/users/@me/plugins/${slug}`, data),
     getGuildSettings: <T>(guildId: string) => typedGet<T>(`/plugins/guild-settings/${guildId}`),
     updateGuildSettings: <T>(guildId: string, slug: string, data: any) => typedPost<T>(`/plugins/guild-settings/${guildId}/${slug}`, data),
   },
@@ -351,6 +370,8 @@ export const api = Object.assign(apiFn, {
 
   slashCommands: {
     listCommands: <T>(guildId: string) => typedGet<T>(`/guilds/${guildId}/slash-commands`),
+    executeCommand: <T>(guildId: string, data: { command_id: string; channel_id: string; guild_id: string; options?: unknown }) =>
+      typedPost<T>(`/guilds/${guildId}/slash-commands/execute`, data),
   },
 
   oauth: {
@@ -358,6 +379,6 @@ export const api = Object.assign(apiFn, {
   },
 
   auth: {
-    resetPassword: <T>(data: unknown) => typedPost<T>('/auth/reset-password', data),
+    resetPassword: <T>(data: unknown) => typedPost<T>('/auth/password/reset', data),
   },
 });

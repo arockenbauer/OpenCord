@@ -46,6 +46,48 @@ function hashToken(token: string): string {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
 
+function serializeAuthUser(user: {
+  id: string;
+  username: string;
+  discriminator: string;
+  email: string;
+  avatar: string | null;
+  banner: string | null;
+  bio: string | null;
+  global_name: string | null;
+  status: string;
+  custom_status_text: string | null;
+  custom_status_emoji: string | null;
+  locale: string;
+  theme: string;
+  admin_level: number;
+  two_factor_enabled: boolean;
+  premium: boolean;
+  created_at: Date;
+  verified?: boolean;
+}) {
+  return {
+    id: user.id,
+    username: user.username,
+    discriminator: user.discriminator,
+    email: user.email,
+    avatar: user.avatar,
+    banner: user.banner,
+    bio: user.bio,
+    global_name: user.global_name,
+    status: user.status,
+    custom_status_text: user.custom_status_text,
+    custom_status_emoji: user.custom_status_emoji,
+    locale: user.locale,
+    theme: user.theme,
+    admin_level: user.admin_level,
+    two_factor_enabled: user.two_factor_enabled,
+    premium: user.premium,
+    created_at: user.created_at,
+    verified: user.verified,
+  };
+}
+
 async function findAvailableDiscriminator(username: string): Promise<string | null> {
   const taken = await prisma.user.findMany({ where: { username }, select: { discriminator: true } });
   const takenSet = new Set(taken.map((u) => u.discriminator));
@@ -110,14 +152,7 @@ export async function register(req: Request, res: Response, next: NextFunction):
     res.cookie('refresh_token', refreshToken, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', maxAge: REFRESH_TOKEN_EXPIRY_SECONDS * 1000 });
 
     res.status(201).json({
-      user: {
-        id: user.id,
-        username: user.username,
-        discriminator: user.discriminator,
-        email: user.email,
-        verified: user.verified,
-        created_at: user.created_at,
-      },
+      user: serializeAuthUser(user),
     });
   } catch (err) {
     next(err);
@@ -176,13 +211,7 @@ export async function login(req: Request, res: Response, next: NextFunction): Pr
     res.cookie('refresh_token', refreshToken, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', maxAge: REFRESH_TOKEN_EXPIRY_SECONDS * 1000 });
 
     res.json({
-      user: {
-        id: user.id,
-        username: user.username,
-        discriminator: user.discriminator,
-        avatar: user.avatar,
-        email: user.email,
-      },
+      user: serializeAuthUser(user),
     });
   } catch (err) {
     next(err);
@@ -192,7 +221,7 @@ export async function login(req: Request, res: Response, next: NextFunction): Pr
 // 4.3 Rafraîchissement du Token
 export async function refresh(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { refresh_token } = req.body;
+    const refresh_token = req.cookies?.refresh_token || req.body?.refresh_token;
     if (!refresh_token) throw new AppError(400, 'INVALID_TOKEN', 'Refresh token required');
 
     if (!JWT_REFRESH_SECRET) throw new AppError(500, 'INTERNAL_ERROR', 'JWT_REFRESH_SECRET not configured');
@@ -402,13 +431,7 @@ export async function twoFactorLogin(req: Request, res: Response, next: NextFunc
     res.cookie('refresh_token', refreshToken, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', maxAge: REFRESH_TOKEN_EXPIRY_SECONDS * 1000 });
 
     res.json({
-      user: {
-        id: user.id,
-        username: user.username,
-        discriminator: user.discriminator,
-        avatar: user.avatar,
-        email: user.email,
-      },
+      user: serializeAuthUser(user),
     });
   } catch (err) {
     if (err instanceof jwt.TokenExpiredError) return next(new AppError(401, 'TOKEN_EXPIRED', 'Token expired'));

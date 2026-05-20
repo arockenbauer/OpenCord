@@ -49,7 +49,7 @@ export async function createForumTag(req: Request, res: Response, next: NextFunc
     const tags = await prisma.forumTag.findMany({ where: { channel_id: channelId } });
     await prisma.channel.update({
       where: { id: channelId },
-      data: { available_tags: tags as any },
+      data: { available_tags: tags.length > 0 ? JSON.stringify(tags.map(t => ({ id: t.id, name: t.name, emoji_id: t.emoji_id, emoji_name: t.emoji_name }))) : undefined },
     });
 
     const io = getIO();
@@ -93,7 +93,7 @@ export async function updateForumTag(req: Request, res: Response, next: NextFunc
     const tags = await prisma.forumTag.findMany({ where: { guild_id: tag.guild_id!, channel_id: tag.channel_id } });
     await prisma.channel.update({
       where: { id: tag.channel_id! },
-      data: { available_tags: JSON.stringify(tags.map(t => ({ id: t.id, name: t.name, emoji_id: t.emoji_id, emoji_name: t.emoji_name }))) } as any,
+      data: { available_tags: tags.length > 0 ? JSON.stringify(tags.map(t => ({ id: t.id, name: t.name, emoji_id: t.emoji_id, emoji_name: t.emoji_name }))) : undefined },
     });
 
     res.json({ tag: updated });
@@ -113,10 +113,14 @@ export async function deleteForumTag(req: Request, res: Response, next: NextFunc
 
     // Update channel's available_tags
     const tags = await prisma.forumTag.findMany({ where: { channel_id: tag.channel_id } });
+    const updateData: any = {};
+    if (tags.length > 0) {
+      updateData.available_tags = JSON.stringify(tags.map(t => ({ id: t.id, name: t.name, emoji_id: t.emoji_id, emoji_name: t.emoji_name })));
+    }
     await prisma.channel.update({
       where: { id: tag.channel_id },
-      data: { available_tags: tags.length > 0 ? tags as any : null },
-    });
+      data: updateData as any,
+    } as any);
 
     // Remove applied tags
     await prisma.appliedTag.deleteMany({ where: { tag_id: tagId } });

@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { buildUser } from '../__tests__/factories/user.factory';
+import { describe, it, expect } from 'vitest';
+import { buildUser } from '../__tests__/factories/user.factory.js';
 
 describe('AuthService', () => {
   describe('register', () => {

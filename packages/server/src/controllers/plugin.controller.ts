@@ -274,12 +274,14 @@ export async function getPlugin(req: Request, res: Response, next: NextFunction)
 export async function getUserPlugins(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     await ensureOfficialPlugins();
+    const userId = (req as any).user?.userId;
+    if (!userId) throw new AppError(401, 'UNAUTHORIZED', 'Not authenticated');
     const [plugins, settings] = await Promise.all([
       prisma.plugin.findMany({
         where: { type: { in: ['CLIENT', 'BOTH'] } },
         orderBy: { name: 'asc' },
       }),
-      prisma.userPluginSettings.findMany({ where: { user_id: req.user!.userId } }),
+      prisma.userPluginSettings.findMany({ where: { user_id: userId } }),
     ]);
 
     const settingsByPluginId = new Map(settings.map((row) => [row.plugin_id, row]));

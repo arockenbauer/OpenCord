@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcrypt';
+import { generateSnowflake } from '../src/utils/snowflake.js';
 
 const prisma = new PrismaClient();
 

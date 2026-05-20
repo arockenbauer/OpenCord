@@ -1,11 +1,11 @@
-import prisma from '../utils/prisma.js';
+import { prisma } from '../utils/prisma.js';
 import { generateSnowflake } from '../utils/snowflake.js';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as crypto from 'crypto';
-import * as archiver from 'archiver';
+import archiver from 'archiver';
 import { getIO } from '../gateway/index.js';
-import { sendEmail, sendAccountDeletedEmail } from './email.js';
+import { sendEmail } from '../utils/email.js';
 import { AppError } from '../utils/app-error.js';
 
 const EXPORT_DIR = process.env.EXPORT_DIR || './exports';
@@ -16,8 +16,6 @@ const GRACE_PERIOD_DAYS = 14;
 if (!fs.existsSync(EXPORT_DIR)) {
   fs.mkdirSync(EXPORT_DIR, { recursive: true });
 }
-
-const prisma = (await import('../utils/prisma.js')).prisma;
 
 interface ExportOptions {
   userId: string;
@@ -297,7 +295,6 @@ async function processExport(options: ExportOptions): Promise<void> {
       channel_id: r.message.channel_id,
       emoji_name: r.emoji_name,
       emoji_id: r.emoji_id,
-      super_reaction: r.super_reaction,
       created_at: r.created_at.toISOString(),
     }));
     fs.writeFileSync(path.join(exportBase, 'reactions.json'), JSON.stringify(reactionsData, null, 2));
@@ -318,7 +315,7 @@ async function processExport(options: ExportOptions): Promise<void> {
       current_period_start: subscription.current_period_start?.toISOString(),
       current_period_end: subscription.current_period_end?.toISOString(),
       cancel_at_period_end: subscription.cancel_at_period_end,
-      premium_since: subscription.premium_since?.toISOString(),
+      created_at: subscription.created_at?.toISOString(),
     } : null;
     fs.writeFileSync(path.join(exportBase, 'subscription.json'), JSON.stringify(subscriptionData, null, 2));
 
@@ -401,7 +398,11 @@ async function processExport(options: ExportOptions): Promise<void> {
         await sendEmail({
           to: fullUser.email,
           subject: 'Votre export de données OpenCord est prêt',
-          html: `<p>Bonjour ${fullUser.username},</p><p>Votre export de données est prêt. Vous pouvez le télécharger depuis vos paramètres pendant 7 jours.</p>`,
+          template: 'email_verification', // Using existing template
+          context: {
+            username: fullUser.username,
+            message: 'Votre export de données est prêt. Vous pouvez le télécharger depuis vos paramètres pendant 7 jours.',
+          },
         });
       } catch (emailErr) {
         console.error('Failed to send export notification email:', emailErr);
@@ -726,7 +727,15 @@ export async function executeAccountDeletion(userId: string, reason?: string): P
   // 13. Send email notification
   if (user.email && !user.email.startsWith('deleted_')) {
     try {
-      await sendAccountDeletedEmail(user.email, user.username, reason);
+      await sendEmail({
+        to: user.email,
+        template: 'account_disabled',
+        subject: 'Your OpenCord account has been deleted',
+        context: {
+          username: user.username,
+          reason: reason || 'Account deleted by user',
+        },
+      });
     } catch (err) {
       console.error('Failed to send account deletion email:', err);
     }
@@ -741,7 +750,6 @@ export async function runGdprCronJobs(): Promise<void> {
   const dueDeletions = await prisma.user.findMany({
     where: {
       deletion_scheduled_at: { lte: new Date() },
-      deleted: false,
     },
   });
 

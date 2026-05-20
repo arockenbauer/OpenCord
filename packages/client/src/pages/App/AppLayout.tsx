@@ -50,7 +50,7 @@ export function AppLayout() {
   const setContextMenu = useUIStore((s) => s.setContextMenu);
   const selectedGuildId = useGuildStore((s) => s.selectedGuildId);
   const selectedChannelId = useGuildStore((s) => s.selectedChannelId);
-  const [showQuickSwitcher, setShowQuickSwitcher] = useState(false);
+  const [qOpenState, setQOpenState] = useState(false);
 
   useGateway();
 
@@ -59,7 +59,7 @@ export function AppLayout() {
     shortcuts: [
       {
         key: getShortcutKey(DEFAULT_SHORTCUTS.QUICK_SWITCHER.win),
-        callback: () => setShowQuickSwitcher(prev => !prev),
+        callback: () => setQOpenState(prev => !prev),
       },
       {
         key: getShortcutKey(DEFAULT_SHORTCUTS.OPEN_SETTINGS.win),
@@ -161,6 +161,7 @@ export function AppLayout() {
       )}
       {profilePopover && <UserProfilePopout />}
       {contextMenu && <ContextMenuLayer />}
+      <QuickSwitcher open={qOpenState} onClose={() => setQOpenState(false)} />
       <div aria-live="polite" aria-atomic="false" className="sr-only" id="aria-live-messages"></div>
       <div aria-live="assertive" aria-atomic="false" className="sr-only" id="aria-live-mentions"></div>
     </>
@@ -540,8 +541,6 @@ function UserProfilePopout() {
           </div>
         </>
       ) : null}
-
-      <QuickSwitcher open={showQuickSwitcher} onClose={() => setShowQuickSwitcher(false)} />
     </div>
   );
 }

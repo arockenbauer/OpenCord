@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, Command, Hash, AtSign, Smile } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Command, Hash, AtSign, Smile } from 'lucide-react';
 import { api } from '../../services/api';
 import styles from './SlashCommandAutocomplete.module.css';
 
@@ -22,7 +22,7 @@ interface SlashCommandAutocompleteProps {
   channelId: string;
   guildId?: string;
   inputValue: string;
-  onSelect: (command: string, options?: string) => void;
+  onSelect: (commandText: string, commandId?: string) => void;
   onClose: () => void;
   anchorRef: React.RefObject<HTMLElement>;
 }
@@ -35,6 +35,7 @@ interface Suggestion {
   value: string;
   description?: string;
   icon?: string;
+  id?: string;
 }
 
 export function SlashCommandAutocomplete({
@@ -62,65 +63,33 @@ export function SlashCommandAutocomplete({
     const fetchSuggestions = async () => {
       const suggestions: Suggestion[] = [];
 
-      if (!query) {
-        // Show available commands
-        try {
-          const commands = await api.slashCommands.listCommands<any[]>(guildId!) || [];
-          suggestions.push(
-            ...commands.map((cmd: ApplicationCommand) => ({
-              type: 'command' as SuggestionType,
-              label: `/${cmd.name}`,
-              value: cmd.name,
-              description: cmd.description,
-              icon: '⌘',
-            }))
-          );
-        } catch {
-          // Ignore errors
-        }
-      } else {
-        // Filter commands
-        try {
-          const commands = await api.slashCommands.listCommands<any[]>(guildId!) || [];
-          const filtered = commands.filter((cmd: ApplicationCommand) =>
-            cmd.name.toLowerCase().includes(query) ||
-            cmd.description.toLowerCase().includes(query)
-          );
-          suggestions.push(
-            ...filtered.map((cmd: ApplicationCommand) => ({
-              type: 'command' as SuggestionType,
-              label: `/${cmd.name}`,
-              value: cmd.name,
-              description: cmd.description,
-              icon: '⌘',
-            }))
-          );
-        } catch {
-          // Ignore errors
-        }
+      if (!guildId) {
+        setSuggestions([]);
+        return;
+      }
 
-        // Suggest channels if query looks like channel mention
-        if (query.startsWith('#') || query.includes('')) {
-          suggestions.push(
-            { type: 'channel', label: '#général', value: 'general', description: 'Salon textuel' },
-            { type: 'channel', label: '#musique', value: 'music', description: 'Salon textuel' },
-          );
-        }
+      try {
+        const result = await api.slashCommands.listCommands<{ commands: ApplicationCommand[] }>(guildId);
+        const commands = result?.commands || [];
+        const filtered = query
+          ? commands.filter((cmd: ApplicationCommand) =>
+              cmd.name.toLowerCase().includes(query) ||
+              cmd.description.toLowerCase().includes(query)
+            )
+          : commands;
 
-        // Suggest users if query looks like user mention
-        if (query.startsWith('@') || query.includes('@')) {
-          suggestions.push(
-            { type: 'user', label: '@Utilisateur', value: 'user123', description: 'Membre' },
-          );
-        }
-
-        // Suggest emojis
-        if (query.includes(':')) {
-          suggestions.push(
-            { type: 'emoji', label: ':smile:', value: '😊', icon: '😊' },
-            { type: 'emoji', label: ':heart:', value: '❤️', icon: '❤️' },
-          );
-        }
+        suggestions.push(
+          ...filtered.map((cmd: ApplicationCommand) => ({
+            type: 'command' as SuggestionType,
+            label: `/${cmd.name}`,
+            value: cmd.name,
+            description: cmd.description,
+            icon: '⌘',
+            id: cmd.id,
+          }))
+        );
+      } catch {
+        // Ignore errors
       }
 
       setSuggestions(suggestions);
@@ -166,7 +135,7 @@ export function SlashCommandAutocomplete({
   const handleSelect = (suggestion: Suggestion | undefined) => {
     if (!suggestion) return;
     if (suggestion.type === 'command') {
-      onSelect(`/${suggestion.value} `);
+      onSelect(`/${suggestion.value} `, suggestion.id);
     } else if (suggestion.type === 'emoji') {
       onSelect(suggestion.value);
     } else {

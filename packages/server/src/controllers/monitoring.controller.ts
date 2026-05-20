@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { requireAdmin } from '../middleware/auth.middleware.js';
 import { pinoLogger } from '../utils/logger.js';
@@ -276,145 +276,174 @@ export async function getIncidents(req: Request, res: Response) {
 // Admin: Create incident
 export const createIncident = [
   requireAdmin(1),
-  async (req: Request, res: Response) => {
-    const { title, status, impact, message } = req.body;
-    const userId = (req as any).user?.userId;
-    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { title, status, impact, message } = req.body;
+      const userId = (req as any).user?.userId;
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+      if (!title) return res.status(400).json({ error: 'title is required' });
 
-    const incident = await prisma.statusIncident.create({
-      data: {
-        id: generateSnowflake(),
-        title,
-        status: status || 'investigating',
-        impact: impact || 'minor',
-        created_by: userId,
-      },
-    });
-
-    if (message) {
-      await prisma.statusIncidentUpdate.create({
+      const incident = await prisma.statusIncident.create({
         data: {
           id: generateSnowflake(),
-          incident_id: incident.id,
-          status: incident.status,
-          message,
+          title,
+          status: status || 'investigating',
+          impact: impact || 'minor',
           created_by: userId,
         },
       });
-    }
 
-    pinoLogger.info({ module: 'admin', action: 'INCIDENT_CREATE', incident_id: incident.id });
-    res.status(201).json(incident);
+      if (message) {
+        await prisma.statusIncidentUpdate.create({
+          data: {
+            id: generateSnowflake(),
+            incident_id: incident.id,
+            status: incident.status,
+            message,
+            created_by: userId,
+          },
+        });
+      }
+
+      pinoLogger.info({ module: 'admin', action: 'INCIDENT_CREATE', incident_id: incident.id });
+      res.status(201).json(incident);
+    } catch (err) {
+      next(err);
+    }
   },
 ];
 
 // Admin: Update incident
 export const updateIncident = [
   requireAdmin(1),
-  async (req: Request, res: Response) => {
-    const { id } = req.params;
-    const { status, message } = req.body;
-    const userId = (req as any).user?.userId;
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const { status, message } = req.body;
+      const userId = (req as any).user?.userId;
 
-    const updateData: any = {};
-    if (status) {
-      updateData.status = status;
-      if (status === 'resolved') updateData.resolved_at = new Date();
-    }
+      const updateData: any = {};
+      if (status) {
+        updateData.status = status;
+        if (status === 'resolved') updateData.resolved_at = new Date();
+      }
 
-    const incident = await prisma.statusIncident.update({
-      where: { id },
-      data: updateData,
-    });
-
-    if (message) {
-      await prisma.statusIncidentUpdate.create({
-        data: {
-          id: generateSnowflake(),
-          incident_id: id,
-          status: status || incident.status,
-          message,
-          created_by: userId,
-        },
+      const incident = await prisma.statusIncident.update({
+        where: { id },
+        data: updateData,
       });
-    }
 
-    pinoLogger.info({ module: 'admin', action: 'INCIDENT_UPDATE', incident_id: id });
-    res.json(incident);
+      if (message) {
+        await prisma.statusIncidentUpdate.create({
+          data: {
+            id: generateSnowflake(),
+            incident_id: id,
+            status: status || incident.status,
+            message,
+            created_by: userId,
+          },
+        });
+      }
+
+      pinoLogger.info({ module: 'admin', action: 'INCIDENT_UPDATE', incident_id: id });
+      res.json(incident);
+    } catch (err) {
+      next(err);
+    }
   },
 ];
 
 // Admin: Create maintenance
 export const createMaintenance = [
   requireAdmin(2),
-  async (req: Request, res: Response) => {
-    const { title, description, scheduled_start, scheduled_end, auto_maintenance_mode } = req.body;
-    const userId = (req as any).user?.userId;
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { title, description, scheduled_start, scheduled_end, auto_maintenance_mode } = req.body;
+      const userId = (req as any).user?.userId;
+      if (!title || !scheduled_start || !scheduled_end) {
+        return res.status(400).json({ error: 'title, scheduled_start and scheduled_end are required' });
+      }
 
-    const maintenance = await prisma.statusMaintenance.create({
-      data: {
-        id: generateSnowflake(),
-        title,
-        description,
-        scheduled_start: new Date(scheduled_start),
-        scheduled_end: new Date(scheduled_end),
-        status: 'scheduled',
-        auto_maintenance_mode: auto_maintenance_mode || false,
-        created_by: userId,
-      },
-    });
+      const maintenance = await prisma.statusMaintenance.create({
+        data: {
+          id: generateSnowflake(),
+          title,
+          description,
+          scheduled_start: new Date(scheduled_start),
+          scheduled_end: new Date(scheduled_end),
+          status: 'scheduled',
+          auto_maintenance_mode: auto_maintenance_mode || false,
+          created_by: userId,
+        },
+      });
 
-    pinoLogger.info({ module: 'admin', action: 'MAINTENANCE_CREATE', maintenance_id: maintenance.id });
-    res.status(201).json(maintenance);
+      pinoLogger.info({ module: 'admin', action: 'MAINTENANCE_CREATE', maintenance_id: maintenance.id });
+      res.status(201).json(maintenance);
+    } catch (err) {
+      next(err);
+    }
   },
 ];
 
 // Admin: Create monitor
 export const createMonitor = [
   requireAdmin(1),
-  async (req: Request, res: Response) => {
-    const { name, description, type, endpoint, interval_seconds, enabled } = req.body;
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { name, description, type, endpoint, interval_seconds, enabled } = req.body;
+      if (!name) return res.status(400).json({ error: 'name is required' });
 
-    const monitor = await prisma.statusMonitor.create({
-      data: {
-        id: generateSnowflake(),
-        name,
-        description,
-        type: type || 'http',
-        endpoint,
-        interval_seconds: interval_seconds || 60,
-        enabled: enabled !== false,
-        position: await prisma.statusMonitor.count(),
-      },
-    });
+      const monitor = await prisma.statusMonitor.create({
+        data: {
+          id: generateSnowflake(),
+          name,
+          description,
+          type: type || 'http',
+          endpoint,
+          interval_seconds: interval_seconds || 60,
+          enabled: enabled !== false,
+          position: await prisma.statusMonitor.count(),
+        },
+      });
 
-    res.status(201).json(monitor);
+      res.status(201).json(monitor);
+    } catch (err) {
+      next(err);
+    }
   },
 ];
 
 // Admin: Update monitor
 export const updateMonitor = [
   requireAdmin(1),
-  async (req: Request, res: Response) => {
-    const { id } = req.params;
-    const { name, description, type, endpoint, interval_seconds, enabled } = req.body;
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const { name, description, type, endpoint, interval_seconds, enabled } = req.body;
 
-    const monitor = await prisma.statusMonitor.update({
-      where: { id },
-      data: { name, description, type, endpoint, interval_seconds, enabled },
-    });
+      const monitor = await prisma.statusMonitor.update({
+        where: { id },
+        data: { name, description, type, endpoint, interval_seconds, enabled },
+      });
 
-    res.json(monitor);
+      res.json(monitor);
+    } catch (err) {
+      next(err);
+    }
   },
 ];
 
 // Admin: Delete monitor
 export const deleteMonitor = [
   requireAdmin(1),
-  async (req: Request, res: Response) => {
-    const { id } = req.params;
-    await prisma.statusMonitor.delete({ where: { id } });
-    res.status(204).send();
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      await prisma.statusMonitor.delete({ where: { id } });
+      res.status(204).send();
+    } catch (err) {
+      next(err);
+    }
   },
 ];
 
@@ -446,69 +475,85 @@ export async function getMonitors(req: Request, res: Response) {
 // Admin: Run monitor check manually
 export const runMonitorCheck = [
   requireAdmin(1),
-  async (req: Request, res: Response) => {
-    const { id } = req.params;
-    const monitor = await prisma.statusMonitor.findUnique({ where: { id } });
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const monitor = await prisma.statusMonitor.findUnique({ where: { id } });
 
-    if (!monitor) return res.status(404).json({ error: 'Monitor not found' });
+      if (!monitor) return res.status(404).json({ error: 'Monitor not found' });
 
-    const result = await performCheck(monitor);
-    res.json(result);
+      const result = await performCheck(monitor);
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
   },
 ];
 
 // Admin: Delete incident
 export const deleteIncident = [
   requireAdmin(1),
-  async (req: Request, res: Response) => {
-    const { id } = req.params;
-    await prisma.statusIncident.delete({ where: { id } });
-    pinoLogger.info({ module: 'admin', action: 'INCIDENT_DELETE', incident_id: id });
-    res.status(204).send();
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      await prisma.statusIncident.delete({ where: { id } });
+      pinoLogger.info({ module: 'admin', action: 'INCIDENT_DELETE', incident_id: id });
+      res.status(204).send();
+    } catch (err) {
+      next(err);
+    }
   },
 ];
 
 // Admin: Update maintenance
 export const updateMaintenance = [
   requireAdmin(2),
-  async (req: Request, res: Response) => {
-    const { id } = req.params;
-    const { title, description, scheduled_start, scheduled_end, status, auto_maintenance_mode } = req.body;
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const { title, description, scheduled_start, scheduled_end, status, auto_maintenance_mode } = req.body;
 
-    const updateData: any = {};
-    if (title !== undefined) updateData.title = title;
-    if (description !== undefined) updateData.description = description;
-    if (scheduled_start !== undefined) updateData.scheduled_start = new Date(scheduled_start);
-    if (scheduled_end !== undefined) updateData.scheduled_end = new Date(scheduled_end);
-    if (status !== undefined) {
-      updateData.status = status;
-      if (status === 'in_progress' && !updateData.started_at) {
-        updateData.started_at = new Date();
+      const updateData: any = {};
+      if (title !== undefined) updateData.title = title;
+      if (description !== undefined) updateData.description = description;
+      if (scheduled_start !== undefined) updateData.scheduled_start = new Date(scheduled_start);
+      if (scheduled_end !== undefined) updateData.scheduled_end = new Date(scheduled_end);
+      if (status !== undefined) {
+        updateData.status = status;
+        if (status === 'in_progress' && !updateData.started_at) {
+          updateData.started_at = new Date();
+        }
+        if (status === 'completed' && !updateData.completed_at) {
+          updateData.completed_at = new Date();
+        }
       }
-      if (status === 'completed' && !updateData.completed_at) {
-        updateData.completed_at = new Date();
-      }
+      if (auto_maintenance_mode !== undefined) updateData.auto_maintenance_mode = auto_maintenance_mode;
+
+      const maintenance = await prisma.statusMaintenance.update({
+        where: { id },
+        data: updateData,
+      });
+
+      pinoLogger.info({ module: 'admin', action: 'MAINTENANCE_UPDATE', maintenance_id: id });
+      res.json(maintenance);
+    } catch (err) {
+      next(err);
     }
-    if (auto_maintenance_mode !== undefined) updateData.auto_maintenance_mode = auto_maintenance_mode;
-
-    const maintenance = await prisma.statusMaintenance.update({
-      where: { id },
-      data: updateData,
-    });
-
-    pinoLogger.info({ module: 'admin', action: 'MAINTENANCE_UPDATE', maintenance_id: id });
-    res.json(maintenance);
   },
 ];
 
 // Admin: Delete maintenance
 export const deleteMaintenance = [
   requireAdmin(2),
-  async (req: Request, res: Response) => {
-    const { id } = req.params;
-    await prisma.statusMaintenance.delete({ where: { id } });
-    pinoLogger.info({ module: 'admin', action: 'MAINTENANCE_DELETE', maintenance_id: id });
-    res.status(204).send();
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      await prisma.statusMaintenance.delete({ where: { id } });
+      pinoLogger.info({ module: 'admin', action: 'MAINTENANCE_DELETE', maintenance_id: id });
+      res.status(204).send();
+    } catch (err) {
+      next(err);
+    }
   },
 ];
 
@@ -559,7 +604,7 @@ export const testSftpConnection = [
       res.json({ success: true, message: 'SFTP connection successful' });
     } catch (err: any) {
       pinoLogger.error({ module: 'admin', action: 'SFTP_TEST', error: err.message });
-      res.status(500).json({ success: false, error: err.message });
+      res.status(503).json({ success: false, error: err.message });
     }
   },
 ];
@@ -574,7 +619,7 @@ export const triggerSftpExport = [
       res.json(result);
     } catch (err: any) {
       pinoLogger.error({ module: 'admin', action: 'SFTP_EXPORT', error: err.message });
-      res.status(500).json({ success: false, error: err.message });
+      res.status(503).json({ success: false, error: err.message });
     }
   },
 ];

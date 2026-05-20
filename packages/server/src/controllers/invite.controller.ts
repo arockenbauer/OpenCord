@@ -93,13 +93,13 @@ export async function createInvite(req: Request, res: Response, next: NextFuncti
         },
       });
     }
-    await writeAuditLog(req.params.guildId, req.user!.userId, AUDIT_LOG_ACTIONS.INVITE_CREATE, invite.code, 'INVITE', {
-      channel_id: invite.channel_id,
-      max_uses: invite.max_uses,
-      max_age: invite.max_age,
-      temporary: invite.temporary,
-      expires_at: invite.expires_at,
-    });
+    await writeAuditLog(req.params.guildId, req.user!.userId, AUDIT_LOG_ACTIONS.INVITE_CREATE, invite.code, 'INVITE', [
+      { key: 'channel_id', old_value: null, new_value: invite.channel_id },
+      { key: 'max_uses', old_value: null, new_value: invite.max_uses },
+      { key: 'max_age', old_value: null, new_value: invite.max_age },
+      { key: 'temporary', old_value: null, new_value: invite.temporary },
+      { key: 'expires_at', old_value: null, new_value: invite.expires_at },
+    ]);
 
     res.status(201).json(invite);
   } catch (err) {
@@ -316,9 +316,9 @@ export async function deleteInvite(req: Request, res: Response, next: NextFuncti
         code: invite.code,
       });
     }
-    await writeAuditLog(invite.guild_id, req.user!.userId, AUDIT_LOG_ACTIONS.INVITE_DELETE, invite.code, 'INVITE', {
-      channel_id: invite.channel_id,
-    });
+    await writeAuditLog(invite.guild_id, req.user!.userId, AUDIT_LOG_ACTIONS.INVITE_DELETE, invite.code, 'INVITE', [
+      { key: 'channel_id', old_value: null, new_value: invite.channel_id },
+    ]);
 
     res.status(204).send();
   } catch (err) {

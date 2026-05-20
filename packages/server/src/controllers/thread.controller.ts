@@ -14,7 +14,7 @@ function checkThreadPermission(perms: bigint, bit: bigint, message: string = 'Mi
 async function ensureThreadAccess(threadId: string, userId: string) {
   const thread = await prisma.channel.findUnique({
     where: { id: threadId },
-    include: { parent: true },
+    include: { parent: true, thread_members: true },
   });
   if (!thread || (thread.type !== 10 && thread.type !== 11 && thread.type !== 12)) {
     throw new AppError(404, 'NOT_FOUND', 'Thread not found');
@@ -104,10 +104,10 @@ export async function startThreadFromMessage(req: Request, res: Response, next: 
     }
     if (channel.guild_id) {
       await writeAuditLog(channel.guild_id, req.user!.userId, AUDIT_LOG_ACTIONS.THREAD_CREATE, thread.id, 'CHANNEL', [
-        { key: 'parent_id', new_value: channelId },
-        { key: 'name', new_value: thread.name },
-        { key: 'auto_archive_duration', new_value: autoArchive },
-        { key: 'source_message_id', new_value: messageId },
+        { key: 'parent_id', old_value: null, new_value: channelId },
+        { key: 'name', old_value: null, new_value: thread.name },
+        { key: 'auto_archive_duration', old_value: null, new_value: autoArchive },
+        { key: 'source_message_id', old_value: null, new_value: messageId },
       ]);
     }
 
@@ -208,10 +208,10 @@ export async function startThread(req: Request, res: Response, next: NextFunctio
     }
     if (channel.guild_id) {
       await writeAuditLog(channel.guild_id, req.user!.userId, AUDIT_LOG_ACTIONS.THREAD_CREATE, thread.id, 'CHANNEL', [
-        { key: 'parent_id', new_value: channelId },
-        { key: 'name', new_value: thread.name },
-        { key: 'auto_archive_duration', new_value: autoArchive },
-        { key: 'applied_tags', new_value: req.body.applied_tags || [] },
+        { key: 'parent_id', old_value: null, new_value: channelId },
+        { key: 'name', old_value: null, new_value: thread.name },
+        { key: 'auto_archive_duration', old_value: null, new_value: autoArchive },
+        { key: 'applied_tags', old_value: null, new_value: req.body.applied_tags || [] },
       ]);
     }
 
@@ -236,7 +236,7 @@ export async function getActiveThreads(req: Request, res: Response, next: NextFu
       where: {
         parent_id: channelId,
         type: { in: [10, 11, 12] },
-        thread_metadata: { path: 'archived', equals: false },
+        thread_metadata: { equals: 'false' },
       },
       orderBy: { last_message_id: 'desc' },
       take: 50,
@@ -301,10 +301,10 @@ export async function getMyPrivateArchivedThreads(req: Request, res: Response, n
       where: {
         parent_id: channelId,
         type: 12, // PRIVATE_THREAD
-        thread_metadata: { path: 'archived', equals: true },
+        thread_metadata: { equals: 'true' },
         thread_members: { some: { user_id: req.user!.userId } },
       },
-      orderBy: { thread_metadata: 'desc' },
+      orderBy: { last_message_id: 'desc' },
       take: 25,
     });
 
@@ -588,8 +588,8 @@ export async function deleteThread(req: Request, res: Response, next: NextFuncti
     }
     if (thread.guild_id) {
       await writeAuditLog(thread.guild_id, req.user!.userId, AUDIT_LOG_ACTIONS.THREAD_DELETE, thread.id, 'CHANNEL', [
-        { key: 'parent_id', old_value: thread.parent_id },
-        { key: 'name', old_value: thread.name },
+        { key: 'parent_id', old_value: thread.parent_id, new_value: null },
+        { key: 'name', old_value: thread.name, new_value: null },
       ]);
     }
 

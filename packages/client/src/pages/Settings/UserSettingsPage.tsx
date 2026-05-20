@@ -1488,7 +1488,7 @@ function PluginsSection() {
     setSavingSlug(slug);
     setMessage('');
     try {
-      const response = await api.plugins.saveUserSettings<any>({
+      const response = await api.plugins.saveUserSettings<any>(slug, {
         enabled: current.enabled,
         settings: current.settings,
       });

@@ -170,7 +170,7 @@ export async function updateChannelNotificationSettings(req: Request, res: Respo
       });
     } else {
       setting = await prisma.notificationSettings.update({
-        where: { user_id_guild_id_channel_id: { user_id: req.user!.userId, guild_id: undefined as any, channel_id: req.params.channelId } },
+        where: { user_id_channel_id: { user_id: req.user!.userId, channel_id: req.params.channelId } },
         data: req.body,
       });
     }
@@ -209,7 +209,7 @@ export async function updateGuildNotificationSettings(req: Request, res: Respons
       });
     } else {
       setting = await prisma.notificationSettings.update({
-        where: { user_id_guild_id_channel_id: { user_id: req.user!.userId, guild_id: req.params.guildId, channel_id: undefined as any } },
+        where: { user_id_guild_id: { user_id: req.user!.userId, guild_id: req.params.guildId } },
         data: req.body,
       });
     }

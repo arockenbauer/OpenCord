@@ -150,8 +150,8 @@
 }
 
 .channel:hover { background: var(--bg-modifier-hover); color: var(--text-secondary); }
-.channel.active { background: var(--bg-modifier-selected); color: var(--text-primary); }
-.channel.unread { color: var(--text-primary); font-weight: var(--font-weight-bold); }
+.channel.active { background: var(--bg-modifier-selected); color: var(--text-primary); font-weight: var(--font-weight-medium); }
+.channel.unread { color: var(--text-primary); font-weight: var(--font-weight-semibold); }
 
 .channelName {
   flex: 1;
@@ -178,8 +178,8 @@
 .userPanel {
   height: 52px;
   padding: 0 var(--spacing-2);
-  background: var(--bg-tertiary);
-  border-top: 1px solid var(--border);
+  background: #232428;
+  border-top: 1px solid rgba(0, 0, 0, 0.2);
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
@@ -241,7 +241,7 @@
   flex: 1;
   height: 28px;
   padding: 0 var(--spacing-2);
-  background: var(--bg-tertiary);
+  background: var(--bg-input, #383a40);
   border-radius: var(--radius-md);
   font-size: var(--font-size-sm);
   color: var(--text-muted);

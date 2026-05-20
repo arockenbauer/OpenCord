@@ -46,20 +46,20 @@ export function ResetPasswordPage() {
       <form className={styles.card} onSubmit={handleSubmit}>
         <div className={styles.title}>{t('auth.reset_password')}</div>
         <div className={styles.subtitle}>Choisissez un nouveau mot de passe sécurisé.</div>
-        {error && <div className={styles.error}>{error}</div>}
-        {message && <div style={{ color: 'var(--text-positive)', fontSize: '14px', marginBottom: '16px', textAlign: 'center' }}>{message}</div>}
+        {error && <div className={styles.error} data-testid="reset-password-error">{error}</div>}
+        {message && <div style={{ color: 'var(--text-positive)', fontSize: '14px', marginBottom: '16px', textAlign: 'center' }} data-testid="reset-password-message">{message}</div>}
 
         <div className={styles.field}>
           <label className={styles.label}>{t('auth.new_password')}</label>
-          <input className={styles.input} type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required minLength={8} />
+          <input className={styles.input} type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required minLength={8} data-testid="reset-password-new" />
         </div>
 
         <div className={styles.field}>
           <label className={styles.label}>{t('auth.confirm_password')}</label>
-          <input className={styles.input} type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required minLength={8} />
+          <input className={styles.input} type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required minLength={8} data-testid="reset-password-confirm" />
         </div>
 
-        <button className={styles.submitButton} type="submit" disabled={isLoading}>
+        <button className={styles.submitButton} type="submit" disabled={isLoading} data-testid="reset-password-submit">
           {isLoading ? t('common.loading') : t('auth.reset_password_button')}
         </button>
 

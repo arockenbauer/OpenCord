@@ -14,7 +14,7 @@
     "db:studio": "prisma studio --schema=prisma/schema.prisma",
     "typecheck": "tsc --noEmit",
     "test:unit": "vitest run --exclude '**/*.integration.test.ts'",
-    "test:integration": "vitest run --include '**/*.integration.test.ts'",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest"
   },
@@ -30,6 +30,7 @@
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "date-fns": "^3.6.0",
+    "dotenv": "^17.4.2",
     "express": "^4.19.0",
     "express-rate-limit": "^7.2.0",
     "file-type": "^22.0.1",

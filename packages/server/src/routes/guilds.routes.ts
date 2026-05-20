@@ -1,9 +1,9 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth.middleware.js';
 import { validate } from '../middleware/validate.middleware.js';
-import { guildOperationsRateLimit } from '../middleware/rate-limit.middleware.js';
+import { guildOperationsRateLimit, searchRateLimit } from '../middleware/rate-limit.middleware.js';
 import { uploadIcon, uploadBanner, uploadSticker, uploadEventImage } from '../middleware/upload.middleware.js';
-import { createGuildSchema, updateGuildSchema, deleteGuildSchema } from '@opencord/shared';
+import { createGuildSchema, updateGuildSchema, deleteGuildSchema, searchMessagesSchema } from '@opencord/shared';
 import * as guilds from '../controllers/guild.controller.js';
 import * as automod from '../controllers/automod.controller.js';
 import * as scheduledEvents from '../controllers/scheduledEvent.controller.js';

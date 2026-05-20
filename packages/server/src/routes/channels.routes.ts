@@ -6,7 +6,7 @@ import * as channels from '../controllers/channel.controller.js';
 import * as threads from '../controllers/thread.controller.js';
 import { createChannelSchema } from '@opencord/shared';
 
-const router = Router();
+const router = Router({ mergeParams: true });
 
 router.post('/', authenticate, channelManageRateLimit, validate(createChannelSchema), channels.createChannel);
 router.get('/:channelId', authenticate, channels.getChannel);

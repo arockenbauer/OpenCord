@@ -19,7 +19,7 @@ export function ForgotPasswordPage() {
     setMessage('');
 
     try {
-      const data = await api.post<{ message: string }>('/auth/forgot-password', { email });
+      const data = await api.post<{ message: string }>('/auth/password/reset-request', { email });
       setMessage(data.message);
     } catch (err: any) {
       setError(err.message || t('app.error'));
@@ -33,15 +33,15 @@ export function ForgotPasswordPage() {
       <form className={styles.card} onSubmit={handleSubmit}>
         <div className={styles.title}>{t('auth.forgot_password')}</div>
         <div className={styles.subtitle}>Entrez votre email pour recevoir un lien de réinitialisation.</div>
-        {error && <div className={styles.error}>{error}</div>}
-        {message && <div style={{ color: 'var(--text-positive)', fontSize: '14px', marginBottom: '16px', textAlign: 'center' }}>{message}</div>}
+        {error && <div className={styles.error} data-testid="forgot-password-error">{error}</div>}
+        {message && <div style={{ color: 'var(--text-positive)', fontSize: '14px', marginBottom: '16px', textAlign: 'center' }} data-testid="forgot-password-message">{message}</div>}
 
         <div className={styles.field}>
           <label className={styles.label}>{t('auth.email')}</label>
-          <input className={styles.input} type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          <input className={styles.input} type="email" value={email} onChange={(e) => setEmail(e.target.value)} required data-testid="forgot-password-email" />
         </div>
 
-        <button className={styles.submitButton} type="submit" disabled={isLoading}>
+        <button className={styles.submitButton} type="submit" disabled={isLoading} data-testid="forgot-password-submit">
           {isLoading ? t('common.loading') : t('auth.reset_password_button')}
         </button>
 

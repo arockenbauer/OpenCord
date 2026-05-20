@@ -28,6 +28,16 @@ export function errorHandler(err: Error, _req: Request, res: Response, _next: Ne
     return;
   }
 
+  if ((err as any).code === 'P2025') {
+    res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Resource not found' } });
+    return;
+  }
+
+  if ((err as any).name === 'PrismaClientValidationError') {
+    res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'Invalid request data' } });
+    return;
+  }
+
   logError('Unhandled error:', err);
   res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } });
 }

@@ -9,6 +9,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { useUIStore } from '../../stores/uiStore';
 import { useUnreadStore } from '../../stores/unreadStore';
 import { EmojiPicker } from '../EmojiPicker/EmojiPicker';
+import { SlashCommandAutocomplete } from '../SlashCommandAutocomplete/SlashCommandAutocomplete';
 import { MessageContextMenu } from '../context-menus/MessageContextMenu';
 import { Tooltip } from '../Tooltip/Tooltip';
 import { emitTyping } from '../../hooks/useGateway';
@@ -55,6 +56,8 @@ export function ChatArea() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showSlashAutocomplete, setShowSlashAutocomplete] = useState(false);
+  const [pendingSlashCommandId, setPendingSlashCommandId] = useState<string | null>(null);
   const [msgCtxMenu, setMsgCtxMenu] = useState<{ msg: any; x: number; y: number } | null>(null);
   const [sidePanel, setSidePanel] = useState<'pins' | 'search' | null>(null);
   const [pinnedMessages, setPinnedMessages] = useState<any[]>([]);
@@ -68,6 +71,7 @@ export function ChatArea() {
   const typingTimeout = useRef<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const emojiButtonRef = useRef<HTMLButtonElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (selectedChannelId) {
@@ -84,6 +88,17 @@ export function ChatArea() {
     window.addEventListener('insertMention', handler);
     return () => window.removeEventListener('insertMention', handler);
   }, []);
+
+  useEffect(() => {
+    if (inputValue.startsWith('/') && guild) {
+      setShowSlashAutocomplete(true);
+    } else {
+      setShowSlashAutocomplete(false);
+      if (!inputValue.startsWith('/')) {
+        setPendingSlashCommandId(null);
+      }
+    }
+  }, [inputValue, guild]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -148,7 +163,11 @@ export function ChatArea() {
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSend();
+      if (showSlashAutocomplete) {
+        // Let the autocomplete's document-level keydown handler process the selection
+        return;
+      }
+      void handleSend();
     }
     if (e.key === 'Escape') {
       setReplyTo(null);
@@ -168,9 +187,31 @@ export function ChatArea() {
     }
   };
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!inputValue.trim() || !selectedChannelId) return;
-    sendMessage(selectedChannelId, inputValue.trim(), undefined, replyTo?.id);
+    const trimmed = inputValue.trim();
+
+    if (trimmed.startsWith('/') && guild && pendingSlashCommandId) {
+      const spaceIdx = trimmed.indexOf(' ');
+      const rawArgs = spaceIdx !== -1 ? trimmed.slice(spaceIdx + 1).trim() : '';
+      try {
+        await api.slashCommands.executeCommand(guild.id, {
+          command_id: pendingSlashCommandId,
+          channel_id: selectedChannelId,
+          guild_id: guild.id,
+          options: rawArgs || undefined,
+        });
+      } catch {
+        // Server errors are surfaced via the gateway message; ignore here
+      }
+      setInputValue('');
+      setPendingSlashCommandId(null);
+      setShowSlashAutocomplete(false);
+      setReplyTo(null);
+      return;
+    }
+
+    sendMessage(selectedChannelId, trimmed, undefined, replyTo?.id);
     setInputValue('');
     setReplyTo(null);
   };
@@ -413,7 +454,8 @@ export function ChatArea() {
         <div className={styles.conversation}>
           <div className={styles.messages} ref={messagesContainerRef} onScroll={handleScroll}>
             <div className={styles.welcome}>
-              <div className={styles.welcomeTitle}>{isDirectMessage ? channelTitle : `# ${channel.name}`}</div>
+              <div className={styles.welcomeIcon}>{isDirectMessage ? channelTitle?.slice(0, 1).toUpperCase() : '#'}</div>
+              <div className={styles.welcomeTitle}>{isDirectMessage ? t('dm.welcome_title', { user: channelTitle }) : t('channel.welcome_title', { channel: channel.name })}</div>
               <div className={styles.welcomeDesc}>
                 {isDirectMessage ? t('dm.welcome', { user: channelTitle }) : t('channel.placeholder', { channel: channel.name })}
               </div>
@@ -523,6 +565,7 @@ export function ChatArea() {
                 </Tooltip>
                 <input type="file" ref={fileInputRef} style={{ display: 'none' }} multiple onChange={handleFileUpload} />
                 <textarea
+                  ref={textareaRef}
                   className={styles.textInput}
                   placeholder={messagePlaceholder}
                   value={inputValue}
@@ -537,6 +580,20 @@ export function ChatArea() {
                   <button ref={emojiButtonRef} onClick={() => setShowEmojiPicker((v) => !v)}><Smile size={20} /></button>
                 </Tooltip>
               </div>
+              {showSlashAutocomplete && selectedChannelId && (
+                <SlashCommandAutocomplete
+                  channelId={selectedChannelId}
+                  guildId={guild?.id}
+                  inputValue={inputValue}
+                  onSelect={(commandText, commandId) => {
+                    setInputValue(commandText);
+                    if (commandId) setPendingSlashCommandId(commandId);
+                    setShowSlashAutocomplete(false);
+                  }}
+                  onClose={() => setShowSlashAutocomplete(false)}
+                  anchorRef={textareaRef as React.RefObject<HTMLElement>}
+                />
+              )}
             </div>
           )}
         </div>
@@ -770,6 +827,11 @@ function MessageActions({
 }
 
 function SystemMessageRow({ msg, guild }: { msg: any; guild: any }) {
+  const isDeferredInteractionPlaceholder =
+    msg.type === 4 &&
+    (Number(msg.flags || 0) & 64) !== 0 &&
+    !msg.content;
+
   const getIcon = () => {
     switch (msg.type) {
       case 7: return <UserPlus size={16} />;
@@ -786,14 +848,17 @@ function SystemMessageRow({ msg, guild }: { msg: any; guild: any }) {
     switch (msg.type) {
       case 7: return <><strong>{name}</strong> a rejoint le serveur. Bienvenue !</>;
       case 8: return <><strong>{name}</strong> a boosté le serveur. 🚀</>;
-      default: return msg.content || 'Message système.';
+      default: return msg.content || (isDeferredInteractionPlaceholder ? 'Le bot repond...' : 'Message systeme.');
     }
   };
 
   return (
     <div className={styles.systemMessage}>
       <span className={styles.systemMessageIcon}>{getIcon()}</span>
-      <span className={styles.systemMessageContent}>{getContent()}</span>
+      <span className={styles.systemMessageContent}>
+        {getContent()}
+        {msg.components && <MessageComponents components={msg.components} />}
+      </span>
       <span className={styles.systemMessageTime}>{format(new Date(msg.created_at), 'HH:mm')}</span>
     </div>
   );

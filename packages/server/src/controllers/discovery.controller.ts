@@ -4,6 +4,7 @@ import { AppError } from '../utils/app-error.js';
 import { getMemberPermissions, checkPermission } from './guild.controller.js';
 import { getIO } from '../gateway/index.js';
 import { GatewayEvents } from '@opencord/shared';
+import { serializeBigInt } from '../utils/serialize.js';
 import sharp from 'sharp';
 import path from 'path';
 import fs from 'fs';
@@ -382,7 +383,7 @@ export async function joinGuildFromDiscovery(req: Request, res: Response, next: 
         }
       }
 
-      io.to(`user:${req.user!.userId}`).emit(GatewayEvents.GUILD_CREATE, { guild: fullGuild });
+      io.to(`user:${req.user!.userId}`).emit(GatewayEvents.GUILD_CREATE, serializeBigInt({ guild: fullGuild }));
     }
 
     res.json(fullGuild);

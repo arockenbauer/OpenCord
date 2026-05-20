@@ -130,7 +130,7 @@ export async function refreshAccessToken(refreshToken: string, clientId: string)
 
   let matchedToken = null;
   for (const t of tokens) {
-    if (await bcrypt.compare(refreshToken, t.refresh_token_hash)) {
+    if (t.refresh_token_hash && await bcrypt.compare(refreshToken, t.refresh_token_hash)) {
       matchedToken = t;
       break;
     }
@@ -147,13 +147,15 @@ export async function refreshAccessToken(refreshToken: string, clientId: string)
   const scopes = parseJsonField(matchedToken.scopes);
   const newAccessToken = crypto.randomBytes(32).toString('hex');
   const newAccessTokenHash = await bcrypt.hash(newAccessToken, 12);
+  const newRefreshToken = crypto.randomBytes(32).toString('hex');
+  const newRefreshTokenHash = await bcrypt.hash(newRefreshToken, 12);
   const expiresAt = new Date(Date.now() + ACCESS_TOKEN_EXPIRY_MS);
 
   await prisma.oAuth2AccessToken.update({
     where: { id: matchedToken.id },
     data: {
       token: newAccessTokenHash,
-      refresh_token_hash: refreshTokenHash,
+      refresh_token_hash: newRefreshTokenHash,
       expires_at: expiresAt,
     },
   });
@@ -231,7 +233,7 @@ export async function revokeToken(token: string, clientId: string, clientSecret:
       await prisma.oAuth2AccessToken.delete({ where: { id: t.id } });
       return { success: true };
     }
-    if (await bcrypt.compare(token, t.refresh_token_hash)) {
+    if (t.refresh_token_hash && await bcrypt.compare(token, t.refresh_token_hash)) {
       await prisma.oAuth2AccessToken.delete({ where: { id: t.id } });
       return { success: true };
     }
@@ -252,9 +254,9 @@ export async function getTokenInfo(accessToken: string) {
       }
       return {
         application: {
-          id: t.application.id,
-          name: t.application.name,
-          icon: t.application.icon,
+          id: t.app.id,
+          name: t.app.name,
+          icon: t.app.icon,
         },
         user: t.user
           ? {
@@ -288,14 +290,14 @@ export async function revokeAllUserGrants(userId: string, applicationId: string)
 export async function getUserGrants(userId: string) {
   const grants = await prisma.oAuth2Grant.findMany({
     where: { user_id: userId },
-    include: { application: true },
+    include: { app: true },
   });
 
   return grants.map((g) => ({
     application: {
-      id: g.application.id,
-      name: g.application.name,
-      icon: g.application.icon,
+      id: g.app.id,
+      name: g.app.name,
+      icon: g.app.icon,
     },
     scopes: parseJsonField(g.scopes),
     created_at: g.created_at,

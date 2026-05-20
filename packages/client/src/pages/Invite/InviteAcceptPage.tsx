@@ -39,7 +39,7 @@ export function InviteAcceptPage() {
     setJoining(true);
     setError('');
     try {
-      const guild = await api(`/api/invites/${code}/use`, { method: 'POST' });
+      const guild = await api(`/api/invites/${code}`, { method: 'POST' });
       addGuild(guild as any);
       selectGuild((guild as any).id);
       navigate('/channels/@me');
@@ -64,6 +64,7 @@ export function InviteAcceptPage() {
             <button
               onClick={handleJoin}
               disabled={joining}
+              data-testid="invite-accept-submit"
               style={{ marginTop: 8, width: '100%', height: 42, border: 0, borderRadius: 8, cursor: joining ? 'default' : 'pointer', background: '#5865F2', color: 'white', fontWeight: 600 }}
             >
               {joining ? 'Connexion…' : 'Rejoindre le serveur'}

@@ -8,6 +8,13 @@ import {
   bulkOverwriteCommands,
   createInteraction,
   respondToInteraction,
+  listCommandPermissions,
+  updateCommandPermissions,
+  getOriginalResponse,
+  editOriginalResponse,
+  deleteOriginalResponse,
+  sendFollowUpMessage,
+  editFollowUpMessage,
 } from '../controllers/interaction.controller.js';
 import { authenticateBot } from '../middleware/auth.middleware.js';
 

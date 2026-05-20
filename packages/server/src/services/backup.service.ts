@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import * as archiver from 'archiver';
+import archiver from 'archiver';
 import { prisma } from '../utils/prisma.js';
 import { createAdminAuditLog } from '../utils/audit-log.js';
 import { getIO } from '../gateway/index.js';

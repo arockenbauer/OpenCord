@@ -24,7 +24,7 @@ export function Modal({ onClose, children, contentClassName, title }: ModalProps
       const focusable = modal.querySelectorAll<HTMLElement>(
         'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
       );
-      if (focusable.length > 0) focusable[0].focus();
+      if (focusable.length > 0) focusable[0]?.focus();
 
       const first = focusable[0];
       const last = focusable[focusable.length - 1];

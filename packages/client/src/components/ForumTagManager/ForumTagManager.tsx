@@ -28,7 +28,7 @@ export function ForumTagManager({ channelId, guildId, canManage }: ForumTagManag
   const loadTags = async () => {
     setLoading(true);
     try {
-      const res = await api.forumTags.get<any>(channelId);
+      const res = await api.forumTags.get<any>(guildId, channelId);
       setTags(res.tags || []);
     } catch (err) {
       console.error('Failed to load forum tags:', err);
@@ -54,13 +54,13 @@ export function ForumTagManager({ channelId, guildId, canManage }: ForumTagManag
     if (!name.trim()) return;
     try {
       if (editingTag) {
-        await api.forumTags.update<any>(channelId, editingTag.id, {
+        await api.forumTags.update<any>(guildId, channelId, editingTag.id, {
           name: name.trim(),
           emoji: emoji || undefined,
           moderated,
         });
       } else {
-        await api.forumTags.create<any>(channelId, {
+        await api.forumTags.create<any>(guildId, channelId, {
           name: name.trim(),
           emoji: emoji || undefined,
           moderated,
@@ -84,7 +84,7 @@ export function ForumTagManager({ channelId, guildId, canManage }: ForumTagManag
   const handleDelete = async (tagId: string) => {
     if (!confirm('Supprimer ce tag ?')) return;
     try {
-      await api.forumTags.delete<any>(channelId, tagId);
+      await api.forumTags.delete<any>(guildId, channelId, tagId);
       loadTags();
     } catch (err) {
       console.error('Failed to delete tag:', err);

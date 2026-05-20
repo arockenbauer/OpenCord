@@ -6,6 +6,7 @@ import { AppError } from '../utils/app-error.js';
 import { getMemberPermissions, checkPermission, writeAuditLog, AUDIT_LOG_ACTIONS } from './guild.controller.js';
 import { getIO } from '../gateway/index.js';
 import { GatewayEvents } from '@opencord/shared';
+import { serializeMessageForClient } from '../utils/message-response.js';
 
 export async function getWebhooks(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
@@ -54,9 +55,9 @@ export async function createWebhook(req: Request, res: Response, next: NextFunct
       });
     }
     await writeAuditLog(channel.guild_id, req.user!.userId, AUDIT_LOG_ACTIONS.WEBHOOK_CREATE, webhook.id, 'WEBHOOK', [
-      { key: 'channel_id', new_value: webhook.channel_id },
-      { key: 'name', new_value: webhook.name },
-      { key: 'type', new_value: webhook.type },
+      { key: 'channel_id', old_value: null, new_value: webhook.channel_id },
+      { key: 'name', old_value: null, new_value: webhook.name },
+      { key: 'type', old_value: null, new_value: webhook.type },
     ]);
 
     res.status(201).json({ ...webhook, url: `/api/webhooks/${webhook.id}/${webhook.token}` });
@@ -85,8 +86,8 @@ export async function deleteWebhook(req: Request, res: Response, next: NextFunct
       });
     }
     await writeAuditLog(webhook.guild_id, req.user!.userId, AUDIT_LOG_ACTIONS.WEBHOOK_DELETE, webhook.id, 'WEBHOOK', [
-      { key: 'channel_id', old_value: webhook.channel_id },
-      { key: 'name', old_value: webhook.name },
+      { key: 'channel_id', old_value: webhook.channel_id, new_value: null },
+      { key: 'name', old_value: webhook.name, new_value: null },
     ]);
 
     res.status(204).send();
@@ -201,7 +202,10 @@ export async function updateWebhook(req: Request, res: Response, next: NextFunct
 export async function executeWebhook(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const webhook = await prisma.webhook.findUnique({ where: { id: req.params.webhookId } });
-    if (!webhook || webhook.token !== req.params.token) throw new AppError(404, 'NOT_FOUND', 'Webhook not found');
+    if (!webhook || webhook.token !== req.params.token) {
+      next();
+      return;
+    }
 
     const authorName = req.body.username || webhook.name;
     const authorAvatar = req.body.avatar_url || null;
@@ -212,6 +216,7 @@ export async function executeWebhook(req: Request, res: Response, next: NextFunc
         channel_id: webhook.channel_id,
         author_id: webhook.creator_id,
         content: req.body.content || null,
+        components: req.body.components ? JSON.stringify(req.body.components) : null,
         tts: req.body.tts || false,
         webhook_id: webhook.id,
       },
@@ -231,16 +236,27 @@ export async function executeWebhook(req: Request, res: Response, next: NextFunc
       }
     }
 
+    const fullMessage = await prisma.message.findUnique({
+      where: { id: message.id },
+      include: {
+        author: { select: { id: true, username: true, discriminator: true, avatar: true } },
+        attachments: true,
+        embeds: true,
+        reactions: true,
+      },
+    });
+    const responseMessage = serializeMessageForClient(fullMessage, webhook.guild_id);
+
     const io = getIO();
     if (io) {
       io.to(`channel:${webhook.channel_id}`).emit(GatewayEvents.MESSAGE_CREATE, {
-        message: { ...message, guild_id: webhook.guild_id, webhook_author: { name: authorName, avatar: authorAvatar } },
+        message: { ...responseMessage, webhook_author: { name: authorName, avatar: authorAvatar } },
       });
     }
 
     const wait = req.query.wait === 'true';
     if (wait) {
-      res.status(200).json(message);
+      res.status(200).json(responseMessage);
     } else {
       res.status(204).send();
     }

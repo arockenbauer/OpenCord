@@ -81,9 +81,15 @@ export async function getReport(req: Request, res: Response, next: NextFunction)
       where: { id: req.params.reportId },
       include: {
         reporter: { select: { id: true, username: true, avatar: true } },
-        reviewer: { select: { id: true, username: true, avatar: true } },
       },
     });
+    if (report && report.reviewer_id) {
+      const reviewer = await prisma.user.findUnique({
+        where: { id: report.reviewer_id },
+        select: { id: true, username: true, avatar: true },
+      });
+      (report as any).reviewer = reviewer;
+    }
     if (!report) throw new AppError(404, 'NOT_FOUND', 'Report not found');
     res.json(report);
   } catch (err) {

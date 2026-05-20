@@ -1,4 +1,5 @@
-// Setup for server tests
-// Can be used to initialize test database, mocks, etc.
+import { applyServerTestEnv } from './src/test/test-env.js';
+
+applyServerTestEnv();
 
 export {};

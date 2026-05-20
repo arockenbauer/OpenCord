@@ -12,6 +12,7 @@ import { GatewayEvents } from '@opencord/shared';
 import { sanitizeFilename } from '../middleware/upload.middleware.js';
 import { createAndDispatchSystemMessage } from '../services/system-message.service.js';
 import { computeEffectivePermissions } from '../services/permission.service.js';
+import { serializeMessageForClient, serializeMessagesForClient } from '../utils/message-response.js';
 
 const uploadDir = process.env.UPLOAD_DIR || './uploads';
 
@@ -88,7 +89,7 @@ export async function createMessage(req: Request, res: Response, next: NextFunct
         });
         const isBlocked = !!blockCheck;
 
-        if (isBlocked || (!isFriend && recipient.user.allow_dms_from === 0) || (!isFriend && recipient.user.allow_dms_from === 1)) {
+        if (isBlocked || (!isFriend && recipient.user.allow_dms_from === "none") || (!isFriend && recipient.user.allow_dms_from === "friends")) {
           const recipientUsername = recipient.user.username;
           const sysMsg = await createAndDispatchSystemMessage({
             channelId,
@@ -180,12 +181,13 @@ export async function createMessage(req: Request, res: Response, next: NextFunct
     const messageType = body.message_reference ? 19 : 0;
 
     const messageId = generateSnowflake();
-    const message = await prisma.message.create({
+    await prisma.message.create({
       data: {
         id: messageId,
         channel_id: channelId,
         author_id: req.user!.userId,
         content: body.content || null,
+        components: body.components ? JSON.stringify(body.components) : null,
         type: messageType,
         tts: body.tts || false,
         mention_everyone: mentionEveryone,
@@ -257,12 +259,13 @@ export async function createMessage(req: Request, res: Response, next: NextFunct
     const io = getIO();
     if (io) {
       const guildId = channel.guild_id;
+      const responseMessage = serializeMessageForClient(fullMessage, guildId);
       io.to(`channel:${channelId}`).emit(GatewayEvents.MESSAGE_CREATE, {
-        message: { ...fullMessage, guild_id: guildId },
+        message: responseMessage,
       });
     }
 
-    res.status(201).json(fullMessage);
+    res.status(201).json(serializeMessageForClient(fullMessage, channel.guild_id));
   } catch (err) {
     next(err);
   }
@@ -302,7 +305,7 @@ export async function getMessages(req: Request, res: Response, next: NextFunctio
         include: buildMessageInclude(),
       });
       const all = [...beforeMsgs.reverse(), ...afterMsgs];
-      res.json({ messages: all });
+      res.json({ messages: serializeMessagesForClient(all, null) });
       return;
     }
 
@@ -313,7 +316,7 @@ export async function getMessages(req: Request, res: Response, next: NextFunctio
       include: buildMessageInclude(),
     });
 
-    res.json({ messages: orderBy.created_at === 'asc' ? messages : messages });
+    res.json({ messages: serializeMessagesForClient(orderBy.created_at === 'asc' ? messages : messages, null) });
   } catch (err) {
     next(err);
   }
@@ -330,7 +333,7 @@ export async function getMessage(req: Request, res: Response, next: NextFunction
     if (!message || message.channel_id !== req.params.channelId) {
       throw new AppError(404, 'MESSAGE_NOT_FOUND', 'Message not found');
     }
-    res.json(message);
+    res.json(serializeMessageForClient(message));
   } catch (err) {
     next(err);
   }
@@ -355,12 +358,13 @@ export async function editMessage(req: Request, res: Response, next: NextFunctio
     const channel = await prisma.channel.findUnique({ where: { id: req.params.channelId } });
     const io = getIO();
     if (io) {
+      const responseMessage = serializeMessageForClient(updated, channel?.guild_id);
       io.to(`channel:${req.params.channelId}`).emit(GatewayEvents.MESSAGE_UPDATE, {
-        message: { ...updated, guild_id: channel?.guild_id },
+        message: responseMessage,
       });
     }
 
-    res.json(updated);
+    res.json(serializeMessageForClient(updated, channel?.guild_id));
   } catch (err) {
     next(err);
   }
@@ -690,7 +694,7 @@ export async function getPoll(req: Request, res: Response, next: NextFunction): 
       return { ...a, answer_ids: answerIds, options };
     });
 
-    const totalVotes = answers.reduce((sum, a) => sum + 1, 0);
+    const totalVotes = answers.reduce((sum) => sum + 1, 0);
     res.json({ ...poll, answers, total_votes: totalVotes });
   } catch (err) {
     next(err);

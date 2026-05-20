@@ -163,8 +163,7 @@ export function useGateway() {
             user: {
               ...member.user,
               status: data.status,
-              activities: data.activities || member.user.activities,
-            },
+            } as any,
           });
         }
       }

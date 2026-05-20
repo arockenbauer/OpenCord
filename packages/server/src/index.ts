@@ -54,6 +54,7 @@ import { runSnapshotCron } from './controllers/analytics.controller.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const httpServer = createServer(app);
+const STARTUP_DISABLED = process.env.OPENCORD_DISABLE_STARTUP === 'true';
 
 app.use(helmet({
   contentSecurityPolicy: {
@@ -159,7 +160,7 @@ app.use('/api/reports', reportsRoutes);
 app.use('/api/badges', badgesRoutes);
 app.use('/api/plugins', pluginsRoutes);
 app.use('/api/applications', applicationsRoutes);
-app.use('/api/interactions', interactionsRoutes);
+app.use('/api', interactionsRoutes);
 app.use('/api/guilds/:guildId/channels', forumRoutes);
 app.use('/api/connected-accounts', connectedAccountsRoutes);
 app.use('/api/users/@me/notes', userNotesRoutes);
@@ -186,15 +187,8 @@ if (fs.existsSync(clientDist)) {
 
 app.use(errorHandler);
 
-setupGateway(httpServer);
-
-// Start backup cron job
-startBackupCron();
-
 // Analytics snapshot cron (runs every hour, checks if it's 00:05 UTC)
 const ANALYTICS_CRON_INTERVAL = 60 * 60 * 1000; // 1 hour
-setInterval(runSnapshotCron, ANALYTICS_CRON_INTERVAL);
-runSnapshotCron(); // Run on startup too
 
 // Periodic cleanup of deleted attachments (every 24 hours)
 const CLEANUP_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
@@ -240,10 +234,6 @@ async function cleanupDeletedAttachments() {
     console.error('Error during attachment cleanup:', err);
   }
 }
-
-// Run cleanup on startup, then every 24 hours
-cleanupDeletedAttachments();
-setInterval(cleanupDeletedAttachments, CLEANUP_INTERVAL);
 
 // Scheduled Events cron job: transition events and send reminders
 const EVENT_CRON_INTERVAL = 60 * 1000; // 1 minute
@@ -315,9 +305,6 @@ async function processScheduledEvents() {
   }
 }
 
-processScheduledEvents(); // Run on startup
-setInterval(processScheduledEvents, EVENT_CRON_INTERVAL);
-
 // ── GDPR Cron Job ────────────────────────────────────────────────
 const GDPR_CRON_INTERVAL = 60 * 60 * 1000; // Run every hour
 
@@ -329,9 +316,6 @@ async function runGdprCron() {
     logError('Error in GDPR cron:', err);
   }
 }
-
-runGdprCron(); // Run on startup
-setInterval(runGdprCron, GDPR_CRON_INTERVAL);
 
 // ── Linked Roles Eligibility Cron ────────────────────────────
 const LINKED_ROLES_CRON_INTERVAL = 5 * 60 * 1000; // 5 minutes
@@ -454,9 +438,6 @@ function evaluateRequirement(type: number, userValue: any, expectedValue: string
   }
 }
 
-checkLinkedRolesEligibility(); // Run on startup
-setInterval(checkLinkedRolesEligibility, LINKED_ROLES_CRON_INTERVAL);
-
 // ── Thread Auto-Archive Cron ───────────────────────────────
 const THREAD_ARCHIVE_CRON_INTERVAL = 60 * 60 * 1000; // Run every hour
 
@@ -508,9 +489,6 @@ async function autoArchiveThreads() {
   }
 }
 
-autoArchiveThreads(); // Run on startup
-setInterval(autoArchiveThreads, THREAD_ARCHIVE_CRON_INTERVAL);
-
 // ── Monitoring Cron ───────────────────────────────────
 const MONITORING_CRON_INTERVAL = 60 * 1000; // Run every 60 seconds
 
@@ -533,9 +511,6 @@ async function runMonitoringChecks() {
   }
 }
 
-runMonitoringChecks(); // Run on startup
-setInterval(runMonitoringChecks, MONITORING_CRON_INTERVAL);
-
 // ── Maintenance Mode Middleware ──────────────────────
 const maintenanceMode = { active: false, title: '', scheduled_end: '' };
 
@@ -550,7 +525,6 @@ async function checkMaintenanceMode() {
     maintenanceMode.scheduled_end = active.scheduled_end.toISOString();
   }
 }
-checkMaintenanceMode();
 
 app.use((req, res, next) => {
   if (maintenanceMode.active) {
@@ -572,9 +546,68 @@ app.use((req, res, next) => {
 });
 
 const PORT = Number(process.env.PORT) || 3001;
-httpServer.listen(PORT, () => {
-  logInfo(`OpenCord server running on port ${PORT}`);
-});
+let backgroundJobsStarted = false;
+let serverStarted = false;
+
+// Kill any existing process on the port before starting
+function killPort(port: number, cb: () => void): void {
+  if (!port) {
+    cb();
+    return;
+  }
+  try {
+    const { execSync } = require('child_process');
+    const pid = execSync(`lsof -t -i:${port} 2>/dev/null`, { encoding: 'utf8' }).trim();
+    if (pid) {
+      logInfo(`Killing existing process ${pid} on port ${port}`);
+      try { process.kill(Number(pid), 'SIGKILL'); } catch {}
+      setTimeout(() => killPort(port, cb), 500);
+    } else {
+      cb();
+    }
+  } catch {
+    cb();
+  }
+}
+
+export function startBackgroundJobs(): void {
+  if (backgroundJobsStarted) return;
+  backgroundJobsStarted = true;
+
+  setupGateway(httpServer);
+  startBackupCron();
+  setInterval(runSnapshotCron, ANALYTICS_CRON_INTERVAL);
+  runSnapshotCron();
+  cleanupDeletedAttachments();
+  setInterval(cleanupDeletedAttachments, CLEANUP_INTERVAL);
+  processScheduledEvents();
+  setInterval(processScheduledEvents, EVENT_CRON_INTERVAL);
+  runGdprCron();
+  setInterval(runGdprCron, GDPR_CRON_INTERVAL);
+  checkLinkedRolesEligibility();
+  setInterval(checkLinkedRolesEligibility, LINKED_ROLES_CRON_INTERVAL);
+  autoArchiveThreads();
+  setInterval(autoArchiveThreads, THREAD_ARCHIVE_CRON_INTERVAL);
+  runMonitoringChecks();
+  setInterval(runMonitoringChecks, MONITORING_CRON_INTERVAL);
+  void checkMaintenanceMode();
+}
+
+export function startServer(port = PORT): void {
+  if (serverStarted) return;
+  serverStarted = true;
+
+  killPort(port, () => {
+    httpServer.listen(port, () => {
+      logInfo(`OpenCord server running on port ${port}`);
+    });
+  });
+}
+
+if (!STARTUP_DISABLED) {
+  startBackgroundJobs();
+  startServer();
+}
 
 export default app;
-export { maintenanceMode };
+export { httpServer, maintenanceMode };

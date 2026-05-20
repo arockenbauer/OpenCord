@@ -43,12 +43,12 @@ export function LoginPage() {
         <form className={styles.card} onSubmit={handle2FA}>
           <div className={styles.title}>{t('auth.two_factor_title')}</div>
           <div className={styles.subtitle}>{t('auth.two_factor_subtitle')}</div>
-          {error && <div className={styles.error}>{error}</div>}
+          {error && <div className={styles.error} data-testid="login-error">{error}</div>}
           <div className={styles.field}>
             <label className={styles.label}>{t('auth.two_factor_code')}</label>
-            <input className={styles.input} type="text" value={code} onChange={(e) => setCode(e.target.value)} autoFocus maxLength={6} />
+            <input className={styles.input} type="text" value={code} onChange={(e) => setCode(e.target.value)} autoFocus maxLength={6} data-testid="login-2fa-code" />
           </div>
-          <button className={styles.submitButton} type="submit" disabled={isLoading}>
+          <button className={styles.submitButton} type="submit" disabled={isLoading} data-testid="login-2fa-submit">
             {isLoading ? t('common.loading') : t('auth.two_factor_submit')}
           </button>
         </form>
@@ -62,19 +62,19 @@ export function LoginPage() {
         <div className={styles.title}>{t('auth.login')}</div>
         <div className={styles.subtitle}>{t('auth.welcome_back')}</div>
 
-        {error && <div className={styles.error}>{error}</div>}
+        {error && <div className={styles.error} data-testid="login-error">{error}</div>}
 
         <div className={styles.field}>
           <label className={styles.label}>{t('auth.email')}</label>
-          <input className={styles.input} type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          <input className={styles.input} type="email" value={email} onChange={(e) => setEmail(e.target.value)} required data-testid="login-email" />
         </div>
 
         <div className={styles.field}>
           <label className={styles.label}>{t('auth.password')}</label>
-          <input className={styles.input} type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+          <input className={styles.input} type="password" value={password} onChange={(e) => setPassword(e.target.value)} required data-testid="login-password" />
         </div>
 
-        <button className={styles.submitButton} type="submit" disabled={isLoading}>
+        <button className={styles.submitButton} type="submit" disabled={isLoading} data-testid="login-submit">
           {isLoading ? t('common.loading') : t('auth.login_button')}
         </button>
 

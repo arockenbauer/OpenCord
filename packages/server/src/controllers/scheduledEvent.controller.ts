@@ -8,9 +8,9 @@ import { getIO } from '../gateway/index.js';
 import { GatewayEvents } from '@opencord/shared';
 import { createAdminAuditLog } from '../utils/audit-log.js';
 
-// Helper to include creator in event
+// Helper to include creator in event - Note: creator relation not defined in schema, using manual fetch
 function includeCreator() {
-  return { creator: { select: { id: true, username: true, avatar: true } } };
+  return {}; // No relation defined in schema for creator
 }
 
 // GET /api/guilds/:guildId/scheduled-events
@@ -22,7 +22,6 @@ export async function getScheduledEvents(req: Request, res: Response, next: Next
 
     const events = await prisma.guildScheduledEvent.findMany({
       where,
-      include: { creator: { select: { id: true, username: true, avatar: true } } },
       orderBy: { scheduled_start_time: 'asc' },
     });
 
@@ -130,7 +129,6 @@ export async function getScheduledEvent(req: Request, res: Response, next: NextF
   try {
     const event = await prisma.guildScheduledEvent.findUnique({
       where: { id: req.params.eventId },
-      include: { creator: { select: { id: true, username: true, avatar: true } } },
     });
     if (!event) throw new AppError(404, 'NOT_FOUND', 'Event not found');
     res.json(event);
@@ -143,7 +141,7 @@ export async function getScheduledEvent(req: Request, res: Response, next: NextF
 export async function updateScheduledEvent(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const userId = (req as any).user!.userId;
-    const event = await prisma.guildScheduledEvent.findUnique({ where: { id: req.params.eventId }, include: { creator: true } });
+    const event = await prisma.guildScheduledEvent.findUnique({ where: { id: req.params.eventId } });
     if (!event) throw new AppError(404, 'NOT_FOUND', 'Event not found');
 
     // Check permissions: MANAGE_EVENTS or creator
@@ -175,7 +173,6 @@ export async function updateScheduledEvent(req: Request, res: Response, next: Ne
     const updated = await prisma.guildScheduledEvent.update({
       where: { id: req.params.eventId },
       data,
-      include: includeCreator(),
     });
 
     // Audit log
@@ -273,7 +270,7 @@ export async function rsvpEvent(req: Request, res: Response, next: NextFunction)
 
     // Create RSVP
     await prisma.guildScheduledEventUser.create({
-      data: { event_id: eventId, user_id: userId },
+      data: { id: generateSnowflake(), event_id: eventId, user_id: userId },
     });
 
     // Increment user_count
@@ -335,12 +332,12 @@ export async function getEventUsers(req: Request, res: Response, next: NextFunct
     const rsvps = await prisma.guildScheduledEventUser.findMany({
       where,
       take,
-      orderBy: { created_at: 'asc' },
+      orderBy: { subscribed_at: 'asc' },
       include: { user: { select: { id: true, username: true, avatar: true } } },
     });
 
     const users = rsvps.map(r => ({
-      user: { id: r.user_id, username: r.user?.username, avatar: r.user?.avatar },
+      user: { id: r.user?.id || r.user_id, username: r.user?.username, avatar: r.user?.avatar },
       guild_scheduled_event_id: eventId,
     }));
 

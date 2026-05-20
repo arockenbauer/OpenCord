@@ -8,6 +8,7 @@ import { AppError } from '../utils/app-error.js';
 import { getMemberPermissions, checkPermission, getHighestRolePosition, requireMembership, writeAuditLog, AUDIT_LOG_ACTIONS } from './guild.controller.js';
 import { getIO } from '../gateway/index.js';
 import { GatewayEvents } from '@opencord/shared';
+import { serializeBigInt } from '../utils/serialize.js';
 import { markTemplateDirty } from './guild.controller.js';
 
 const uploadDir = process.env.UPLOAD_DIR || './uploads';
@@ -46,7 +47,7 @@ export async function createRole(req: Request, res: Response, next: NextFunction
     });
 
     const io = getIO();
-    if (io) io.to(`guild:${req.params.guildId}`).emit(GatewayEvents.GUILD_ROLE_CREATE, { guild_id: req.params.guildId, role });
+    if (io) io.to(`guild:${req.params.guildId}`).emit(GatewayEvents.GUILD_ROLE_CREATE, serializeBigInt({ guild_id: req.params.guildId, role }));
     await writeAuditLog(req.params.guildId, req.user!.userId, AUDIT_LOG_ACTIONS.ROLE_CREATE, role.id, 'ROLE', [
       { key: 'name', old_value: null, new_value: role.name },
       { key: 'color', old_value: null, new_value: role.color },
@@ -86,7 +87,7 @@ export async function updateRole(req: Request, res: Response, next: NextFunction
     const role = await prisma.role.update({ where: { id: req.params.roleId }, data });
 
     const io = getIO();
-    if (io) io.to(`guild:${req.params.guildId}`).emit(GatewayEvents.GUILD_ROLE_UPDATE, { guild_id: req.params.guildId, role });
+    if (io) io.to(`guild:${req.params.guildId}`).emit(GatewayEvents.GUILD_ROLE_UPDATE, serializeBigInt({ guild_id: req.params.guildId, role }));
     const changes = [];
     if (req.body.name !== undefined) changes.push({ key: 'name', old_value: targetRole.name, new_value: req.body.name });
     if (req.body.color !== undefined) changes.push({ key: 'color', old_value: targetRole.color, new_value: req.body.color });
@@ -199,7 +200,7 @@ export async function updateRoleIcon(req: Request, res: Response, next: NextFunc
     });
 
     const io = getIO();
-    if (io) io.to(`guild:${req.params.guildId}`).emit(GatewayEvents.GUILD_ROLE_UPDATE, { guild_id: req.params.guildId, role: updated });
+    if (io) io.to(`guild:${req.params.guildId}`).emit(GatewayEvents.GUILD_ROLE_UPDATE, serializeBigInt({ guild_id: req.params.guildId, role: updated }));
 
     res.json(updated);
   } catch (err) {

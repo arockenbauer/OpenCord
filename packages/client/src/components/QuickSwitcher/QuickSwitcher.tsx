@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { api } from '../../api/api';
+import { api } from '../../services/api';
 import { useKeyboardShortcuts, getShortcutKey } from '../../hooks/useKeyboardShortcuts.js';
 import styles from './QuickSwitcher.module.css';
 
@@ -34,7 +34,7 @@ export function QuickSwitcher({ open, onClose }: { open: boolean; onClose: () =>
       // Search channels in current guild
       if (currentGuildId) {
         try {
-          const channelsRes = await api.get(`/guilds/${currentGuildId}/channels`);
+          const channelsRes: any = await api.get(`/guilds/${currentGuildId}/channels`);
           const channels = channelsRes.data || [];
           const filtered = channels.filter((ch: any) =>
             ch.name.toLowerCase().includes(query.toLowerCase())
@@ -51,7 +51,7 @@ export function QuickSwitcher({ open, onClose }: { open: boolean; onClose: () =>
 
       // Search DMs
       try {
-        const dmsRes = await api.get('/channels');
+        const dmsRes: any = await api.get('/channels');
         const dms = dmsRes.data || [];
         const filtered = dms.filter((dm: any) => {
           const name = dm.recipients?.map((r: any) => r.username).join(', ') || '';
@@ -68,7 +68,7 @@ export function QuickSwitcher({ open, onClose }: { open: boolean; onClose: () =>
       // Search guild members
       if (currentGuildId) {
         try {
-          const membersRes = await api.get(`/guilds/${currentGuildId}/members?query=${encodeURIComponent(query)}&limit=10`);
+          const membersRes: any = await api.get(`/guilds/${currentGuildId}/members?query=${encodeURIComponent(query)}&limit=10`);
           const members = membersRes.data?.members || [];
           results.push(...members.map((m: any) => ({
             id: m.user.id,
@@ -84,7 +84,7 @@ export function QuickSwitcher({ open, onClose }: { open: boolean; onClose: () =>
       // Search other guilds (simplified - just check user's guilds)
       if (!currentGuildId || query.trim()) {
         try {
-          const guildsRes = await api.get('/users/@me/guilds');
+          const guildsRes: any = await api.get('/users/@me/guilds');
           const guilds = guildsRes.data || [];
           const filtered = guilds.filter((g: any) =>
             g.name.toLowerCase().includes(query.toLowerCase())

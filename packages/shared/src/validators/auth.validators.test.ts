@@ -8,6 +8,7 @@ describe('Auth Validators', () => {
         email: 'test@example.com',
         username: 'testuser',
         password: 'Password123!',
+        date_of_birth: '1990-01-01',
       });
       expect(result.success).toBe(true);
     });
@@ -17,6 +18,7 @@ describe('Auth Validators', () => {
         email: 'invalid',
         username: 'testuser',
         password: 'Password123!',
+        date_of_birth: '1990-01-01',
       });
       expect(result.success).toBe(false);
     });

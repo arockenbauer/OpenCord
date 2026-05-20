@@ -8,116 +8,119 @@ datasource db {
 }
 
 model User {
-  id                               String    @id
-  email                            String    @unique
+  id                               String                         @id
+  email                            String                         @unique
   username                         String
   discriminator                    String
   password_hash                    String
   avatar                           String?
   avatar_hash                      String?
-  avatar_animated                  Boolean   @default(false)
+  avatar_animated                  Boolean                        @default(false)
   avatar_updated_at                DateTime?
   banner                           String?
   banner_hash                      String?
-  banner_animated                  Boolean   @default(false)
+  banner_animated                  Boolean                        @default(false)
   banner_updated_at                DateTime?
   banner_color                     String?
   bio                              String?
   pronouns                         String?
   global_name                      String?
-  status                           String    @default("online")
+  status                           String                         @default("online")
   custom_status_text               String?
   custom_status_emoji              String?
   custom_status_expires_at         DateTime?
-  locale                           String    @default("fr")
-  theme                            String    @default("dark")
-  font_size                        Int       @default(14)
-  explicit_content_filter          Int       @default(0)
-  default_message_notifications    Int       @default(0)
-  allow_dms_from                   String    @default("everyone")
-  allow_friend_requests_from       String    @default("everyone")
-  admin_level                      Int       @default(0)
-  two_factor_enabled               Boolean   @default(false)
+  locale                           String                         @default("fr")
+  theme                            String                         @default("dark")
+  font_size                        Int                            @default(14)
+  explicit_content_filter          Int                            @default(0)
+  default_message_notifications    Int                            @default(0)
+  allow_dms_from                   String                         @default("everyone")
+  allow_friend_requests_from       String                         @default("everyone")
+  admin_level                      Int                            @default(0)
+  two_factor_enabled               Boolean                        @default(false)
   two_factor_secret                String?
   two_factor_backup_codes          String?
-  verified                         Boolean   @default(false)
+  verified                         Boolean                        @default(false)
   email_verify_token               String?
   password_reset_token             String?
   password_reset_expires           DateTime?
   date_of_birth                    DateTime
-  flags                            Int       @default(0)
-  premium                          Boolean   @default(false)
-  premium_type                     Int       @default(0)
+  flags                            Int                            @default(0)
+  premium                          Boolean                        @default(false)
+  premium_type                     Int                            @default(0)
   premium_since                    DateTime?
   premium_lost_at                  DateTime?
   accent_color                     String?
   stripe_customer_id               String?
-  bot                              Boolean   @default(false)
+  bot                              Boolean                        @default(false)
   bot_token                        String?
   bot_owner_id                     String?
   application_id                   String?
-  disabled                         Boolean   @default(false)
-  banned                           Boolean   @default(false)
+  disabled                         Boolean                        @default(false)
+  banned                           Boolean                        @default(false)
   ban_reason                       String?
   banned_at                        DateTime?
   banned_by                        String?
   locked_until                     DateTime?
-  login_attempts                   Int       @default(0)
-  streamer_mode_enabled            Boolean   @default(false)
-  streamer_mode_auto_detect        Boolean   @default(true)
-  streamer_mode_hide_links         Boolean   @default(true)
-  streamer_mode_hide_email         Boolean   @default(true)
-  streamer_mode_hide_notes         Boolean   @default(true)
-  streamer_mode_hide_notifications Boolean   @default(true)
-  streamer_mode_hide_personal_info Boolean   @default(true)
-  streamer_mode_disable_sounds     Boolean   @default(false)
+  login_attempts                   Int                            @default(0)
+  deletion_scheduled_at            DateTime?
+  show_mutual_guilds               Boolean                        @default(true)
+  show_mutual_friends              Boolean                        @default(true)
+  streamer_mode_enabled            Boolean                        @default(false)
+  streamer_mode_auto_detect        Boolean                        @default(true)
+  streamer_mode_hide_links         Boolean                        @default(true)
+  streamer_mode_hide_email         Boolean                        @default(true)
+  streamer_mode_hide_notes         Boolean                        @default(true)
+  streamer_mode_hide_notifications Boolean                        @default(true)
+  streamer_mode_hide_personal_info Boolean                        @default(true)
+  streamer_mode_disable_sounds     Boolean                        @default(false)
   last_seen_at                     DateTime?
-  created_at                       DateTime  @default(now())
-  updated_at                       DateTime  @updatedAt
-
-  refresh_tokens         RefreshToken[]
-  owned_guilds           Guild[]                @relation("GuildOwner")
-  guild_members          GuildMember[]
-  messages               Message[]
-  reactions              Reaction[]
-  friends_sent           Friend[]               @relation("FriendUser")
-  friends_received       Friend[]               @relation("FriendTarget")
-  notifications          Notification[]
-  user_badges            UserBadge[]
-  subscription           UserSubscription?
-  boosts                 Boost[]
-  dm_memberships         DMChannelMember[]
-  invites_created        Invite[]
-  bans_issued            Ban[]                  @relation("BanIssuer")
-  bans_received          Ban[]                  @relation("BanTarget")
-  audit_logs             AuditLog[]
-  admin_audit_logs       AdminAuditLog[]
-  reports_sent           Report[]               @relation("ReportReporter")
-  automod_executions     AutoModExecution[]
-  emojis_created         Emoji[]
-  stickers_created       Sticker[]
-  applications           Application[]
-  webhooks_created       Webhook[]
-  templates_created      GuildTemplate[]        @relation("TemplateCreator")
-  role_assignments_given GuildMemberRole[]      @relation("AssignedBy")
-  user_plugin_settings   UserPluginSettings[]
-  notification_settings  NotificationSettings[]
-  read_states            ReadState[]
-  notes                  UserNote[]             @relation("NoteOwner")
-  note_targets           UserNote[]             @relation("NoteTarget")
-  connected_accounts     ConnectedAccount[]
-  activities             UserActivity[]
-  game_library           UserGameLibrary[]
-  announcements_created  Announcement[]
-  voice_states           VoiceState[]
-  thread_members         ThreadMember[]
-  bot_applications      Application[]         @relation("BotApp")
-  oauth2_codes         OAuth2AuthorizationCode[]
-  oauth2_tokens        OAuth2AccessToken[]
-  oauth2_grants        OAuth2Grant[]
-  created_followers   ChannelFollower[] @relation("FollowerCreator")
-  command_permissions ApplicationCommandPermission[]       @relation("CommandPermissionUser")
-  featured_guilds      FeaturedGuild[]        @relation("FeaturedBy")
+  created_at                       DateTime                       @default(now())
+  updated_at                       DateTime                       @updatedAt
+  admin_audit_logs                 AdminAuditLog[]
+  announcements_created            Announcement[]
+  bot_applications                 Application[]                  @relation("BotApp")
+  applications                     Application[]
+  command_permissions              ApplicationCommandPermission[] @relation("CommandPermissionUser")
+  audit_logs                       AuditLog[]
+  automod_executions               AutoModExecution[]
+  bans_issued                      Ban[]                          @relation("BanIssuer")
+  bans_received                    Ban[]                          @relation("BanTarget")
+  boosts                           Boost[]
+  created_followers                ChannelFollower[]              @relation("FollowerCreator")
+  connected_accounts               ConnectedAccount[]
+  dm_memberships                   DMChannelMember[]
+  emojis_created                   Emoji[]
+  featured_guilds                  FeaturedGuild[]                @relation("FeaturedBy")
+  friends_received                 Friend[]                       @relation("FriendTarget")
+  friends_sent                     Friend[]                       @relation("FriendUser")
+  owned_guilds                     Guild[]                        @relation("GuildOwner")
+  guild_members                    GuildMember[]
+  role_assignments_given           GuildMemberRole[]              @relation("AssignedBy")
+  GuildScheduledEventUser          GuildScheduledEventUser[]
+  templates_created                GuildTemplate[]                @relation("TemplateCreator")
+  invites_created                  Invite[]
+  messages                         Message[]
+  notifications                    Notification[]
+  notification_settings            NotificationSettings[]
+  oauth2_tokens                    OAuth2AccessToken[]
+  oauth2_codes                     OAuth2AuthorizationCode[]
+  oauth2_grants                    OAuth2Grant[]
+  reactions                        Reaction[]
+  read_states                      ReadState[]
+  refresh_tokens                   RefreshToken[]
+  reports_sent                     Report[]                       @relation("ReportReporter")
+  stickers_created                 Sticker[]
+  thread_members                   ThreadMember[]
+  activities                       UserActivity[]
+  user_badges                      UserBadge[]
+  game_library                     UserGameLibrary[]
+  note_targets                     UserNote[]                     @relation("NoteTarget")
+  notes                            UserNote[]                     @relation("NoteOwner")
+  user_plugin_settings             UserPluginSettings[]
+  subscription                     UserSubscription?
+  voice_states                     VoiceState[]
+  webhooks_created                 Webhook[]
 
   @@unique([username, discriminator])
 }
@@ -132,12 +135,11 @@ model RefreshToken {
   expires_at   DateTime
   is_revoked   Boolean  @default(false)
   created_at   DateTime @default(now())
-
-  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user         User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
 }
 
 model Guild {
-  id                            String   @id
+  id                            String                           @id
   name                          String
   icon                          String?
   icon_hash                     String?
@@ -146,148 +148,145 @@ model Guild {
   splash                        String?
   description                   String?
   owner_id                      String
-  verification_level            Int      @default(0)
-  default_message_notifications Int      @default(0)
-  explicit_content_filter       Int      @default(0)
+  verification_level            Int                              @default(0)
+  default_message_notifications Int                              @default(0)
+  explicit_content_filter       Int                              @default(0)
   system_channel_id             String?
-  system_channel_flags          Int      @default(0)
-  welcome_enabled               Boolean  @default(false)
+  system_channel_flags          Int                              @default(0)
+  welcome_enabled               Boolean                          @default(false)
   afk_channel_id                String?
-  afk_timeout                   Int      @default(300)
-  preferred_locale              String   @default("fr")
-  features                      String   @default("[]")
-  vanity_url_code               String?  @unique
-  premium_tier                  Int      @default(0)
-  premium_subscription_count    Int      @default(0)
-  max_members                   Int      @default(500000)
-  invites_disabled              Boolean  @default(false)
-  discoverable                  Boolean  @default(false)
+  afk_timeout                   Int                              @default(300)
+  preferred_locale              String                           @default("fr")
+  features                      String                           @default("[]")
+  vanity_url_code               String?                          @unique
+  premium_tier                  Int                              @default(0)
+  premium_subscription_count    Int                              @default(0)
+  max_members                   Int                              @default(500000)
+  invites_disabled              Boolean                          @default(false)
+  discoverable                  Boolean                          @default(false)
   discovery_splash              String?
   discovery_description         String?
   primary_category_id           String?
-  created_at                    DateTime @default(now())
-  updated_at                    DateTime @updatedAt
-
-  owner                  User                     @relation("GuildOwner", fields: [owner_id], references: [id])
-  channels               Channel[]
-  members                GuildMember[]
-  roles                  Role[]
-  emojis                 Emoji[]
-  stickers               Sticker[]
-  invites                Invite[]
-  bans                   Ban[]
-  audit_logs             AuditLog[]
-  automod_rules          AutoModRule[]
-  automod_executions     AutoModExecution[]
-  webhooks               Webhook[]
-  boosts                 Boost[]
-  guild_plugin_settings  GuildPluginSettings[]
-  templates              GuildTemplate[]
-  scheduled_events       GuildScheduledEvent[]
-  widgets                GuildWidget[]
-  voice_states           VoiceState[]
-  stage_instances        StageInstance[]
-  GuildWelcomeChannel    GuildWelcomeChannel[]
-  GuildAnalyticsSnapshot GuildAnalyticsSnapshot[]
-  role_connection_reqs  GuildRoleConnectionRequirement[] @relation("GuildRoleConnectionReqs")
-  welcome_screen         GuildWelcomeScreen?
-  onboarding             GuildOnboarding?
-  member_verification    GuildMemberVerification?
-  discovery_tags         GuildDiscoveryTag[]
-  featured               FeaturedGuild?
-  primary_category       DiscoveryCategory? @relation("PrimaryCategory", fields: [primary_category_id], references: [id])
-  forum_tags             ForumTag[]
-  application_commands    ApplicationCommand[] @relation("GuildAppCommands")
+  created_at                    DateTime                         @default(now())
+  updated_at                    DateTime                         @updatedAt
+  application_commands          ApplicationCommand[]             @relation("GuildAppCommands")
+  audit_logs                    AuditLog[]
+  automod_executions            AutoModExecution[]
+  automod_rules                 AutoModRule[]
+  bans                          Ban[]
+  boosts                        Boost[]
+  channels                      Channel[]
+  emojis                        Emoji[]
+  featured                      FeaturedGuild?
+  forum_tags                    ForumTag[]
+  primary_category              DiscoveryCategory?               @relation("PrimaryCategory", fields: [primary_category_id], references: [id])
+  owner                         User                             @relation("GuildOwner", fields: [owner_id], references: [id])
+  GuildAnalyticsSnapshot        GuildAnalyticsSnapshot[]
+  discovery_tags                GuildDiscoveryTag[]
+  members                       GuildMember[]
+  member_verification           GuildMemberVerification?
+  onboarding                    GuildOnboarding?
+  guild_plugin_settings         GuildPluginSettings[]
+  role_connection_reqs          GuildRoleConnectionRequirement[] @relation("GuildRoleConnectionReqs")
+  scheduled_events              GuildScheduledEvent[]
+  templates                     GuildTemplate[]
+  GuildWelcomeChannel           GuildWelcomeChannel[]
+  welcome_screen                GuildWelcomeScreen?
+  widgets                       GuildWidget?
+  invites                       Invite[]
+  roles                         Role[]
+  stage_instances               StageInstance[]
+  stickers                      Sticker[]
+  voice_states                  VoiceState[]
+  webhooks                      Webhook[]
 }
 
 model GuildMember {
   guild_id                     String
   user_id                      String
   nickname                     String?
-  joined_at                    DateTime  @default(now())
+  joined_at                    DateTime          @default(now())
   premium_since                DateTime?
-  deaf                         Boolean   @default(false)
-  mute                         Boolean   @default(false)
-  pending                      Boolean   @default(false)
+  deaf                         Boolean           @default(false)
+  mute                         Boolean           @default(false)
+  pending                      Boolean           @default(false)
   communication_disabled_until DateTime?
-
-  guild            Guild             @relation(fields: [guild_id], references: [id], onDelete: Cascade)
-  user             User              @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  role_assignments GuildMemberRole[]
-  messages         Message[]
+  user                         User              @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  guild                        Guild             @relation(fields: [guild_id], references: [id], onDelete: Cascade)
+  role_assignments             GuildMemberRole[]
+  messages                     Message[]
 
   @@id([guild_id, user_id])
 }
 
 model Channel {
-  id                              String   @id
-  guild_id                        String?
-  name                            String
-  type                            Int      @default(0)
-  position                        Int      @default(0)
-  topic                           String?
-  nsfw                            Boolean  @default(false)
-  parent_id                       String?
-  last_message_id                 String?
-  slowmode_delay                  Int      @default(0)
-  bitrate                         Int      @default(64000)
-  user_limit                      Int      @default(0)
-  default_auto_archive_duration   Int?
-  thread_metadata                 String?
-  total_messages                  Int      @default(0)
-  member_count                    Int      @default(0)
-  available_tags                  String?  // JSON array for forum tags
-  default_reaction_emoji          String?  // JSON
+  id                                 String                 @id
+  guild_id                           String?
+  name                               String
+  type                               Int                    @default(0)
+  position                           Int                    @default(0)
+  topic                              String?
+  nsfw                               Boolean                @default(false)
+  parent_id                          String?
+  last_message_id                    String?
+  slowmode_delay                     Int                    @default(0)
+  bitrate                            Int                    @default(64000)
+  user_limit                         Int                    @default(0)
+  default_auto_archive_duration      Int?
+  thread_metadata                    String?
+  total_messages                     Int                    @default(0)
+  member_count                       Int                    @default(0)
+  available_tags                     String?
+  default_reaction_emoji             String?
   default_thread_rate_limit_per_user Int?
-  default_sort_order              Int?
-  default_forum_layout            Int?     @default(0)
-  created_at                      DateTime @default(now())
-  updated_at                      DateTime @updatedAt
-
-  guild                 Guild?                 @relation(fields: [guild_id], references: [id], onDelete: Cascade)
-  messages              Message[]
-  permission_overwrites PermissionOverwrite[]
-  welcome_channels      GuildWelcomeChannel[]
-  invites               Invite[]
-  webhooks              Webhook[]
-  pins                  Pin[]
-  read_states           ReadState[]
-  notification_settings NotificationSettings[]
-  thread_members        ThreadMember[]
-  applied_tags          AppliedTag[]
-  parent                Channel?              @relation("ChannelParent", fields: [parent_id], references: [id])
-  children              Channel[]             @relation("ChannelParent")
-  source_followers      ChannelFollower[]    @relation("FollowerSource")
-  target_followers      ChannelFollower[]    @relation("FollowerTarget")
+  default_sort_order                 Int?
+  default_forum_layout               Int?                   @default(0)
+  created_at                         DateTime               @default(now())
+  updated_at                         DateTime               @updatedAt
+  applied_tags                       AppliedTag[]
+  parent                             Channel?               @relation("ChannelParent", fields: [parent_id], references: [id])
+  children                           Channel[]              @relation("ChannelParent")
+  guild                              Guild?                 @relation(fields: [guild_id], references: [id], onDelete: Cascade)
+  target_followers                   ChannelFollower[]      @relation("FollowerTarget")
+  source_followers                   ChannelFollower[]      @relation("FollowerSource")
+  welcome_channels                   GuildWelcomeChannel[]
+  invites                            Invite[]
+  messages                           Message[]
+  notification_settings              NotificationSettings[]
+  permission_overwrites              PermissionOverwrite[]
+  pins                               Pin[]
+  read_states                        ReadState[]
+  thread_members                     ThreadMember[]
+  webhooks                           Webhook[]
 }
 
 model Message {
-  id               String    @id
-  channel_id       String
-  author_id        String
-  content          String?
-  type             Int       @default(0)
-  flags            Int       @default(0)
-  edited_at        DateTime?
-  tts              Boolean   @default(false)
-  mention_everyone Boolean   @default(false)
-  pinned           Boolean   @default(false)
-  reference_id     String?
-  thread_id        String?
-  webhook_id       String?
-  application_id   String?
-  sticker_ids      String?
-  created_at       DateTime  @default(now())
-
-  channel             Channel      @relation(fields: [channel_id], references: [id], onDelete: Cascade)
-  author              User         @relation(fields: [author_id], references: [id])
-  attachments         Attachment[]
-  embeds              Embed[]
-  reactions           Reaction[]
-  poll                Poll?
-  GuildMember         GuildMember? @relation(fields: [guildMemberGuild_id, guildMemberUser_id], references: [guild_id, user_id])
+  id                  String       @id
+  channel_id          String
+  author_id           String
+  content             String?
+  components          String?
+  type                Int          @default(0)
+  flags               Int          @default(0)
+  edited_at           DateTime?
+  tts                 Boolean      @default(false)
+  mention_everyone    Boolean      @default(false)
+  pinned              Boolean      @default(false)
+  reference_id        String?
+  thread_id           String?
+  webhook_id          String?
+  application_id      String?
+  sticker_ids         String?
+  created_at          DateTime     @default(now())
   guildMemberGuild_id String?
   guildMemberUser_id  String?
+  attachments         Attachment[]
+  embeds              Embed[]
+  GuildMember         GuildMember? @relation(fields: [guildMemberGuild_id, guildMemberUser_id], references: [guild_id, user_id])
+  author              User         @relation(fields: [author_id], references: [id])
+  channel             Channel      @relation(fields: [channel_id], references: [id], onDelete: Cascade)
+  poll                Poll?
+  reactions           Reaction[]
 }
 
 model Attachment {
@@ -305,30 +304,27 @@ model Attachment {
   description   String?
   created_at    DateTime  @default(now())
   deleted_at    DateTime?
-
-  message Message @relation(fields: [message_id], references: [id], onDelete: Cascade)
+  message       Message   @relation(fields: [message_id], references: [id], onDelete: Cascade)
 }
 
 model Embed {
-  id         String @id
+  id         String  @id
   message_id String
   data       String
-
-  message Message @relation(fields: [message_id], references: [id], onDelete: Cascade)
+  message    Message @relation(fields: [message_id], references: [id], onDelete: Cascade)
 }
 
 model Poll {
-  id                String    @id
-  message_id        String    @unique
+  id                String       @id
+  message_id        String       @unique
   question          String
   options           String
-  duration          Int       @default(86400)
-  allow_multiselect Boolean   @default(false)
+  duration          Int          @default(86400)
+  allow_multiselect Boolean      @default(false)
   ended_at          DateTime?
-  created_at        DateTime  @default(now())
-
-  message Message      @relation(fields: [message_id], references: [id], onDelete: Cascade)
-  answers PollAnswer[]
+  created_at        DateTime     @default(now())
+  message           Message      @relation(fields: [message_id], references: [id], onDelete: Cascade)
+  answers           PollAnswer[]
 }
 
 model PollAnswer {
@@ -337,8 +333,7 @@ model PollAnswer {
   user_id    String
   answer_ids String
   created_at DateTime @default(now())
-
-  poll Poll @relation(fields: [poll_id], references: [id], onDelete: Cascade)
+  poll       Poll     @relation(fields: [poll_id], references: [id], onDelete: Cascade)
 
   @@unique([poll_id, user_id])
 }
@@ -350,9 +345,8 @@ model Reaction {
   emoji_name String
   emoji_id   String?
   created_at DateTime @default(now())
-
-  message Message @relation(fields: [message_id], references: [id], onDelete: Cascade)
-  user    User    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  message    Message  @relation(fields: [message_id], references: [id], onDelete: Cascade)
 
   @@unique([message_id, user_id, emoji_name, emoji_id])
 }
@@ -363,8 +357,7 @@ model Pin {
   message_id String
   pinned_by  String
   pinned_at  DateTime @default(now())
-
-  channel Channel @relation(fields: [channel_id], references: [id], onDelete: Cascade)
+  channel    Channel  @relation(fields: [channel_id], references: [id], onDelete: Cascade)
 
   @@unique([channel_id, message_id])
 }
@@ -374,58 +367,54 @@ model ReadState {
   channel_id           String
   last_read_message_id String?
   mention_count        Int     @default(0)
-
-  user    User    @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  channel Channel @relation(fields: [channel_id], references: [id], onDelete: Cascade)
+  channel              Channel @relation(fields: [channel_id], references: [id], onDelete: Cascade)
+  user                 User    @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@id([user_id, channel_id])
 }
 
 model Role {
-  id            String   @id
-  guild_id      String
-  name          String
-  color         String?
-  hoist         Boolean  @default(false)
-  position      Int      @default(0)
-  permissions   BigInt   @default(0)
-  mentionable   Boolean  @default(false)
-  icon          String?
-  unicode_emoji String?
-  managed       Boolean  @default(false)
-  created_at    DateTime @default(now())
-
-  guild                 Guild                 @relation(fields: [guild_id], references: [id], onDelete: Cascade)
+  id                    String                           @id
+  guild_id              String
+  name                  String
+  color                 String?
+  hoist                 Boolean                          @default(false)
+  position              Int                              @default(0)
+  permissions           BigInt                           @default(0)
+  mentionable           Boolean                          @default(false)
+  icon                  String?
+  unicode_emoji         String?
+  managed               Boolean                          @default(false)
+  created_at            DateTime                         @default(now())
+  command_permissions   ApplicationCommandPermission[]   @relation("CommandPermissionRole")
   members               GuildMemberRole[]
-  permission_overwrites PermissionOverwrite[]
-  command_permissions  ApplicationCommandPermission[] @relation("CommandPermissionRole")
   role_connection_reqs  GuildRoleConnectionRequirement[] @relation("RoleConnectionReqs")
+  permission_overwrites PermissionOverwrite[]
+  guild                 Guild                            @relation(fields: [guild_id], references: [id], onDelete: Cascade)
 }
 
 model GuildMemberRole {
   guild_id    String
   user_id     String
   role_id     String
-  assigned_at DateTime @default(now())
+  assigned_at DateTime    @default(now())
   assigned_by String?
-
-  member   GuildMember @relation(fields: [guild_id, user_id], references: [guild_id, user_id], onDelete: Cascade)
-  role     Role        @relation(fields: [role_id], references: [id], onDelete: Cascade)
-  assigner User?       @relation("AssignedBy", fields: [assigned_by], references: [id])
+  assigner    User?       @relation("AssignedBy", fields: [assigned_by], references: [id])
+  role        Role        @relation(fields: [role_id], references: [id], onDelete: Cascade)
+  member      GuildMember @relation(fields: [guild_id, user_id], references: [guild_id, user_id], onDelete: Cascade)
 
   @@id([guild_id, user_id, role_id])
 }
 
 model PermissionOverwrite {
-  id          String @id
+  id          String  @id
   channel_id  String
   target_id   String
   target_type String
-  allow       BigInt @default(0)
-  deny        BigInt @default(0)
-
-  channel Channel @relation(fields: [channel_id], references: [id], onDelete: Cascade)
-  role    Role?   @relation(fields: [target_id], references: [id], onDelete: Cascade)
+  allow       BigInt  @default(0)
+  deny        BigInt  @default(0)
+  role        Role    @relation(fields: [target_id], references: [id], onDelete: Cascade)
+  channel     Channel @relation(fields: [channel_id], references: [id], onDelete: Cascade)
 
   @@unique([channel_id, target_id, target_type])
 }
@@ -441,26 +430,24 @@ model Invite {
   temporary       Boolean   @default(false)
   expires_at      DateTime?
   created_at      DateTime  @default(now())
-  source          String    @default("invite") // invite | discovery | vanity
+  source          String    @default("invite")
   source_guild_id String?
-
-  guild   Guild   @relation(fields: [guild_id], references: [id], onDelete: Cascade)
-  channel Channel @relation(fields: [channel_id], references: [id], onDelete: Cascade)
-  inviter User    @relation(fields: [inviter_id], references: [id])
+  inviter         User      @relation(fields: [inviter_id], references: [id])
+  channel         Channel   @relation(fields: [channel_id], references: [id], onDelete: Cascade)
+  guild           Guild     @relation(fields: [guild_id], references: [id], onDelete: Cascade)
 }
 
 model Ban {
-  id                      String   @id
-  guild_id                String
-  user_id                 String
-  reason                  String?
-  banned_by               String
-  delete_message_seconds  Int      @default(0)
-  created_at              DateTime @default(now())
-
-  guild     Guild @relation(fields: [guild_id], references: [id], onDelete: Cascade)
-  user      User  @relation("BanTarget", fields: [user_id], references: [id])
-  moderator User  @relation("BanIssuer", fields: [banned_by], references: [id])
+  id                     String   @id
+  guild_id               String
+  user_id                String
+  reason                 String?
+  banned_by              String
+  delete_message_seconds Int      @default(0)
+  created_at             DateTime @default(now())
+  moderator              User     @relation("BanIssuer", fields: [banned_by], references: [id])
+  user                   User     @relation("BanTarget", fields: [user_id], references: [id])
+  guild                  Guild    @relation(fields: [guild_id], references: [id], onDelete: Cascade)
 
   @@unique([guild_id, user_id])
 }
@@ -476,9 +463,8 @@ model Emoji {
   managed        Boolean  @default(false)
   asset          String?
   created_at     DateTime @default(now())
-
-  guild   Guild @relation(fields: [guild_id], references: [id], onDelete: Cascade)
-  creator User? @relation(fields: [creator_id], references: [id])
+  creator        User?    @relation(fields: [creator_id], references: [id])
+  guild          Guild    @relation(fields: [guild_id], references: [id], onDelete: Cascade)
 
   @@unique([guild_id, name])
 }
@@ -495,9 +481,8 @@ model Sticker {
   sort_value  Int      @default(0)
   creator_id  String?
   created_at  DateTime @default(now())
-
-  guild   Guild? @relation(fields: [guild_id], references: [id], onDelete: Cascade)
-  creator User?  @relation(fields: [creator_id], references: [id])
+  creator     User?    @relation(fields: [creator_id], references: [id])
+  guild       Guild?   @relation(fields: [guild_id], references: [id], onDelete: Cascade)
 }
 
 model Webhook {
@@ -512,10 +497,9 @@ model Webhook {
   source_channel_id String?
   creator_id        String
   created_at        DateTime @default(now())
-
-  guild   Guild   @relation(fields: [guild_id], references: [id], onDelete: Cascade)
-  channel Channel @relation(fields: [channel_id], references: [id], onDelete: Cascade)
-  creator User    @relation(fields: [creator_id], references: [id])
+  creator           User     @relation(fields: [creator_id], references: [id])
+  channel           Channel  @relation(fields: [channel_id], references: [id], onDelete: Cascade)
+  guild             Guild    @relation(fields: [guild_id], references: [id], onDelete: Cascade)
 }
 
 model AuditLog {
@@ -525,13 +509,12 @@ model AuditLog {
   action_type Int
   target_id   String?
   target_type String?
-  changes     String? // JSON stringified
+  changes     String?
   reason      String?
-  options     String? // JSON stringified
+  options     String?
   created_at  DateTime @default(now())
-
-  guild Guild @relation(fields: [guild_id], references: [id], onDelete: Cascade)
-  user  User  @relation(fields: [user_id], references: [id])
+  user        User     @relation(fields: [user_id], references: [id])
+  guild       Guild    @relation(fields: [guild_id], references: [id], onDelete: Cascade)
 }
 
 model Notification {
@@ -544,35 +527,30 @@ model Notification {
   message_id String?
   read       Boolean  @default(false)
   created_at DateTime @default(now())
-
-  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
 }
 
 model Badge {
-  id               String   @id
+  id               String      @id
   name             String
   description      String?
   icon             String
-  type             String   @default("system")
+  type             String      @default("system")
   auto_rule        String?
-  label            String   @default("")
+  label            String      @default("")
   color            String?
-  priority         Int      @default(100)
-  display_type     String   @default("icon") // "icon" | "text" | "premium"
-  // For text badges (Discord-style colored labels)
-  background_color String?  @default("#5865F2")
-  text_color       String?  @default("#ffffff")
-  border_color     String?  @default("#5865F2")
-  // For nitro/premium badges
-  gradient_start   String?  @default("#FF73FA")
-  gradient_end     String?  @default("#7367F0")
-  glow             Boolean  @default(false)
-  glow_color       String?  @default("#FF73FA")
-  // Icon position: "left" | "right" | "inline"
-  icon_position    String   @default("left")
-  created_at       DateTime @default(now())
-
-  user_badges UserBadge[]
+  priority         Int         @default(100)
+  display_type     String      @default("icon")
+  background_color String?     @default("#5865F2")
+  text_color       String?     @default("#ffffff")
+  border_color     String?     @default("#5865F2")
+  gradient_start   String?     @default("#FF73FA")
+  gradient_end     String?     @default("#7367F0")
+  glow             Boolean     @default(false)
+  glow_color       String?     @default("#FF73FA")
+  icon_position    String      @default("left")
+  created_at       DateTime    @default(now())
+  user_badges      UserBadge[]
 }
 
 model UserBadge {
@@ -581,42 +559,39 @@ model UserBadge {
   badge_id    String
   assigned_at DateTime @default(now())
   assigned_by String?
-
-  user  User  @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  badge Badge @relation(fields: [badge_id], references: [id], onDelete: Cascade)
+  badge       Badge    @relation(fields: [badge_id], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@unique([user_id, badge_id])
 }
 
 model SubscriptionTier {
-  id              String   @id
+  id              String             @id
   name            String
   price_cents     Int
-  currency        String   @default("EUR")
+  currency        String             @default("EUR")
   stripe_price_id String
   features        String
-  active          Boolean  @default(true)
-  created_at      DateTime @default(now())
-
-  subscriptions UserSubscription[]
+  active          Boolean            @default(true)
+  created_at      DateTime           @default(now())
+  subscriptions   UserSubscription[]
 }
 
 model UserSubscription {
-  id                     String    @id
-  user_id                String    @unique
+  id                     String           @id
+  user_id                String           @unique
   tier_id                String
   stripe_customer_id     String
-  stripe_subscription_id String    @unique
-  status                 String    @default("active")
+  stripe_subscription_id String           @unique
+  status                 String           @default("active")
   current_period_start   DateTime
   current_period_end     DateTime
-  cancel_at_period_end   Boolean   @default(false)
+  cancel_at_period_end   Boolean          @default(false)
   canceled_at            DateTime?
-  created_at             DateTime  @default(now())
-  updated_at             DateTime  @updatedAt
-
-  user User             @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  tier SubscriptionTier @relation(fields: [tier_id], references: [id])
+  created_at             DateTime         @default(now())
+  updated_at             DateTime         @updatedAt
+  tier                   SubscriptionTier @relation(fields: [tier_id], references: [id])
+  user                   User             @relation(fields: [user_id], references: [id], onDelete: Cascade)
 }
 
 model Boost {
@@ -625,32 +600,30 @@ model Boost {
   guild_id   String
   started_at DateTime  @default(now())
   ended_at   DateTime?
-
-  user  User  @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  guild Guild @relation(fields: [guild_id], references: [id], onDelete: Cascade)
+  guild      Guild     @relation(fields: [guild_id], references: [id], onDelete: Cascade)
+  user       User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
 }
 
 model AutoModRule {
-  id               String   @id
+  id               String             @id
   guild_id         String
   name             String
   creator_id       String
-  event_type       Int      @default(1)
+  event_type       Int                @default(1)
   trigger_type     Int
-  trigger_metadata String   @default("{}")
-  actions          String   @default("[]")
-  enabled          Boolean  @default(true)
-  exempt_roles     String   @default("[]")
-  exempt_channels  String   @default("[]")
-  created_at       DateTime @default(now())
-  updated_at       DateTime @updatedAt
-
-  guild      Guild              @relation(fields: [guild_id], references: [id], onDelete: Cascade)
-  executions AutoModExecution[]
+  trigger_metadata String             @default("{}")
+  actions          String             @default("[]")
+  enabled          Boolean            @default(true)
+  exempt_roles     String             @default("[]")
+  exempt_channels  String             @default("[]")
+  created_at       DateTime           @default(now())
+  updated_at       DateTime           @updatedAt
+  executions       AutoModExecution[]
+  guild            Guild              @relation(fields: [guild_id], references: [id], onDelete: Cascade)
 }
 
 model AutoModExecution {
-  id              String   @id
+  id              String      @id
   rule_id         String
   guild_id        String
   user_id         String
@@ -659,11 +632,10 @@ model AutoModExecution {
   matched_content String?
   matched_keyword String?
   action          Int
-  created_at      DateTime @default(now())
-
-  rule  AutoModRule @relation(fields: [rule_id], references: [id], onDelete: Cascade)
-  guild Guild       @relation(fields: [guild_id], references: [id], onDelete: Cascade)
-  user  User        @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  created_at      DateTime    @default(now())
+  user            User        @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  guild           Guild       @relation(fields: [guild_id], references: [id], onDelete: Cascade)
+  rule            AutoModRule @relation(fields: [rule_id], references: [id], onDelete: Cascade)
 }
 
 model Report {
@@ -677,31 +649,28 @@ model Report {
   notes       String?
   created_at  DateTime  @default(now())
   resolved_at DateTime?
-
-  reporter User @relation("ReportReporter", fields: [reporter_id], references: [id])
+  reporter    User      @relation("ReportReporter", fields: [reporter_id], references: [id])
 }
 
 model DMChannel {
-  id              String   @id
-  type            Int      @default(1)
+  id              String            @id
+  type            Int               @default(1)
   name            String?
   icon            String?
   owner_id        String?
   last_message_id String?
-  created_at      DateTime @default(now())
-
-  members DMChannelMember[]
+  created_at      DateTime          @default(now())
+  members         DMChannelMember[]
 }
 
 model DMChannelMember {
   channel_id           String
   user_id              String
-  joined_at            DateTime @default(now())
+  joined_at            DateTime  @default(now())
   last_read_message_id String?
-  closed               Boolean  @default(false)
-
-  channel DMChannel @relation(fields: [channel_id], references: [id], onDelete: Cascade)
-  user    User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  closed               Boolean   @default(false)
+  user                 User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  channel              DMChannel @relation(fields: [channel_id], references: [id], onDelete: Cascade)
 
   @@id([channel_id, user_id])
 }
@@ -712,29 +681,27 @@ model Friend {
   target_id  String
   status     Int      @default(0)
   created_at DateTime @default(now())
-
-  user   User @relation("FriendUser", fields: [user_id], references: [id], onDelete: Cascade)
-  target User @relation("FriendTarget", fields: [target_id], references: [id], onDelete: Cascade)
+  target     User     @relation("FriendTarget", fields: [target_id], references: [id], onDelete: Cascade)
+  user       User     @relation("FriendUser", fields: [user_id], references: [id], onDelete: Cascade)
 
   @@unique([user_id, target_id])
 }
 
 model Plugin {
-  id                 String   @id
+  id                 String                @id
   name               String
-  slug               String   @unique
+  slug               String                @unique
   description        String?
   version            String
   type               String
   author             String
   icon               String?
-  enabled_by_default Boolean  @default(false)
+  enabled_by_default Boolean               @default(false)
   settings_schema    String?
-  created_at         DateTime @default(now())
-  updated_at         DateTime @updatedAt
-
-  user_settings  UserPluginSettings[]
-  guild_settings GuildPluginSettings[]
+  created_at         DateTime              @default(now())
+  updated_at         DateTime              @updatedAt
+  guild_settings     GuildPluginSettings[]
+  user_settings      UserPluginSettings[]
 }
 
 model UserPluginSettings {
@@ -742,9 +709,8 @@ model UserPluginSettings {
   plugin_id String
   enabled   Boolean @default(false)
   settings  String?
-
-  user   User   @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  plugin Plugin @relation(fields: [plugin_id], references: [id], onDelete: Cascade)
+  plugin    Plugin  @relation(fields: [plugin_id], references: [id], onDelete: Cascade)
+  user      User    @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@id([user_id, plugin_id])
 }
@@ -754,9 +720,8 @@ model GuildPluginSettings {
   plugin_id String
   enabled   Boolean @default(false)
   settings  String?
-
-  guild  Guild  @relation(fields: [guild_id], references: [id], onDelete: Cascade)
-  plugin Plugin @relation(fields: [plugin_id], references: [id], onDelete: Cascade)
+  plugin    Plugin  @relation(fields: [plugin_id], references: [id], onDelete: Cascade)
+  guild     Guild   @relation(fields: [guild_id], references: [id], onDelete: Cascade)
 
   @@id([guild_id, plugin_id])
 }
@@ -785,130 +750,132 @@ model AdminAuditLog {
   details     String?
   ip_address  String?
   created_at  DateTime @default(now())
-
-  admin User @relation(fields: [admin_id], references: [id])
+  admin       User     @relation(fields: [admin_id], references: [id])
 }
 
 model NotificationSettings {
-  id                    String  @id
+  id                    String   @id
   user_id               String
   guild_id              String?
   channel_id            String?
-  muted                 Boolean @default(false)
-  suppress_everyone     Boolean @default(false)
-  suppress_roles        Boolean @default(false)
-  message_notifications Int     @default(0)
-
-  user    User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  channel Channel? @relation(fields: [channel_id], references: [id], onDelete: Cascade)
+  muted                 Boolean  @default(false)
+  suppress_everyone     Boolean  @default(false)
+  suppress_roles        Boolean  @default(false)
+  message_notifications Int      @default(0)
+  channel               Channel? @relation(fields: [channel_id], references: [id], onDelete: Cascade)
+  user                  User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@unique([user_id, guild_id])
   @@unique([user_id, channel_id])
 }
 
 model Application {
-  id               String   @id
-  name             String
-  description      String?
-  icon             String?
-  owner_id         String
-  bot_id           String?
-  client_secret    String?
-  redirect_uris    String?  // JSON array
-  scopes_allowed   String?  // JSON array
-  created_at       DateTime @default(now())
-
-  owner            User              @relation(fields: [owner_id], references: [id])
-  bot              User?             @relation("BotApp", fields: [bot_id], references: [id])
-  role_connection_reqs GuildRoleConnectionRequirement[] @relation("AppConnectionReqs")
-  commands            ApplicationCommand[] @relation("AppCommands")
-  oauth2_codes    OAuth2AuthorizationCode[]
-  oauth2_tokens   OAuth2AccessToken[]
-  oauth2_grants   OAuth2Grant[]
+  id                           String                           @id
+  name                         String
+  description                  String?
+  icon                         String?
+  owner_id                     String
+  bot_id                       String?
+  client_secret                String?
+  redirect_uris                String?
+  scopes_allowed               String?
+  created_at                   DateTime                         @default(now())
+  bot                          User?                            @relation("BotApp", fields: [bot_id], references: [id])
+  owner                        User                             @relation(fields: [owner_id], references: [id])
+  commands                     ApplicationCommand[]             @relation("AppCommands")
+  ApplicationCommandPermission ApplicationCommandPermission[]
+  role_connection_reqs         GuildRoleConnectionRequirement[] @relation("AppConnectionReqs")
+  Interaction                  Interaction[]
+  oauth2_tokens                OAuth2AccessToken[]
+  oauth2_codes                 OAuth2AuthorizationCode[]
+  oauth2_grants                OAuth2Grant[]
 }
 
 model ApplicationCommand {
-  id               String   @id
-  application_id   String
-  guild_id         String?
-  name             String
-  description      String?
-  options          String?  // JSON array of command options
-  default_member_permissions String? // BigInt as string
-  type             Int      @default(1) // 1=CHAT_INPUT, 2=USER, 3=MESSAGE
-  nsfw             Boolean  @default(false)
-  handler          String?  // URL or inline handler name
-  created_at       DateTime @default(now())
-  updated_at       DateTime @updatedAt
-
-  application Application @relation("AppCommands", fields: [application_id], references: [id], onDelete: Cascade)
-  guild        Guild?      @relation("GuildAppCommands", fields: [guild_id], references: [id], onDelete: Cascade)
-  permissions ApplicationCommandPermission[]
+  id                         String                         @id
+  application_id             String
+  guild_id                   String?
+  name                       String
+  description                String?
+  options                    String?
+  default_member_permissions String?
+  dm_permission              Boolean                        @default(true)
+  type                       Int                            @default(1)
+  nsfw                       Boolean                        @default(false)
+  version                    String?
+  handler                    String?
+  created_at                 DateTime                       @default(now())
+  updated_at                 DateTime                       @updatedAt
+  guild                      Guild?                         @relation("GuildAppCommands", fields: [guild_id], references: [id], onDelete: Cascade)
+  application                Application                    @relation("AppCommands", fields: [application_id], references: [id], onDelete: Cascade)
+  permissions                ApplicationCommandPermission[]
 
   @@unique([application_id, name])
   @@index([guild_id])
 }
 
 model ApplicationCommandPermission {
-  id               String   @id
-  command_id        String
-  role_id           String?
-  user_id           String?
-  allow             String   @default("0") // BigInt as string
-  deny              String   @default("0") // BigInt as string
-  created_at        DateTime @default(now())
-
-  command  ApplicationCommand @relation(fields: [command_id], references: [id], onDelete: Cascade)
-  role    Role?       @relation("CommandPermissionRole", fields: [role_id], references: [id], onDelete: Cascade)
-  user    User?       @relation("CommandPermissionUser", fields: [user_id], references: [id], onDelete: Cascade)
+  id              String             @id
+  command_id      String
+  application_id  String
+  guild_id        String?
+  role_id         String?
+  user_id         String?
+  permission_type Int                @default(1)
+  allow           String             @default("0")
+  deny            String             @default("0")
+  created_at      DateTime           @default(now())
+  user            User?              @relation("CommandPermissionUser", fields: [user_id], references: [id], onDelete: Cascade)
+  role            Role?              @relation("CommandPermissionRole", fields: [role_id], references: [id], onDelete: Cascade)
+  application     Application        @relation(fields: [application_id], references: [id], onDelete: Cascade)
+  command         ApplicationCommand @relation(fields: [command_id], references: [id], onDelete: Cascade)
 
   @@index([command_id])
+  @@index([application_id])
+  @@index([guild_id])
 }
 
 model OAuth2AuthorizationCode {
-  id           String   @id
+  id           String      @id
   app_id       String
   user_id      String
-  code         String   @unique
-  scopes       String   // JSON array
+  code         String      @unique
+  scopes       String
   redirect_uri String
   expires_at   DateTime
-  used         Boolean  @default(false)
-  created_at   DateTime @default(now())
-
-  app  Application @relation(fields: [app_id], references: [id], onDelete: Cascade)
-  user User        @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  used         Boolean     @default(false)
+  created_at   DateTime    @default(now())
+  user         User        @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  app          Application @relation(fields: [app_id], references: [id], onDelete: Cascade)
 
   @@index([app_id])
   @@index([user_id])
 }
 
 model OAuth2AccessToken {
-  id                String   @id
-  app_id            String
-  user_id           String
-  token             String   @unique  // hashed access token
-  refresh_token_hash String?  // hashed refresh token
-  scopes            String   // JSON array
-  expires_at        DateTime
-  created_at        DateTime @default(now())
-
-  app  Application @relation(fields: [app_id], references: [id], onDelete: Cascade)
-  user User        @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  id                 String      @id
+  app_id             String
+  user_id            String
+  token              String      @unique
+  refresh_token_hash String?
+  scopes             String
+  expires_at         DateTime
+  created_at         DateTime    @default(now())
+  user               User        @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  app                Application @relation(fields: [app_id], references: [id], onDelete: Cascade)
 
   @@index([app_id])
   @@index([user_id])
 }
 
 model OAuth2Grant {
-  id           String   @id
-  app_id       String
-  user_id      String
-  scopes       String   // JSON array
-  created_at   DateTime @default(now())
-
-  app  Application @relation(fields: [app_id], references: [id], onDelete: Cascade)
-  user User        @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  id         String      @id
+  app_id     String
+  user_id    String
+  scopes     String
+  created_at DateTime    @default(now())
+  user       User        @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  app        Application @relation(fields: [app_id], references: [id], onDelete: Cascade)
 
   @@unique([app_id, user_id])
 }
@@ -920,28 +887,26 @@ model UserNote {
   note_content String
   created_at   DateTime @default(now())
   updated_at   DateTime @updatedAt
-
-  owner       User @relation("NoteOwner", fields: [user_id], references: [id], onDelete: Cascade)
-  note_target User @relation("NoteTarget", fields: [note_user_id], references: [id], onDelete: Cascade)
+  note_target  User     @relation("NoteTarget", fields: [note_user_id], references: [id], onDelete: Cascade)
+  owner        User     @relation("NoteOwner", fields: [user_id], references: [id], onDelete: Cascade)
 
   @@unique([user_id, note_user_id])
 }
 
 model ConnectedAccount {
-  id               String   @id
+  id               String    @id
   user_id          String
-  type             String   // github, twitter, twitch, youtube, spotify, steam, reddit, linkedin, xbox, playstation, battlenet, epicgames, leagueoflegends
-  name             String   // pseudo sur la plateforme
-  friend_sync      Boolean  @default(false)
-  show_activity    Boolean  @default(false)
-  visibility       Int      @default(0) // 0=none, 1=everyone
-  access_token     String?  // chiffré AES-256
-  refresh_token    String?  // chiffré AES-256
+  type             String
+  name             String
+  friend_sync      Boolean   @default(false)
+  show_activity    Boolean   @default(false)
+  visibility       Int       @default(0)
+  access_token     String?
+  refresh_token    String?
   token_expires_at DateTime?
-  verified         Boolean  @default(false)
-  created_at       DateTime @default(now())
-
-  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  verified         Boolean   @default(false)
+  created_at       DateTime  @default(now())
+  user             User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@unique([user_id, type])
 }
@@ -957,30 +922,28 @@ model UserActivity {
   timestamps     String?
   session_id     String?
   created_at     DateTime @default(now())
-
-  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user           User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
 }
 
 model GuildTemplate {
-  id                    String   @id
-  code                  String   @unique // e.g. "abc123def456"
-  guild_id              String
-  creator_id            String
-  name                  String
-  description           String?
-  serialized            String   // JSON-serialized guild structure
-  serialized_source_guild String? // JSON-serialized source guild
-  usage_count           Int      @default(0)
-  is_dirty              Boolean  @default(false)
-  created_at            DateTime @default(now())
-  updated_at            DateTime @updatedAt
-
-  guild   Guild   @relation(fields: [guild_id], references: [id], onDelete: Cascade)
-  creator User    @relation("TemplateCreator", fields: [creator_id], references: [id], onDelete: Cascade)
+  id                      String   @id
+  code                    String   @unique
+  guild_id                String
+  creator_id              String
+  name                    String
+  description             String?
+  serialized              String
+  serialized_source_guild String?
+  usage_count             Int      @default(0)
+  is_dirty                Boolean  @default(false)
+  created_at              DateTime @default(now())
+  updated_at              DateTime @updatedAt
+  creator                 User     @relation("TemplateCreator", fields: [creator_id], references: [id], onDelete: Cascade)
+  guild                   Guild    @relation(fields: [guild_id], references: [id], onDelete: Cascade)
 }
 
 model GuildScheduledEvent {
-  id                   String    @id
+  id                   String                    @id
   guild_id             String
   channel_id           String?
   creator_id           String?
@@ -988,41 +951,39 @@ model GuildScheduledEvent {
   description          String?
   scheduled_start_time DateTime
   scheduled_end_time   DateTime?
-  entity_type          Int       @default(1)
-  privacy_level        Int       @default(2)
+  entity_type          Int                       @default(1)
+  privacy_level        Int                       @default(2)
   recurrence_rule      String?
   entity_metadata      String?
-  user_count           Int       @default(0)
-  status               Int       @default(1)
+  user_count           Int                       @default(0)
+  status               Int                       @default(1)
   image                String?
-  created_at           DateTime  @default(now())
-
-  guild Guild                     @relation(fields: [guild_id], references: [id], onDelete: Cascade)
-  users GuildScheduledEventUser[]
+  created_at           DateTime                  @default(now())
+  guild                Guild                     @relation(fields: [guild_id], references: [id], onDelete: Cascade)
+  users                GuildScheduledEventUser[]
 }
 
 model GuildScheduledEventUser {
-  id            String   @id
+  id            String              @id
   event_id      String
   user_id       String
-  subscribed_at DateTime @default(now())
-
-  event GuildScheduledEvent @relation(fields: [event_id], references: [id], onDelete: Cascade)
+  subscribed_at DateTime            @default(now())
+  user          User                @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  event         GuildScheduledEvent @relation(fields: [event_id], references: [id], onDelete: Cascade)
 
   @@unique([event_id, user_id])
 }
 
 model GuildWelcomeChannel {
-  id          String  @id
-  guild_id    String
-  channel_id  String
-  emoji_id    String?
-  description String
-  screen_id   String?
-
-  guild   Guild   @relation(fields: [guild_id], references: [id], onDelete: Cascade)
-  channel Channel @relation(fields: [channel_id], references: [id], onDelete: Cascade)
+  id             String              @id
+  guild_id       String
+  channel_id     String
+  emoji_id       String?
+  description    String
+  screen_id      String?
   welcome_screen GuildWelcomeScreen? @relation("WelcomeScreenChannels", fields: [screen_id], references: [id])
+  channel        Channel             @relation(fields: [channel_id], references: [id], onDelete: Cascade)
+  guild          Guild               @relation(fields: [guild_id], references: [id], onDelete: Cascade)
 
   @@unique([guild_id, channel_id])
 }
@@ -1034,8 +995,7 @@ model StageInstance {
   topic         String
   privacy_level Int      @default(1)
   created_at    DateTime @default(now())
-
-  guild Guild @relation(fields: [guild_id], references: [id], onDelete: Cascade)
+  guild         Guild    @relation(fields: [guild_id], references: [id], onDelete: Cascade)
 }
 
 model VoiceState {
@@ -1052,9 +1012,8 @@ model VoiceState {
   suppress                   Boolean   @default(false)
   request_to_speak_timestamp DateTime?
   updated_at                 DateTime  @default(now())
-
-  guild Guild @relation(fields: [guild_id], references: [id], onDelete: Cascade)
-  user  User  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user                       User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  guild                      Guild     @relation(fields: [guild_id], references: [id], onDelete: Cascade)
 
   @@unique([guild_id, user_id])
 }
@@ -1063,8 +1022,7 @@ model GuildWidget {
   guild_id   String  @id
   enabled    Boolean @default(false)
   channel_id String?
-
-  guild Guild @relation(fields: [guild_id], references: [id], onDelete: Cascade)
+  guild      Guild   @relation(fields: [guild_id], references: [id], onDelete: Cascade)
 }
 
 model ThreadMember {
@@ -1072,9 +1030,9 @@ model ThreadMember {
   thread_id      String
   user_id        String
   join_timestamp DateTime @default(now())
-
-  thread Channel @relation(fields: [thread_id], references: [id], onDelete: Cascade)
-  user   User    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  flags          Int      @default(0)
+  user           User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  thread         Channel  @relation(fields: [thread_id], references: [id], onDelete: Cascade)
 
   @@unique([thread_id, user_id])
 }
@@ -1088,8 +1046,7 @@ model Announcement {
   created_by String
   created_at DateTime  @default(now())
   expires_at DateTime?
-
-  creator User @relation(fields: [created_by], references: [id])
+  creator    User      @relation(fields: [created_by], references: [id])
 }
 
 model UserGameLibrary {
@@ -1100,8 +1057,7 @@ model UserGameLibrary {
   last_played_at          DateTime?
   total_play_time_minutes Int       @default(0)
   created_at              DateTime  @default(now())
-
-  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user                    User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@unique([user_id, name])
 }
@@ -1121,8 +1077,7 @@ model GuildAnalyticsSnapshot {
   hourly_messages      String   @default("[]")
   join_sources         String   @default("{}")
   created_at           DateTime @default(now())
-
-  guild Guild @relation(fields: [guild_id], references: [id], onDelete: Cascade)
+  guild                Guild    @relation(fields: [guild_id], references: [id], onDelete: Cascade)
 
   @@unique([guild_id, date])
 }
@@ -1130,7 +1085,7 @@ model GuildAnalyticsSnapshot {
 model DataExport {
   id                  String    @id
   user_id             String
-  status              String    @default("processing") // processing, completed, failed, expired
+  status              String    @default("processing")
   include_attachments Boolean   @default(false)
   size_bytes          Int?
   error               String?
@@ -1143,27 +1098,26 @@ model DataExport {
 }
 
 model ApplicationRoleConnectionMetadata {
-  application_id String
-  key            String   // max 50 chars, unique per app
-  name           String   // max 100 chars
-  name_localizations String?
-  description    String   // max 200 chars
+  application_id            String
+  key                       String
+  name                      String
+  name_localizations        String?
+  description               String
   description_localizations String?
-  type           Int      // 1=INTEGER_LESS_THAN_OR_EQUAL, 2=INTEGER_GREATER_THAN_OR_EQUAL, 3=INTEGER_EQUAL, 4=INTEGER_NOT_EQUAL, 5=DATETIME_LESS_THAN_OR_EQUAL, 6=DATETIME_GREATER_THAN_OR_EQUAL, 7=BOOLEAN_EQUAL, 8=BOOLEAN_NOT_EQUAL
+  type                      Int
 
   @@id([application_id, key])
 }
 
 model GuildRoleConnectionRequirement {
-  guild_id        String
-  role_id         String   // FK Role.id
-  application_id  String
-  metadata_key    String   // FK ApplicationRoleConnectionMetadata.key
-  metadata_value  String   // valeur attendue
-
-  guild       Guild       @relation("GuildRoleConnectionReqs", fields: [guild_id], references: [id], onDelete: Cascade)
-  role        Role        @relation("RoleConnectionReqs", fields: [role_id], references: [id], onDelete: Cascade)
-  application Application @relation("AppConnectionReqs", fields: [application_id], references: [id], onDelete: Cascade)
+  guild_id       String
+  role_id        String
+  application_id String
+  metadata_key   String
+  metadata_value String
+  application    Application @relation("AppConnectionReqs", fields: [application_id], references: [id], onDelete: Cascade)
+  role           Role        @relation("RoleConnectionReqs", fields: [role_id], references: [id], onDelete: Cascade)
+  guild          Guild       @relation("GuildRoleConnectionReqs", fields: [guild_id], references: [id], onDelete: Cascade)
 
   @@id([guild_id, role_id, application_id, metadata_key])
 }
@@ -1171,49 +1125,48 @@ model GuildRoleConnectionRequirement {
 model UserApplicationRoleConnection {
   user_id           String
   application_id    String
-  platform_name     String?   // affichage optionnel
+  platform_name     String?
   platform_username String?
-  metadata          String?   // JSON string: { key: value, ... }
+  metadata          String?
 
   @@id([user_id, application_id])
 }
 
 model StatusMonitor {
-  id                String   @id
-  name              String
-  description       String?
-  type              String   // http, database, websocket, custom
-  endpoint          String?
-  interval_seconds  Int      @default(60)
-  enabled           Boolean  @default(true)
-  position          Int      @default(0)
-  created_at        DateTime @default(now())
-  checks            StatusCheck[]
+  id               String        @id
+  name             String
+  description      String?
+  type             String
+  endpoint         String?
+  interval_seconds Int           @default(60)
+  enabled          Boolean       @default(true)
+  position         Int           @default(0)
+  created_at       DateTime      @default(now())
+  checks           StatusCheck[]
 
   @@index([enabled])
 }
 
 model StatusCheck {
-  id           String   @id
-  monitor_id   String
-  status       String   // up, down, degraded
-  latency_ms   Int?
-  error        String?
-  checked_at   DateTime @default(now())
-
-  monitor      StatusMonitor @relation(fields: [monitor_id], references: [id], onDelete: Cascade)
+  id         String        @id
+  monitor_id String
+  status     String
+  latency_ms Int?
+  error      String?
+  checked_at DateTime      @default(now())
+  monitor    StatusMonitor @relation(fields: [monitor_id], references: [id], onDelete: Cascade)
 
   @@index([monitor_id])
   @@index([checked_at])
 }
 
 model StatusIncident {
-  id          String   @id
+  id          String                 @id
   title       String
-  status      String   // investigating, identified, monitoring, resolved
-  impact      String   // none, minor, major, critical
+  status      String
+  impact      String
   created_by  String
-  created_at  DateTime @default(now())
+  created_at  DateTime               @default(now())
   resolved_at DateTime?
   updates     StatusIncidentUpdate[]
 
@@ -1221,30 +1174,29 @@ model StatusIncident {
 }
 
 model StatusIncidentUpdate {
-  id          String   @id
+  id          String         @id
   incident_id String
   status      String
   message     String
   created_by  String
-  created_at  DateTime @default(now())
-
+  created_at  DateTime       @default(now())
   incident    StatusIncident @relation(fields: [incident_id], references: [id], onDelete: Cascade)
 
   @@index([incident_id])
 }
 
 model StatusMaintenance {
-  id              String   @id
-  title           String
-  description     String?
-  scheduled_start DateTime
-  scheduled_end   DateTime
-  status          String   @default("scheduled") // scheduled, in_progress, completed
-  auto_maintenance_mode Boolean @default(false)
-  started_at      DateTime?
-  completed_at    DateTime?
-  created_by      String
-  created_at      DateTime @default(now())
+  id                    String    @id
+  title                 String
+  description           String?
+  scheduled_start       DateTime
+  scheduled_end         DateTime
+  status                String    @default("scheduled")
+  auto_maintenance_mode Boolean   @default(false)
+  started_at            DateTime?
+  completed_at          DateTime?
+  created_by            String
+  created_at            DateTime  @default(now())
 
   @@index([status])
 }
@@ -1252,111 +1204,122 @@ model StatusMaintenance {
 model ChannelFollower {
   source_channel_id String
   target_channel_id String
-  created_by_id      String
-  created_at         DateTime @default(now())
-
-  source_channel Channel @relation("FollowerSource", fields: [source_channel_id], references: [id], onDelete: Cascade)
-  target_channel Channel @relation("FollowerTarget", fields: [target_channel_id], references: [id], onDelete: Cascade)
-  created_by      User    @relation("FollowerCreator", fields: [created_by_id], references: [id])
+  created_by_id     String
+  created_at        DateTime @default(now())
+  created_by        User     @relation("FollowerCreator", fields: [created_by_id], references: [id])
+  target_channel    Channel  @relation("FollowerTarget", fields: [target_channel_id], references: [id], onDelete: Cascade)
+  source_channel    Channel  @relation("FollowerSource", fields: [source_channel_id], references: [id], onDelete: Cascade)
 
   @@id([source_channel_id, target_channel_id])
   @@index([target_channel_id])
 }
 
 model ForumTag {
-  id          String   @id
-  guild_id     String
-  channel_id   String?  // null = guild-wide default, set = channel-specific
-  name         String   // max 20 chars
-  emoji_id     String?
-  emoji_name   String?
-  moderated    Boolean  @default(false)
-  available    Boolean  @default(true)
-  created_at   DateTime @default(now())
-
-  guild        Guild        @relation(fields: [guild_id], references: [id], onDelete: Cascade)
-  applied      AppliedTag[]
+  id         String       @id
+  guild_id   String
+  channel_id String?
+  name       String
+  emoji_id   String?
+  emoji_name String?
+  moderated  Boolean      @default(false)
+  available  Boolean      @default(true)
+  created_at DateTime     @default(now())
+  applied    AppliedTag[]
+  guild      Guild        @relation(fields: [guild_id], references: [id], onDelete: Cascade)
 
   @@unique([guild_id, name])
 }
 
 model AppliedTag {
-  thread_id   String
-  tag_id      String
-
-  thread       Channel    @relation(fields: [thread_id], references: [id], onDelete: Cascade)
-  tag          ForumTag   @relation(fields: [tag_id], references: [id], onDelete: Cascade)
+  thread_id String
+  tag_id    String
+  tag       ForumTag @relation(fields: [tag_id], references: [id], onDelete: Cascade)
+  thread    Channel  @relation(fields: [thread_id], references: [id], onDelete: Cascade)
 
   @@id([thread_id, tag_id])
 }
 
 model DiscoveryCategory {
   id          String   @id
-  name         String   // gaming, music, education, science, etc.
-  description  String?
-  emoji        String?
-  label_key    String?  // i18n key for localized label
-  icon         String?  // icon name or URL
-  position     Int      @default(0)
-  created_at   DateTime @default(now())
-
-  guilds       Guild[]             @relation("PrimaryCategory")
+  name        String
+  description String?
+  emoji       String?
+  label_key   String?
+  icon        String?
+  position    Int      @default(0)
+  created_at  DateTime @default(now())
+  guilds      Guild[]  @relation("PrimaryCategory")
 }
 
 model GuildDiscoveryTag {
-  id          String   @id @default(cuid())
-  guild_id    String
-  tag         String   // tag name (not a relation to DiscoveryCategory)
-
-  guild       Guild           @relation(fields: [guild_id], references: [id], onDelete: Cascade)
+  id       String @id @default(cuid())
+  guild_id String
+  tag      String
+  guild    Guild  @relation(fields: [guild_id], references: [id], onDelete: Cascade)
 
   @@unique([guild_id, tag])
   @@index([guild_id])
 }
 
 model FeaturedGuild {
-  id          String   @id
-  guild_id    String   @unique
+  id          String    @id
+  guild_id    String    @unique
   featured_by String?
-  position    Int      @default(0)
-  featured_at  DateTime @default(now())
-  expires_at  DateTime? // null = permanent
-  created_at  DateTime @default(now())
+  position    Int       @default(0)
+  featured_at DateTime  @default(now())
+  expires_at  DateTime?
+  created_at  DateTime  @default(now())
+  feeder      User?     @relation("FeaturedBy", fields: [featured_by], references: [id])
+  guild       Guild     @relation(fields: [guild_id], references: [id], onDelete: Cascade)
+}
 
-  guild       Guild    @relation(fields: [guild_id], references: [id], onDelete: Cascade)
-  feeder User?   @relation("FeaturedBy", fields: [featured_by], references: [id])
+model Interaction {
+  id             String      @id
+  application_id String
+  type           Int
+  guild_id       String?
+  channel_id     String?
+  user_id        String?
+  token          String
+  data           String?
+  responded      Boolean     @default(false)
+  response_type  Int?
+  original_message_id String?
+  created_at     DateTime    @default(now())
+  application    Application @relation(fields: [application_id], references: [id], onDelete: Cascade)
+
+  @@index([application_id])
+  @@index([guild_id])
+  @@index([channel_id])
 }
 
 model GuildWelcomeScreen {
-  id           String   @id
-  guild_id     String   @unique
-  description  String?
-  enabled      Boolean  @default(false)
-  created_at   DateTime @default(now())
-
-  guild    Guild                @relation(fields: [guild_id], references: [id], onDelete: Cascade)
-  channels GuildWelcomeChannel[]  @relation("WelcomeScreenChannels")
+  id          String                @id
+  guild_id    String                @unique
+  description String?
+  enabled     Boolean               @default(false)
+  created_at  DateTime              @default(now())
+  channels    GuildWelcomeChannel[] @relation("WelcomeScreenChannels")
+  guild       Guild                 @relation(fields: [guild_id], references: [id], onDelete: Cascade)
 }
 
 model GuildOnboarding {
   id                  String   @id
   guild_id            String   @unique
   enabled             Boolean  @default(false)
-  mode                Int      @default(0) // 0=default, 1=advanced
-  prompts             String   // JSON array of onboarding prompts
-  default_channel_ids String   // JSON array of default channel IDs for onboarding
-  created_at           DateTime @default(now())
-
-  guild    Guild    @relation(fields: [guild_id], references: [id], onDelete: Cascade)
+  mode                Int      @default(0)
+  prompts             String
+  default_channel_ids String
+  created_at          DateTime @default(now())
+  guild               Guild    @relation(fields: [guild_id], references: [id], onDelete: Cascade)
 }
 
 model GuildMemberVerification {
-  id             String   @id
-  guild_id       String   @unique
-  description    String?  // Optional description shown to users
-  enabled        Boolean  @default(false)
-  form_fields    String   // JSON array: [{field: "DISCORD_USERNAME", label: "...", values: [...], required: true}]
-  created_at      DateTime @default(now())
-
-  guild    Guild    @relation(fields: [guild_id], references: [id], onDelete: Cascade)
+  id          String   @id
+  guild_id    String   @unique
+  description String?
+  enabled     Boolean  @default(false)
+  form_fields String
+  created_at  DateTime @default(now())
+  guild       Guild    @relation(fields: [guild_id], references: [id], onDelete: Cascade)
 }

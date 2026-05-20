@@ -37,7 +37,7 @@ router.post('/:messageId/poll/end', authenticate, messages.endPoll);
 router.get('/:messageId/reactions/:emoji', authenticate, messages.getReactionUsers);
 router.delete('/:messageId/reactions', authenticate, messages.removeAllReactions);
 router.delete('/:messageId/reactions/:emoji', authenticate, messages.removeEmojiReactions);
-router.delete('/:messageId/reactions/:emoji/:userId', authenticate, messages.removeUserReaction);
+router.delete('/:messageId/reactions/:emoji/:userId', authenticate, messages.removeReaction);
 router.post('/:messageId/crosspost', authenticate, messages.crosspostMessage);
 router.post('/:messageId/reports', authenticate, messages.reportMessage);
 
