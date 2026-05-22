@@ -150,6 +150,9 @@ export async function createDM(req: Request, res: Response, next: NextFunction):
 export async function createGroupDM(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const { recipient_ids, name } = req.body;
+    if (!Array.isArray(recipient_ids) || recipient_ids.length === 0) {
+      throw new AppError(400, 'INVALID_RECIPIENTS', 'At least one recipient is required for a group DM');
+    }
     if (recipient_ids.length > 9) throw new AppError(400, 'TOO_MANY', 'Max 10 members in group DM');
 
     const allIds = [req.user!.userId, ...recipient_ids];

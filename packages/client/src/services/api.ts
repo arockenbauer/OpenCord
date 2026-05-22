@@ -13,7 +13,7 @@ export function clearTokens(): void {
 }
 
 export async function authorizeOAuth(data: { application_id: string; guild_id: string; permissions: string }): Promise<void> {
-  await fetchWithAuth('/oauth/authorize', {
+  await fetchWithAuth('/oauth2/authorize', {
     method: 'POST',
     body: JSON.stringify(data),
   });
@@ -225,7 +225,12 @@ export const api = Object.assign(apiFn, {
     getGuilds: <T>() => typedGet<T>('/users/@me/guilds'),
     getMyBoosts: <T>() => typedGet<T>('/users/@me/boosts'),
     createDM: <T>(recipientId: string) => typedPost<T>('/dms', { recipient_id: recipientId }),
+    // Sessions and data-export helpers
+    getSessions: <T>() => typedGet<T>('/users/@me/sessions'),
+    revokeSession: <T>(sessionId: string) => apiFn<T>(`/users/@me/sessions/${sessionId}`, { method: 'DELETE' }),
+    requestDataExport: <T>() => typedPost<T>('/users/@me/data-export'),
   },
+
 
   invites: {
     get: <T>(inviteCode: string) => typedGet<T>(`/invites/${inviteCode}`),
@@ -301,6 +306,20 @@ export const api = Object.assign(apiFn, {
     getPlugins: <T>() => typedGet<T>('/admin/plugins'),
     installPlugin: <T>(data: unknown) => typedPost<T>('/admin/plugins/install', data),
     uninstallPlugin: <T>(pluginId: string) => typedPost<T>(`/admin/plugins/${pluginId}/uninstall`),
+    bulkUsers: <T>(action: string, ids: string[], reason?: string) =>
+      typedPost<T>('/admin/users/bulk', { action, ids, reason }),
+    bulkGuilds: <T>(action: string, ids: string[], reason?: string) =>
+      typedPost<T>('/admin/guilds/bulk', { action, ids, reason }),
+    bulkReports: <T>(action: string, ids: string[]) =>
+      typedPost<T>('/admin/reports/bulk', { action, ids }),
+    bulkAnnouncements: <T>(action: string, ids: string[]) =>
+      typedPost<T>('/admin/announcements/bulk', { action, ids }),
+    bulkBadges: <T>(action: string, ids: string[]) =>
+      typedPost<T>('/admin/badges/bulk', { action, ids }),
+    bulkBackups: <T>(action: string, ids: string[]) =>
+      typedPost<T>('/admin/backups/bulk', { action, ids }),
+    bulkPlugins: <T>(action: string, ids: string[]) =>
+      typedPost<T>('/admin/plugins/bulk', { action, ids }),
   },
 
   announcements: {
@@ -338,12 +357,14 @@ export const api = Object.assign(apiFn, {
   },
 
   connected_accounts: {
-    get: <T>(userId?: string) => typedGet<T>(`/connected-accounts${userId ? `/${userId}` : ''}`),
+    // GET /api/connected-accounts -> returns an array of connected accounts
+    get: <T>() => typedGet<T>('/connected-accounts'),
     add: <T>(data: { platform: string; platform_user_id: string; platform_username?: string }) =>
       typedPost<T>('/connected-accounts', data),
     remove: <T>(accountId: string) =>
       apiFn<T>(`/connected-accounts/${accountId}`, { method: 'DELETE' }),
   },
+
 
   notes: {
     getAll: <T>() => typedGet<T>('/users/@me/notes'),
@@ -375,7 +396,7 @@ export const api = Object.assign(apiFn, {
   },
 
   oauth: {
-    authorize: <T>(data: unknown) => typedPost<T>('/oauth/authorize', data),
+    authorize: <T>(data: unknown) => typedPost<T>('/oauth2/authorize', data),
   },
 
   auth: {

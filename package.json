@@ -20,11 +20,11 @@
     "typecheck": "tsc --noEmit -p packages/shared/tsconfig.json && tsc --noEmit -p packages/server/tsconfig.json && tsc --noEmit -p packages/client/tsconfig.json",
     "lint": "eslint . --ext .ts,.tsx",
     "setup": "npm install && npx prisma generate --schema=packages/server/prisma/schema.prisma && npx prisma migrate dev --schema=packages/server/prisma/schema.prisma --name init && npm run db:seed -w packages/server",
-    "test": "npm run test:unit && npm run test:integration && npm run test:e2e",
+    "test": "npm run typecheck && npm run test:unit && npm run test:integration && npm run test:e2e",
     "test:unit": "npm run test:unit -w packages/server && npm run test:unit -w packages/client && npm run test:unit -w packages/shared",
     "test:integration": "npm run test:integration -w packages/server",
     "test:e2e": "npm run test -w packages/e2e",
-    "test:coverage": "npm run test:coverage -w packages/server && npm run test:coverage -w packages/client",
+    "test:coverage": "npm run test:coverage -w packages/server && npm run test:coverage -w packages/client && npm run test:coverage -w packages/shared",
     "test:ci": "npm test"
   },
   "devDependencies": {

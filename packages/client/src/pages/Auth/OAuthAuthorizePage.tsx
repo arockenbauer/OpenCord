@@ -17,6 +17,7 @@ export function OAuthAuthorizePage() {
 
   const applicationId = params.get('client_id') || '';
   const permissions = params.get('permissions') || '0';
+  const scope = params.get('scope') || 'bot';
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -30,18 +31,18 @@ export function OAuthAuthorizePage() {
       return;
     }
 
-    Promise.all([
-      api<any>(`/applications/${applicationId}`, { method: 'GET' }),
-      api<{ guilds: any[] }>('/users/@me/guilds', { method: 'GET' }),
-    ])
-      .then(([appData, guildData]) => {
-        setApplication(appData.application);
-        setGuilds(guildData.guilds || []);
-        setGuildId(guildData.guilds?.[0]?.id || '');
+    api<any>(`/oauth2/authorize?client_id=${encodeURIComponent(applicationId)}&permissions=${encodeURIComponent(permissions)}&scope=${encodeURIComponent(scope)}`, { method: 'GET' })
+      .then((authorizeData) => {
+        setApplication({
+          ...authorizeData.application,
+          bot: authorizeData.bot,
+        });
+        setGuilds(authorizeData.guilds || []);
+        setGuildId(authorizeData.guilds?.[0]?.id || '');
       })
       .catch((err: any) => setMessage(err.message || 'Impossible de charger cette autorisation.'))
       .finally(() => setLoading(false));
-  }, [applicationId, isAuthenticated, navigate]);
+  }, [applicationId, isAuthenticated, navigate, permissions, scope]);
 
   const canAuthorize = useMemo(() => !!application?.bot && !!guildId, [application?.bot, guildId]);
 

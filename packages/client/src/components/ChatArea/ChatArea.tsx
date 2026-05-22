@@ -357,7 +357,7 @@ export function ChatArea() {
 
   if (!selectedChannelId || !channel) {
     return (
-      <div className={styles.container}>
+      <div className={styles.container} data-testid="chat-area">
         <div className={styles.emptyState}>{guild ? t('guild.no_guilds') : t('dm.empty')}</div>
       </div>
     );
@@ -461,7 +461,7 @@ export function ChatArea() {
               </div>
             </div>
 
-            <div role="list" aria-label="Messages">
+            <div role="list" aria-label="Messages" data-testid="message-list">
             {groupedMessages.map((group) => {
               const headerMessage = group[0]!;
 
@@ -472,7 +472,7 @@ export function ChatArea() {
               const displayName = getMessageDisplayName(headerMessage.author.id, headerMessage.author, guild);
 
               return (
-                <div key={headerMessage.id} className={styles.messageGroup} role="listitem" aria-label={`Message de ${displayName}, ${format(new Date(headerMessage.created_at), 'dd/MM/yyyy HH:mm')}`}>
+                <div key={headerMessage.id} className={styles.messageGroup} role="listitem" aria-label={`Message de ${displayName}, ${format(new Date(headerMessage.created_at), 'dd/MM/yyyy HH:mm')}`} data-testid={`message-${headerMessage.id}`}>
                   <div className={styles.messageGroupHeader} onContextMenu={(e) => handleMessageContextMenu(e, headerMessage)}>
                     <div className={styles.avatar} onClick={(event) => openProfile(event, headerMessage.author.id)} data-user-popout-trigger="true">
                       {headerMessage.author.avatar
@@ -495,7 +495,22 @@ export function ChatArea() {
                         </span>
                       </div>
                       <MessageContent msg={headerMessage} editingId={editingId} editValue={editValue} setEditValue={setEditValue} onEditSubmit={handleEditSubmit} />
-                      {headerMessage.attachments?.map((attachment: any) => <Attachment key={attachment.id} attachment={attachment} />)}
+                      {headerMessage.attachments?.length > 0 && (
+                        (() => {
+                          const firstAttachment = headerMessage.attachments[0];
+                          const restAttachments = headerMessage.attachments.slice(1);
+                          return (
+                            <div>
+                              {firstAttachment && <Attachment key={firstAttachment.id} attachment={firstAttachment} />}
+                              {restAttachments.length > 0 && (
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '8px' }}>
+                                  {restAttachments.map((attachment: any) => <Attachment key={attachment.id} attachment={attachment} compact />)}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()
+                      )}
                       {headerMessage.reactions?.length > 0 && <Reactions reactions={headerMessage.reactions} onReact={(emoji) => handleReaction(headerMessage.id, emoji)} />}
                     </div>
                     <MessageActions
@@ -509,10 +524,25 @@ export function ChatArea() {
                   </div>
 
                   {group.slice(1).map((message) => (
-                    <div key={message.id} className={styles.compactMessage} onContextMenu={(e) => handleMessageContextMenu(e, message)} role="listitem" aria-label={`Message de ${message.author?.username || 'utilisateur'}, ${format(new Date(message.created_at), 'HH:mm')}`}>
+                    <div key={message.id} className={styles.compactMessage} onContextMenu={(e) => handleMessageContextMenu(e, message)} role="listitem" aria-label={`Message de ${message.author?.username || 'utilisateur'}, ${format(new Date(message.created_at), 'HH:mm')}`} data-testid={`message-${message.id}`}>
                       <span className={styles.compactTimestamp}>{format(new Date(message.created_at), 'HH:mm')}</span>
                       <MessageContent msg={message} editingId={editingId} editValue={editValue} setEditValue={setEditValue} onEditSubmit={handleEditSubmit} />
-                      {message.attachments?.map((attachment: any) => <Attachment key={attachment.id} attachment={attachment} />)}
+                      {message.attachments?.length > 0 && (
+                        (() => {
+                          const firstAttachment = message.attachments[0];
+                          const restAttachments = message.attachments.slice(1);
+                          return (
+                            <div>
+                              {firstAttachment && <Attachment key={firstAttachment.id} attachment={firstAttachment} />}
+                              {restAttachments.length > 0 && (
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '8px' }}>
+                                  {restAttachments.map((attachment: any) => <Attachment key={attachment.id} attachment={attachment} compact />)}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()
+                      )}
                       {message.reactions?.length > 0 && <Reactions reactions={message.reactions} onReact={(emoji) => handleReaction(message.id, emoji)} />}
                       <MessageActions
                         msg={message}
@@ -575,6 +605,7 @@ export function ChatArea() {
                   role="textbox"
                   aria-label={`Message ${channelTitle}`}
                   aria-multiline="true"
+                  data-testid="message-input"
                 />
                 <Tooltip content="Choisir un emoji" position="top" delay={300}>
                   <button ref={emojiButtonRef} onClick={() => setShowEmojiPicker((v) => !v)}><Smile size={20} /></button>
@@ -752,10 +783,17 @@ function MessageContent({ msg, editingId, editValue, setEditValue, onEditSubmit 
 
 import { MessageComponents } from '../MessageComponents/MessageComponents';
 
-function Attachment({ attachment }: { attachment: any }) {
+function Attachment({ attachment, compact }: { attachment: any; compact?: boolean }) {
   const isImage = attachment.mime_type?.startsWith('image/');
   if (isImage) {
-    return <img src={attachment.url} alt={attachment.filename} className={styles.attachmentImage} />;
+    return (
+      <img
+        src={attachment.url}
+        alt={attachment.filename}
+        className={styles.attachmentImage}
+        style={compact ? { maxWidth: 120, maxHeight: 120 } : {}}
+      />
+    );
   }
   return (
     <a href={attachment.url} className={styles.attachmentFile} download>

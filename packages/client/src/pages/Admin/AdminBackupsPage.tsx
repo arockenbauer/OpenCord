@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Plus, RefreshCw, HardDrive, Clock, FileArchive } from 'lucide-react';
+import { useEffect, useState, useCallback } from 'react';
+import { Plus, RefreshCw, HardDrive, Clock, FileArchive, X, Trash2 } from 'lucide-react';
 import { api } from '../../services/api';
 import { useAuthStore } from '../../stores/authStore';
 import styles from './AdminLayout.module.css';
@@ -32,8 +32,10 @@ export function AdminBackupsPage() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [msg, setMsg] = useState<{ text: string; error: boolean } | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
 
-  const load = () => {
+  const load = useCallback(() => {
     setLoading(true);
     api.admin.getBackups<{ backups: Backup[] }>()
       .then((data) => {
@@ -41,9 +43,44 @@ export function AdminBackupsPage() {
       })
       .catch((e: any) => setMsg({ text: e.message, error: true }))
       .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  useEffect(() => { setSelected(new Set()); }, []);
+
+  const toggleAll = () => {
+    if (selected.size === backups.length) setSelected(new Set());
+    else setSelected(new Set(backups.map((b) => b.id)));
   };
 
-  useEffect(() => { load(); }, []);
+  const toggleOne = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const runBulk = async (action: string) => {
+    if (selected.size === 0) return;
+    const count = selected.size;
+    if (!window.confirm(`Supprimer définitivement ${count} sauvegarde(s) ? Cette action est irréversible.`)) return;
+    setBulkBusy(true);
+    try {
+      const res = await api.admin.bulkBackups<{ succeeded: number; failed: number }>(action, Array.from(selected));
+      if (res?.failed) {
+        window.alert(`${res.succeeded} réussi(s), ${res.failed} échec(s).`);
+      }
+      setSelected(new Set());
+      load();
+    } catch (e: any) {
+      window.alert(`Erreur : ${e?.message || 'inconnue'}`);
+    } finally {
+      setBulkBusy(false);
+    }
+  };
 
   const handleCreate = async () => {
     if (!confirm('Lancer une sauvegarde complète de la base de données ? Cette opération peut prendre quelques minutes.')) return;
@@ -145,9 +182,28 @@ export function AdminBackupsPage() {
         <div className={styles.loading}>Chargement…</div>
       ) : (
         <div className={styles.tableWrapper}>
+          {selected.size > 0 && adminLevel >= 3 && (
+            <div className={styles.bulkBar}>
+              <span className={styles.bulkBarCount}>{selected.size} sélectionné(s)</span>
+              <div className={styles.bulkBarSpacer} />
+              <button className={`${styles.btn} ${styles.btnDanger} ${styles.btnSmall}`} disabled={bulkBusy}
+                onClick={() => runBulk('delete')}>
+                <Trash2 size={13} /> Supprimer
+              </button>
+              <button className={`${styles.btn} ${styles.btnSecondary} ${styles.btnSmall}`} onClick={() => setSelected(new Set())} disabled={bulkBusy}>
+                <X size={13} /> Annuler
+              </button>
+            </div>
+          )}
+
           <table className={styles.table}>
             <thead>
               <tr>
+                {adminLevel >= 3 && (
+                  <th className={styles.checkboxCell}>
+                    <input type="checkbox" checked={selected.size > 0 && selected.size === backups.length} onChange={toggleAll} />
+                  </th>
+                )}
                 <th>Fichier</th>
                 <th>Taille</th>
                 <th>Statut</th>
@@ -160,6 +216,11 @@ export function AdminBackupsPage() {
                 const s = statusStyles[b.status] ?? statusStyles.failed;
                 return (
                   <tr key={b.id}>
+                    {adminLevel >= 3 && (
+                      <td className={styles.checkboxCell}>
+                        <input type="checkbox" checked={selected.has(b.id)} onChange={() => toggleOne(b.id)} />
+                      </td>
+                    )}
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         <FileArchive size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
@@ -183,7 +244,7 @@ export function AdminBackupsPage() {
               })}
               {backups.length === 0 && (
                 <tr>
-                  <td colSpan={5}>
+                  <td colSpan={adminLevel >= 3 ? 6 : 5}>
                     <div className={styles.emptyState}>
                       Aucune sauvegarde disponible. Cliquez sur "Créer une sauvegarde" pour en lancer une.
                     </div>

@@ -126,8 +126,12 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   fetchMe: async () => {
     try {
-      const user = await api<any>('/api/users/@me');
-      set({ user, isAuthenticated: true });
+      const [user, relationshipsResponse] = await Promise.all([
+        api<any>('/api/users/@me'),
+        api.friends.get<{ relationships: Relationship[] }>()
+          .catch(() => ({ relationships: [] })),
+      ]);
+      set({ user, relationships: relationshipsResponse.relationships || [], isAuthenticated: true });
     } catch (err: any) {
       // Don't immediately logout on 401, let the user retry
       if (err.status !== 401) {

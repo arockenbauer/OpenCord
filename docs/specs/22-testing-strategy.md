@@ -10,6 +10,8 @@
 
 OpenCord adopte une pyramide de tests classique : une base large de tests unitaires, une couche intermédiaire de tests d'intégration, et un sommet de tests end-to-end (E2E). L'objectif est de garantir la stabilité et la maintenabilité du code tout en permettant des itérations rapides.
 
+La couverture attendue par feature est détaillée dans `testing-matrix.md`. Cette matrice fait foi pour définir ce que recouvre "feature couverte" dans le gate de release.
+
 ---
 
 ## 2. Stack de tests
@@ -372,6 +374,17 @@ Tous les éléments interactifs majeurs du frontend doivent avoir un attribut `d
 | Canal dans la sidebar | `channel-{id}` |
 | Message dans le chat | `message-{id}` |
 
+### 7.4 Régression visuelle
+
+Les captures visuelles critiques sont intégrées directement dans la suite Playwright via `expect(...).toHaveScreenshot(...)`.
+
+Règles :
+
+- snapshots versionnés dans le workspace `packages/e2e`
+- viewport, locale, timezone et thème forcés pour réduire la variabilité
+- animations/transitions neutralisées pendant la capture
+- priorité sur les écrans critiques : auth, invite, shell principal, friends, discovery, premium, popouts majeurs
+
 ---
 
 ## 8. Scripts npm
@@ -381,12 +394,12 @@ Tous les éléments interactifs majeurs du frontend doivent avoir un attribut `d
 ```json
 {
   "scripts": {
-    "test": "npm run test:unit && npm run test:integration",
+    "test": "npm run typecheck && npm run test:unit && npm run test:integration && npm run test:e2e",
     "test:unit": "npm run test:unit -w packages/server && npm run test:unit -w packages/client && npm run test:unit -w packages/shared",
     "test:integration": "npm run test:integration -w packages/server",
     "test:e2e": "npm run test -w packages/e2e",
-    "test:coverage": "npm run test:coverage -w packages/server && npm run test:coverage -w packages/client",
-    "test:ci": "npm run test:unit && npm run test:integration && npm run test:e2e"
+    "test:coverage": "npm run test:coverage -w packages/server && npm run test:coverage -w packages/client && npm run test:coverage -w packages/shared",
+    "test:ci": "npm test"
   }
 }
 ```

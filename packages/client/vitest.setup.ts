@@ -1,6 +1,9 @@
 import '@testing-library/jest-dom/vitest';
+import { cleanup } from '@testing-library/react';
+import { afterEach } from 'vitest';
 
-// Setup for client tests
-// Can be used to initialize mocks, MSW, etc.
+afterEach(() => {
+  cleanup();
+});
 
 export {};

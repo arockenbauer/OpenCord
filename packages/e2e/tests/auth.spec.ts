@@ -13,7 +13,8 @@ test.describe('Authentication', () => {
     const loginPage = new LoginPage(page);
     await loginPage.goto();
     await loginPage.login(e2eAccounts.user.email, e2eAccounts.user.password);
-    await page.waitForURL('**/channels/@me');
-    await expect(page.locator('body')).toContainText(/Amis|Ajouter un ami/i);
+    await expect(page).toHaveURL(/\/channels\/@me/);
+    await expect(page.getByTestId('app-layout')).toBeVisible();
+    await expect(page.getByTestId('own-profile-trigger')).toBeVisible();
   });
 });

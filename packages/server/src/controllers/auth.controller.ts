@@ -88,6 +88,50 @@ function serializeAuthUser(user: {
   };
 }
 
+async function getAuthRelationships(userId: string) {
+  const sent = await prisma.friend.findMany({
+    where: { user_id: userId },
+    include: {
+      target: {
+        select: {
+          id: true,
+          username: true,
+          discriminator: true,
+          avatar: true,
+          status: true,
+          global_name: true,
+          custom_status_text: true,
+        },
+      },
+    },
+  });
+  const received = await prisma.friend.findMany({
+    where: { target_id: userId },
+    include: {
+      user: {
+        select: {
+          id: true,
+          username: true,
+          discriminator: true,
+          avatar: true,
+          status: true,
+          global_name: true,
+          custom_status_text: true,
+        },
+      },
+    },
+  });
+
+  return [
+    ...sent.map((relationship) => ({ id: relationship.id, type: relationship.status, user: relationship.target })),
+    ...received.map((relationship) => ({
+      id: relationship.id,
+      type: relationship.status === 0 ? 3 : relationship.status,
+      user: relationship.user,
+    })),
+  ];
+}
+
 async function findAvailableDiscriminator(username: string): Promise<string | null> {
   const taken = await prisma.user.findMany({ where: { username }, select: { discriminator: true } });
   const takenSet = new Set(taken.map((u) => u.discriminator));
@@ -153,6 +197,7 @@ export async function register(req: Request, res: Response, next: NextFunction):
 
     res.status(201).json({
       user: serializeAuthUser(user),
+      relationships: await getAuthRelationships(user.id),
     });
   } catch (err) {
     next(err);
@@ -212,6 +257,7 @@ export async function login(req: Request, res: Response, next: NextFunction): Pr
 
     res.json({
       user: serializeAuthUser(user),
+      relationships: await getAuthRelationships(user.id),
     });
   } catch (err) {
     next(err);
@@ -432,6 +478,7 @@ export async function twoFactorLogin(req: Request, res: Response, next: NextFunc
 
     res.json({
       user: serializeAuthUser(user),
+      relationships: await getAuthRelationships(user.id),
     });
   } catch (err) {
     if (err instanceof jwt.TokenExpiredError) return next(new AppError(401, 'TOKEN_EXPIRED', 'Token expired'));

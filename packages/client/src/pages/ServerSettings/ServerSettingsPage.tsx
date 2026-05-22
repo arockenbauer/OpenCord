@@ -351,14 +351,11 @@ function WidgetToggle({ guild }: { guild: any }) {
 
   useEffect(() => {
     api<any>(`/guilds/${guild.id}/widget`).then(res => {
-      setEnabled(res.data.enabled ?? false);
-      setChannelId(res.data.channel_id ?? '');
+      setEnabled(res.enabled ?? false);
+      setChannelId(res.channel_id ?? '');
     }).catch(() => {});
-    api<any>(`/channels?guild_id=${guild.id}`).then(res => {
-      const textChannels = (res.data || []).filter((c: any) => c.type === 0);
-      setChannels(textChannels);
-    }).catch(() => {});
-  }, [guild.id]);
+    setChannels((guild.channels || []).filter((c: any) => c.type === 0));
+  }, [guild.id, guild.channels]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -410,6 +407,8 @@ function MembersTab({ guild, currentUser }: { guild: any; currentUser: any }) {
   const [selectedMember, setSelectedMember] = useState<any>(null);
   const [timeoutDuration, setTimeoutDuration] = useState('60');
   const [actionLoading, setActionLoading] = useState('');
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkRoleId, setBulkRoleId] = useState<string>('');
 
   useEffect(() => {
     api(`/api/guilds/${guild.id}/members?limit=100`)
@@ -423,6 +422,16 @@ function MembersTab({ guild, currentUser }: { guild: any; currentUser: any }) {
     return name.includes(query.toLowerCase());
   });
 
+  const toggleSelect = (userId: string) => {
+    setSelectedIds((prev) => prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]);
+  };
+
+  const selectAllVisible = () => {
+    const visible = filtered.map((m) => m.user.id).filter((id) => id !== currentUser.id && id !== guild.owner_id);
+    const allSelected = visible.every((id) => selectedIds.includes(id));
+    setSelectedIds(allSelected ? selectedIds.filter((id) => !visible.includes(id)) : Array.from(new Set([...selectedIds, ...visible])));
+  };
+
   const handleKick = async (userId: string) => {
     if (!confirm('Expulser ce membre ?')) return;
     setActionLoading(userId + ':kick');
@@ -430,6 +439,7 @@ function MembersTab({ guild, currentUser }: { guild: any; currentUser: any }) {
       await api(`/api/guilds/${guild.id}/members/${userId}`, { method: 'DELETE' });
       setMembers((prev) => prev.filter((m) => m.user.id !== userId));
       setSelectedMember(null);
+      setSelectedIds((prev) => prev.filter((id) => id !== userId));
       setMsg('Membre expulsé.');
     } catch (e: any) { setMsg(e.message); }
     setActionLoading('');
@@ -442,6 +452,7 @@ function MembersTab({ guild, currentUser }: { guild: any; currentUser: any }) {
       await api(`/api/guilds/${guild.id}/bans/${userId}`, { method: 'PUT', body: JSON.stringify({}) });
       setMembers((prev) => prev.filter((m) => m.user.id !== userId));
       setSelectedMember(null);
+      setSelectedIds((prev) => prev.filter((id) => id !== userId));
       setMsg('Membre banni.');
     } catch (e: any) { setMsg(e.message); }
     setActionLoading('');
@@ -473,29 +484,117 @@ function MembersTab({ guild, currentUser }: { guild: any; currentUser: any }) {
     } catch (e: any) { setMsg(e.message); }
   };
 
+  const handleBulkKick = async () => {
+    if (selectedIds.length === 0) return;
+    if (!confirm(`Expulser ${selectedIds.length} membre(s) ?`)) return;
+    setActionLoading('bulk:kick');
+    for (const id of [...selectedIds]) {
+      if (id === currentUser.id || id === guild.owner_id) continue;
+      try {
+        await api(`/api/guilds/${guild.id}/members/${id}`, { method: 'DELETE' });
+        setMembers((prev) => prev.filter((m) => m.user.id !== id));
+        setSelectedIds((prev) => prev.filter((sid) => sid !== id));
+      } catch (e: any) {
+        setMsg(`Erreur pour ${id}: ${e.message}`);
+      }
+    }
+    setActionLoading('');
+    setMsg('Expulsion en masse terminée.');
+  };
+
+  const handleBulkBan = async () => {
+    if (selectedIds.length === 0) return;
+    if (!confirm(`Bannir ${selectedIds.length} membre(s) ?`)) return;
+    setActionLoading('bulk:ban');
+    for (const id of [...selectedIds]) {
+      if (id === currentUser.id || id === guild.owner_id) continue;
+      try {
+        await api(`/api/guilds/${guild.id}/bans/${id}`, { method: 'PUT', body: JSON.stringify({}) });
+        setMembers((prev) => prev.filter((m) => m.user.id !== id));
+        setSelectedIds((prev) => prev.filter((sid) => sid !== id));
+      } catch (e: any) {
+        setMsg(`Erreur pour ${id}: ${e.message}`);
+      }
+    }
+    setActionLoading('');
+    setMsg('Bannissement en masse terminé.');
+  };
+
+  const handleBulkRoleModify = async (mode: 'add' | 'remove') => {
+    if (!bulkRoleId) { setMsg('Sélectionnez un rôle.'); return; }
+    if (selectedIds.length === 0) return;
+    if (!confirm(`${mode === 'add' ? 'Ajouter' : 'Retirer'} le rôle à ${selectedIds.length} membre(s) ?`)) return;
+    setActionLoading('bulk:role');
+    for (const id of [...selectedIds]) {
+      if (id === currentUser.id) continue; // skip self
+      const member = members.find((m) => m.user.id === id);
+      if (!member) continue;
+      const has = member.roles.includes(bulkRoleId);
+      const newRoles = mode === 'add' ? (has ? member.roles : [...member.roles, bulkRoleId]) : member.roles.filter((r: string) => r !== bulkRoleId);
+      try {
+        await api(`/api/guilds/${guild.id}/members/${id}`, { method: 'PATCH', body: JSON.stringify({ roles: newRoles }) });
+        setMembers((prev) => prev.map((m) => m.user.id === id ? { ...m, roles: newRoles } : m));
+        setSelectedIds((prev) => prev.filter((sid) => sid !== id));
+      } catch (e: any) {
+        setMsg(`Erreur pour ${id}: ${e.message}`);
+      }
+    }
+    setActionLoading('');
+    setMsg('Mise à jour des rôles en masse terminée.');
+  };
+
   const assignableRoles = guild.roles.filter((r: any) => r.name !== '@everyone');
 
   return (
     <div className={styles.splitLayout}>
       <div className={styles.splitLeft}>
         <div className={styles.pageTitle}>Membres ({members.length})</div>
+
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+          <button className={styles.secondaryBtn} onClick={selectAllVisible}>Sélectionner la page</button>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{selectedIds.length} sélectionné(s)</div>
+          {selectedIds.length > 0 && (
+            <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
+              <button className={styles.secondaryBtn} onClick={handleBulkKick} disabled={!!actionLoading}>Expulser ({selectedIds.length})</button>
+              <button className={styles.dangerBtn} onClick={handleBulkBan} disabled={!!actionLoading}>Bannir ({selectedIds.length})</button>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <select className={styles.select} value={bulkRoleId} onChange={(e) => setBulkRoleId(e.target.value)}>
+                  <option value="">Rôle…</option>
+                  {assignableRoles.map((r: any) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                </select>
+                <button className={styles.secondaryBtn} onClick={() => handleBulkRoleModify('add')} disabled={!!actionLoading || !bulkRoleId}>Ajouter</button>
+                <button className={styles.secondaryBtn} onClick={() => handleBulkRoleModify('remove')} disabled={!!actionLoading || !bulkRoleId}>Retirer</button>
+              </div>
+            </div>
+          )}
+        </div>
+
         <input className={styles.textInput} placeholder="Rechercher un membre…" value={query} onChange={(e) => setQuery(e.target.value)} style={{ marginBottom: 12 }} />
         {loading ? <div className={styles.muted}>Chargement…</div> : (
           <div className={styles.memberList}>
             {filtered.map((m) => (
-              <button
-                key={m.user.id}
-                className={`${styles.memberRow} ${selectedMember?.user.id === m.user.id ? styles.memberRowActive : ''}`}
-                onClick={() => setSelectedMember(m)}
-              >
-                <div className={styles.memberAvatar}>
-                  {m.user.avatar ? <img src={m.user.avatar} alt="" className={styles.avatarImg} /> : m.user.username.slice(0, 1).toUpperCase()}
-                </div>
-                <div className={styles.memberInfo}>
-                  <div className={styles.memberName}>{m.nickname || m.user.username}</div>
-                  {m.nickname && <div className={styles.muted} style={{ fontSize: 12 }}>{m.user.username}#{m.user.discriminator}</div>}
-                </div>
-              </button>
+              <div key={m.user.id} style={{ display: 'flex', alignItems: 'center' }}>
+                <input
+                  type="checkbox"
+                  checked={selectedIds.includes(m.user.id)}
+                  onChange={() => toggleSelect(m.user.id)}
+                  disabled={m.user.id === currentUser.id || m.user.id === guild.owner_id}
+                  style={{ marginRight: 8 }}
+                />
+                <button
+                  className={`${styles.memberRow} ${selectedMember?.user.id === m.user.id ? styles.memberRowActive : ''}`}
+                  onClick={() => setSelectedMember(m)}
+                  style={{ flex: 1, textAlign: 'left' }}
+                >
+                  <div className={styles.memberAvatar}>
+                    {m.user.avatar ? <img src={m.user.avatar} alt="" className={styles.avatarImg} /> : m.user.username.slice(0, 1).toUpperCase()}
+                  </div>
+                  <div className={styles.memberInfo}>
+                    <div className={styles.memberName}>{m.nickname || m.user.username}</div>
+                    {m.nickname && <div className={styles.muted} style={{ fontSize: 12 }}>{m.user.username}#{m.user.discriminator}</div>}
+                  </div>
+                </button>
+              </div>
             ))}
           </div>
         )}
@@ -1003,6 +1102,7 @@ function EmojisTab({ guild }: { guild: any }) {
   const [emojis, setEmojis] = useState<any[]>(guild.emojis || []);
   const [msg, setMsg] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1026,22 +1126,61 @@ function EmojisTab({ guild }: { guild: any }) {
       const updated = emojis.filter((e) => e.id !== emojiId);
       setEmojis(updated);
       updateGuildStore(guild.id, { emojis: updated });
+      setSelectedIds((prev) => prev.filter((id) => id !== emojiId));
     } catch (err: any) { setMsg(err.message); }
+  };
+
+  const toggleSelect = (id: string) => setSelectedIds((prev) => (prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]));
+
+  const selectAllVisible = () => {
+    const visible = emojis.map((e) => e.id);
+    const allSelected = visible.every((id) => selectedIds.includes(id));
+    setSelectedIds(allSelected ? selectedIds.filter((id) => !visible.includes(id)) : Array.from(new Set([...selectedIds, ...visible])));
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    if (!confirm(`Supprimer ${selectedIds.length} émoji(s) ?`)) return;
+    for (const id of [...selectedIds]) {
+      try {
+        await api(`/api/guilds/${guild.id}/emojis/${id}`, { method: 'DELETE' });
+        setEmojis((prev) => prev.filter((e) => e.id !== id));
+        setSelectedIds((prev) => prev.filter((sid) => sid !== id));
+      } catch (e: any) {
+        setMsg(`Erreur pour ${id}: ${e.message}`);
+      }
+    }
+    setMsg('Suppression en masse terminée.');
   };
 
   return (
     <div>
       <div className={styles.pageTitleRow}>
-        <div className={styles.pageTitle}>Émojis ({emojis.length}/50)</div>
-        <button className={styles.primaryBtn} onClick={() => fileRef.current?.click()}>
-          <Upload size={16} /> Ajouter
-        </button>
-        <input ref={fileRef} type="file" accept="image/*,image/gif" hidden onChange={handleUpload} />
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div className={styles.pageTitle}>Émojis ({emojis.length}/50)</div>
+          <button className={styles.secondaryBtn} onClick={selectAllVisible}>Sélectionner la page</button>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{selectedIds.length} sélectionné(s)</div>
+          {selectedIds.length > 0 && (
+            <div style={{ display: 'flex', gap: 8, marginLeft: 8 }}>
+              <button className={styles.dangerBtn} onClick={handleBulkDelete}>Supprimer ({selectedIds.length})</button>
+            </div>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button className={styles.primaryBtn} onClick={() => fileRef.current?.click()}>
+            <Upload size={16} /> Ajouter
+          </button>
+          <input ref={fileRef} type="file" accept="image/*,image/gif" hidden onChange={handleUpload} />
+        </div>
       </div>
       {msg && <div className={styles.feedback}>{msg}</div>}
       <div className={styles.emojiGrid}>
         {emojis.map((emoji) => (
           <div key={emoji.id} className={styles.emojiCard}>
+            <div style={{ position: 'absolute', left: 8, top: 8 }}>
+              <input type="checkbox" checked={selectedIds.includes(emoji.id)} onChange={() => toggleSelect(emoji.id)} />
+            </div>
             <div className={styles.emojiPreview}>
               {emoji.asset ? <img src={emoji.asset} alt={emoji.name} className={styles.emojiImg} /> : <span className={styles.muted}>?</span>}
             </div>
@@ -1343,6 +1482,7 @@ function InvitesTab({ guild }: { guild: any }) {
   const [msg, setMsg] = useState('');
   const [newCode, setNewCode] = useState('');
   const [creating, setCreating] = useState(false);
+  const [selectedCodes, setSelectedCodes] = useState<string[]>([]);
 
   useEffect(() => {
     api(`/api/guilds/${guild.id}/invites`)
@@ -1350,6 +1490,16 @@ function InvitesTab({ guild }: { guild: any }) {
       .catch((e: any) => setMsg(e.message))
       .finally(() => setLoading(false));
   }, [guild.id]);
+
+  const toggleSelect = (code: string) => {
+    setSelectedCodes((prev) => (prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]));
+  };
+
+  const selectAllVisible = () => {
+    const visible = invites.map((i) => i.code).filter(Boolean);
+    const allSelected = visible.every((c) => selectedCodes.includes(c));
+    setSelectedCodes(allSelected ? selectedCodes.filter((c) => !visible.includes(c)) : Array.from(new Set([...selectedCodes, ...visible])));
+  };
 
   const handleCreate = async () => {
     const defaultChannel = guild.channels.find((c: any) => c.type === 0);
@@ -1372,13 +1522,39 @@ function InvitesTab({ guild }: { guild: any }) {
     try {
       await api(`/api/invites/${code}`, { method: 'DELETE' });
       setInvites((prev) => prev.filter((i) => i.code !== code));
+      setSelectedCodes((prev) => prev.filter((c) => c !== code));
     } catch (e: any) { setMsg(e.message); }
+  };
+
+  const handleBulkRevoke = async () => {
+    if (selectedCodes.length === 0) return;
+    if (!confirm(`Révoquer ${selectedCodes.length} invitation(s) ?`)) return;
+    for (const code of [...selectedCodes]) {
+      try {
+        await api(`/api/invites/${code}`, { method: 'DELETE' });
+        setInvites((prev) => prev.filter((i) => i.code !== code));
+        setSelectedCodes((prev) => prev.filter((c) => c !== code));
+      } catch (e: any) {
+        setMsg(`Erreur pour ${code}: ${e.message}`);
+      }
+    }
+    setMsg('Révocation en masse terminée.');
   };
 
   return (
     <div>
       <div className={styles.pageTitleRow}>
-        <div className={styles.pageTitle}>Invitations</div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div className={styles.pageTitle}>Invitations</div>
+          <button className={styles.secondaryBtn} onClick={selectAllVisible}>Sélectionner la page</button>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{selectedCodes.length} sélectionné(s)</div>
+          {selectedCodes.length > 0 && (
+            <div style={{ display: 'flex', gap: 8, marginLeft: 8 }}>
+              <button className={styles.dangerBtn} onClick={handleBulkRevoke}>Révoquer ({selectedCodes.length})</button>
+            </div>
+          )}
+        </div>
+
         <button className={styles.primaryBtn} onClick={handleCreate} disabled={creating}>
           <Plus size={16} /> Créer une invitation
         </button>
@@ -1396,6 +1572,7 @@ function InvitesTab({ guild }: { guild: any }) {
         <table className={styles.table}>
           <thead>
             <tr>
+              <th style={{ width: 24 }}><input type="checkbox" checked={invites.length > 0 && invites.every(i => selectedCodes.includes(i.code))} onChange={selectAllVisible} /></th>
               <th>Code</th>
               <th>Canal</th>
               <th>Créateur</th>
@@ -1409,6 +1586,7 @@ function InvitesTab({ guild }: { guild: any }) {
               const channel = guild.channels.find((c: any) => c.id === inv.channel_id);
               return (
                 <tr key={inv.code}>
+                  <td><input type="checkbox" checked={selectedCodes.includes(inv.code)} onChange={() => toggleSelect(inv.code)} style={{ marginRight: 8 }} /></td>
                   <td><code>{inv.code}</code></td>
                   <td>#{channel?.name || '—'}</td>
                   <td>{inv.inviter?.username || '—'}</td>
@@ -1422,7 +1600,7 @@ function InvitesTab({ guild }: { guild: any }) {
                 </tr>
               );
             })}
-            {invites.length === 0 && <tr><td colSpan={6} className={styles.muted}>Aucune invitation active.</td></tr>}
+            {invites.length === 0 && <tr><td colSpan={7} className={styles.muted}>Aucune invitation active.</td></tr>}
           </tbody>
         </table>
       )}
@@ -1435,6 +1613,7 @@ function ModerationTab({ guild }: { guild: any }) {
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState('');
   const [query, setQuery] = useState('');
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   useEffect(() => {
     api(`/api/guilds/${guild.id}/bans`)
@@ -1443,37 +1622,78 @@ function ModerationTab({ guild }: { guild: any }) {
       .finally(() => setLoading(false));
   }, [guild.id]);
 
+  const toggleSelect = (id: string) => setSelectedIds((prev) => (prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]));
+  const selectAllVisible = () => {
+    const visible = filtered.map((b) => b.user?.id || b.user_id).filter(Boolean) as string[];
+    const allSelected = visible.length > 0 && visible.every((id) => selectedIds.includes(id));
+    setSelectedIds(allSelected ? selectedIds.filter((id) => !visible.includes(id)) : Array.from(new Set([...selectedIds, ...visible])));
+  };
+
   const handleUnban = async (userId: string) => {
     try {
       await api(`/api/guilds/${guild.id}/bans/${userId}`, { method: 'DELETE' });
-      setBans((prev) => prev.filter((b) => b.user_id !== userId));
+      setBans((prev) => prev.filter((b) => (b.user?.id || b.user_id) !== userId));
+      setSelectedIds((prev) => prev.filter((id) => id !== userId));
       setMsg('Utilisateur débanni.');
     } catch (e: any) { setMsg(e.message); }
+  };
+
+  const handleBulkUnban = async () => {
+    if (selectedIds.length === 0) return;
+    if (!confirm(`Débannir ${selectedIds.length} utilisateur(s) ?`)) return;
+    for (const id of [...selectedIds]) {
+      try {
+        await api(`/api/guilds/${guild.id}/bans/${id}`, { method: 'DELETE' });
+        setBans((prev) => prev.filter((b) => (b.user?.id || b.user_id) !== id));
+        setSelectedIds((prev) => prev.filter((sid) => sid !== id));
+      } catch (e: any) {
+        setMsg(`Erreur pour ${id}: ${e.message}`);
+      }
+    }
+    setMsg('Débannement en masse terminé.');
   };
 
   const filtered = bans.filter((b) => b.user?.username?.toLowerCase().includes(query.toLowerCase()));
 
   return (
     <div>
-      <div className={styles.pageTitle}>Modération — Bannissements ({bans.length})</div>
+      <div className={styles.pageTitleRow}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div className={styles.pageTitle}>Modération — Bannissements ({bans.length})</div>
+          <button className={styles.secondaryBtn} onClick={selectAllVisible}>Sélectionner la page</button>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{selectedIds.length} sélectionné(s)</div>
+          {selectedIds.length > 0 && (
+            <div style={{ display: 'flex', gap: 8, marginLeft: 8 }}>
+              <button className={styles.dangerBtn} onClick={handleBulkUnban}>Débannir ({selectedIds.length})</button>
+            </div>
+          )}
+        </div>
+      </div>
+
       {msg && <div className={styles.feedback}>{msg}</div>}
       <input className={styles.textInput} placeholder="Rechercher un utilisateur banni…" value={query} onChange={(e) => setQuery(e.target.value)} style={{ marginBottom: 12 }} />
       {loading ? <div className={styles.muted}>Chargement…</div> : (
         <div className={styles.banList}>
-          {filtered.map((ban) => (
-            <div key={ban.user_id || ban.id} className={styles.banRow}>
-              <div className={styles.memberAvatar}>
-                {ban.user?.avatar ? <img src={ban.user.avatar} alt="" className={styles.avatarImg} /> : (ban.user?.username || '?').slice(0, 1).toUpperCase()}
+          {filtered.map((ban) => {
+            const id = ban.user?.id || ban.user_id;
+            return (
+              <div key={id || ban.id} className={styles.banRow}>
+                <div style={{ width: 24, display: 'flex', alignItems: 'center' }}>
+                  <input type="checkbox" checked={!!id && selectedIds.includes(id)} onChange={() => id && toggleSelect(id)} style={{ marginRight: 8 }} />
+                </div>
+                <div className={styles.memberAvatar}>
+                  {ban.user?.avatar ? <img src={ban.user.avatar} alt="" className={styles.avatarImg} /> : (ban.user?.username || '?').slice(0, 1).toUpperCase()}
+                </div>
+                <div className={styles.memberInfo}>
+                  <div className={styles.memberName}>{ban.user?.username || ban.user_id}</div>
+                  {ban.reason && <div className={styles.muted} style={{ fontSize: 12 }}>Raison : {ban.reason}</div>}
+                </div>
+                <button className={styles.secondaryBtn} onClick={() => handleUnban(id)}>
+                  Débannir
+                </button>
               </div>
-              <div className={styles.memberInfo}>
-                <div className={styles.memberName}>{ban.user?.username || ban.user_id}</div>
-                {ban.reason && <div className={styles.muted} style={{ fontSize: 12 }}>Raison : {ban.reason}</div>}
-              </div>
-              <button className={styles.secondaryBtn} onClick={() => handleUnban(ban.user?.id || ban.user_id)}>
-                Débannir
-              </button>
-            </div>
-          ))}
+            );
+          })}
           {filtered.length === 0 && <div className={styles.muted}>Aucun utilisateur banni.</div>}
         </div>
       )}

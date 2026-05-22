@@ -13,8 +13,30 @@ import * as linkedRole from '../controllers/linked-role.controller.js';
 
 const router = Router();
 
+function authenticateUserOrOAuth2(req: any, res: any, next: any) {
+  const authorization = req.headers.authorization;
+  if (authorization?.startsWith('Bearer ')) {
+    const token = authorization.slice(7);
+    if (!token.includes('.')) {
+      return authenticateOAuth2(req, res, next);
+    }
+  }
+
+  return authenticate(req, res, next);
+}
+
+function requireOAuthScopeIfOAuth(requiredScope: string) {
+  return (req: any, _res: any, next: any) => {
+    if (!req.oauth2) return next();
+    if (!req.oauth2.scopes.includes(requiredScope)) {
+      return next(new AppError(403, 'INSUFFICIENT_SCOPE', `Missing required scope: ${requiredScope}`));
+    }
+    next();
+  };
+}
+
 // Endpoints avec authentification normale (JWT)
-router.get('/@me', authenticate, (req: any, res: any, next: any) => users.getMe(req, res, next));
+router.get('/@me', authenticateUserOrOAuth2, requireOAuthScopeIfOAuth('identify'), users.getMe);
 router.patch('/@me', authenticate, userProfileUpdateRateLimit, validate(updateUserSchema), users.updateMe);
 router.patch('/@me/avatar', authenticate, userProfileUpdateRateLimit, uploadAvatar, users.updateAvatar);
 router.patch('/@me/banner', authenticate, userProfileUpdateRateLimit, uploadBanner, users.updateBanner);
@@ -42,40 +64,20 @@ router.delete('/@me/games/:gameId', authenticate, users.deleteGame);
 router.get('/@me/plugins', authenticate, plugins.getUserPlugins);
 router.patch('/@me/plugins/:slug', authenticate, plugins.updateUserPlugin);
 router.post('/@me/data-export', authenticate, dataExportRateLimit, users.requestDataExport);
-router.get('/@me/data-export', authenticate, users.requestDataExport);
-router.get('/@me/data-export/download', authenticate, users.requestDataExport);
 router.post('/@me/delete', authenticate, deleteAccountRateLimit, users.deleteAccount);
 router.post('/@me/delete/cancel', authenticate, users.deleteAccount);
 router.get('/@me/boosts', authenticate, users.getMyBoosts);
-router.get('/@me/sessions', authenticate, (req, res, next) => users.getMe(req, res, next));
-router.delete('/@me/sessions/:sessionId', authenticate, (req, res, next) => users.deleteAccount(req, res, next));
+router.get('/@me/sessions', authenticate, auth.getSessions);
+router.delete('/@me/sessions/:sessionId', authenticate, auth.revokeSession);
+router.get('/@me/guilds', authenticateUserOrOAuth2, requireOAuthScopeIfOAuth('guilds'), users.getMyGuilds);
 router.get('/:userId', authenticate, users.getUser);
 
 // Endpoints OAuth2 avec scopes
-// GET /api/users/@me - scope: identify (sans email) ou identify+email (avec email)
-router.get('/@me', authenticateOAuth2, (req: any, res: any, next: any) => {
-  // Vérifier scope identify
-  if (!req.oauth2?.scopes.includes('identify')) {
-    return next(new AppError(403, 'INSUFFICIENT_SCOPE', 'Missing required scope: identify'));
-  }
-  // Si scope email présent, ajouter l'email
-  users.getMe(req, res, next);
-});
-
-// GET /api/users/@me/guilds - scope: guilds
-router.get('/@me/guilds', authenticateOAuth2, requireScope('guilds'), users.getMyGuilds);
-
 // GET /api/users/@me/guilds/:guildId/member - scope: guilds.members.read
-router.get('/@me/guilds/:guildId/member', authenticateOAuth2, requireScope('guilds.members.read'), async (req: any, res: any, next: any) => {
-  // TODO: Implémenter dans user.controller.ts
-  res.status(501).json({ error: 'Not implemented yet' });
-});
+router.get('/@me/guilds/:guildId/member', authenticateOAuth2, requireScope('guilds.members.read'), users.getMyGuildMember);
 
-// PUT /api/guilds/:guildId/members/:userId - scope: guilds.join (bot token)
-router.put('/@me/guilds/:guildId/member', authenticateOAuth2, requireScope('guilds.join'), async (req: any, res: any, next: any) => {
-  // TODO: Implémenter l'ajout d'un utilisateur à un serveur via OAuth2
-  res.status(501).json({ error: 'Not implemented yet' });
-});
+// PUT /api/users/@me/guilds/:guildId/member - scope: guilds.join
+router.put('/@me/guilds/:guildId/member', authenticateOAuth2, requireScope('guilds.join'), users.joinGuildViaOAuth2);
 
 // User Application Role Connections (OAuth2 scope role_connections.read/write)
 router.get('/@me/applications/:appId/role-connection', authenticateOAuth2, requireScope('applications.role_connections.read'), linkedRole.getUserRoleConnection);

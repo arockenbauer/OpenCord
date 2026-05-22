@@ -157,15 +157,34 @@ export async function getAuthorize(req: Request, res: Response, next: NextFuncti
 
     const perms = permissions ? BigInt(permissions as string) : BigInt(0);
 
-    const guilds = await prisma.guild.findMany({
-      where: { members: { some: { user_id: req.user!.userId } } },
-      select: { id: true, name: true, icon: true, owner_id: true },
+    const guildMemberships = await prisma.guildMember.findMany({
+      where: { user_id: req.user!.userId },
+      include: {
+        guild: {
+          select: { id: true, name: true, icon: true, owner_id: true },
+        },
+      },
     });
+
+    const guilds = (await Promise.all(guildMemberships.map(async (membership) => {
+      const isOwner = membership.guild.owner_id === req.user!.userId;
+      const memberPermissions = await getMemberPermissions(membership.guild.id, req.user!.userId);
+      const canManageGuild = isOwner || (memberPermissions & 0x20n) !== 0n;
+      if (!canManageGuild) return null;
+      return {
+        id: membership.guild.id,
+        name: membership.guild.name,
+        icon: membership.guild.icon,
+        is_owner: isOwner,
+        permissions: memberPermissions.toString(),
+      };
+    }))).filter((guild): guild is NonNullable<typeof guild> => guild !== null);
 
     res.json({
       application: {
         id: application.id,
         name: application.name,
+        description: application.description,
         icon: application.icon,
       },
       bot: application.bot ? {
@@ -174,12 +193,7 @@ export async function getAuthorize(req: Request, res: Response, next: NextFuncti
         avatar: application.bot.avatar,
       } : null,
       permissions: perms.toString(),
-      guilds: guilds.map((g) => ({
-        id: g.id,
-        name: g.name,
-        icon: g.icon,
-        is_owner: g.owner_id === req.user!.userId,
-      })),
+      guilds,
     });
   } catch (err) {
     next(err);

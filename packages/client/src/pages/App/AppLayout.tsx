@@ -73,8 +73,10 @@ export function AppLayout() {
       navigate('/login');
       return;
     }
-    fetchMe();
-  }, [isAuthenticated, navigate, fetchMe]);
+    if (!currentUser) {
+      fetchMe();
+    }
+  }, [currentUser, fetchMe, isAuthenticated, navigate]);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -141,10 +143,10 @@ export function AppLayout() {
       <a href="#main-chat" className="sr-only">Aller au contenu principal</a>
       <AnnouncementBanner />
       <NotificationBell />
-      <div className={styles.layout}>
+      <div className={styles.layout} data-testid="app-layout">
         <ServerList />
         <ChannelSidebar />
-        <main id="main-chat" className={styles.mainRegion}>
+        <main id="main-chat" className={styles.mainRegion} data-testid="main-chat-region">
           {showFriendsView ? <FriendsView /> : <ChatArea />}
         </main>
         {selectedGuildId && <MemberList />}

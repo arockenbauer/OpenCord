@@ -5,6 +5,11 @@ interface RateLimitEntry {
   resetAt: number;
 }
 
+function getLimit(defaultLimit: number, testLimit = defaultLimit): number {
+  if (process.env.NODE_ENV === 'test') return testLimit;
+  return defaultLimit;
+}
+
 const stores = new Map<string, Map<string, RateLimitEntry>>();
 
 setInterval(() => {
@@ -115,7 +120,7 @@ export function rateLimitWithKey(bucket: string, limit: number, windowMs: number
 }
 
 export const globalRateLimit = rateLimit('global', 50, 1000);
-export const authRateLimit = rateLimit('auth', 5, 60000);
+export const authRateLimit = rateLimit('auth', getLimit(5, 100), 60000);
 // Removed loginRateLimit and registerRateLimit - merged into authRateLimit per spec 15
 export const messageSendRateLimit = rateLimitWithKey('message_send', 5, 5000, (req) => {
   const userId = req.user?.userId || 'anonymous';

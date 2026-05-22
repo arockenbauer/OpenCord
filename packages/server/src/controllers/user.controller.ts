@@ -9,8 +9,38 @@ import { AppError } from '../utils/app-error.js';
 import { getIO } from '../gateway/index.js';
 import { generateSnowflake } from '../utils/snowflake.js';
 import { GatewayEvents } from '@opencord/shared';
+import { getMemberPermissions } from './guild.controller.js';
+import { createAndDispatchSystemMessage } from '../services/system-message.service.js';
 
 const uploadDir = process.env.UPLOAD_DIR || './uploads';
+
+function getAuthenticatedUserId(req: Request): string {
+  const userId = req.user?.userId ?? req.oauth2?.userId;
+  if (!userId) {
+    throw new AppError(401, 'UNAUTHORIZED', 'Not authenticated');
+  }
+  return userId;
+}
+
+function serializeGuildMember(member: {
+  user: any;
+  nickname: string | null;
+  joined_at: Date;
+  premium_since: Date | null;
+  communication_disabled_until?: Date | null;
+  pending?: boolean;
+  role_assignments: Array<{ role_id: string }>;
+}) {
+  return {
+    user: member.user,
+    nickname: member.nickname,
+    roles: member.role_assignments.map((assignment) => assignment.role_id),
+    joined_at: member.joined_at,
+    premium_since: member.premium_since,
+    communication_disabled_until: member.communication_disabled_until ?? null,
+    pending: member.pending ?? false,
+  };
+}
 
 function resolveRelationshipType(relationship: { user_id: string; status: number } | null, viewerId: string): number | null {
   if (!relationship) return null;
@@ -28,13 +58,17 @@ function getFriendIds(edges: Array<{ user_id: string; target_id: string; status:
 
 export async function getMe(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
+    const userId = getAuthenticatedUserId(req);
     const user = await prisma.user.findUnique({
-      where: { id: req.user!.userId },
+      where: { id: userId },
       include: { user_badges: { include: { badge: true } }, notification_settings: true },
     });
     if (!user) throw new AppError(404, 'USER_NOT_FOUND', 'User not found');
 
     const { password_hash, two_factor_secret, two_factor_backup_codes, email_verify_token, password_reset_token, password_reset_expires, bot_token, ...safe } = user as any;
+    if (req.oauth2 && !req.oauth2.scopes.includes('email')) {
+      delete safe.email;
+    }
     res.json(safe);
   } catch (err) {
     next(err);
@@ -304,22 +338,176 @@ export async function getUser(req: Request, res: Response, next: NextFunction): 
 
 export async function getMyGuilds(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
+    const userId = getAuthenticatedUserId(req);
     const memberships = await prisma.guildMember.findMany({
-      where: { user_id: req.user!.userId },
+      where: { user_id: userId },
       include: {
         guild: { select: { id: true, name: true, icon: true, owner_id: true, premium_tier: true, features: true } },
       },
     });
 
-    const guilds = memberships.map((m) => ({
-      id: m.guild.id,
-      name: m.guild.name,
-      icon: m.guild.icon,
-      owner: m.guild.owner_id === req.user!.userId,
-      premium_tier: m.guild.premium_tier,
+    const guilds = await Promise.all(memberships.map(async (membership) => {
+      const permissions = await getMemberPermissions(membership.guild.id, userId);
+      return {
+        id: membership.guild.id,
+        name: membership.guild.name,
+        icon: membership.guild.icon,
+        owner: membership.guild.owner_id === userId,
+        permissions: permissions.toString(),
+        premium_tier: membership.guild.premium_tier,
+      };
     }));
 
     res.json({ guilds });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getMyGuildMember(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const userId = getAuthenticatedUserId(req);
+    const member = await prisma.guildMember.findUnique({
+      where: { guild_id_user_id: { guild_id: req.params.guildId, user_id: userId } },
+      include: {
+        user: { select: { id: true, username: true, discriminator: true, avatar: true, status: true, bot: true } },
+        role_assignments: { select: { role_id: true } },
+      },
+    });
+    if (!member) throw new AppError(404, 'MEMBER_NOT_FOUND', 'Member not found');
+
+    res.json(serializeGuildMember(member));
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function joinGuildViaOAuth2(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const userId = getAuthenticatedUserId(req);
+    const { guildId } = req.params;
+    const appBotId = req.oauth2?.application?.bot_id;
+    if (!appBotId) {
+      throw new AppError(400, 'APPLICATION_BOT_REQUIRED', 'Application must have a bot to join guilds');
+    }
+
+    const guild = await prisma.guild.findUnique({
+      where: { id: guildId },
+      select: {
+        id: true,
+        name: true,
+        owner_id: true,
+        system_channel_id: true,
+        welcome_enabled: true,
+        verification_level: true,
+      },
+    });
+    if (!guild) throw new AppError(404, 'GUILD_NOT_FOUND', 'Server not found');
+
+    const botMembership = await prisma.guildMember.findUnique({
+      where: { guild_id_user_id: { guild_id: guildId, user_id: appBotId } },
+    });
+    if (!botMembership) {
+      throw new AppError(403, 'BOT_NOT_IN_GUILD', 'Application bot must already be in the server');
+    }
+
+    const existingMember = await prisma.guildMember.findUnique({
+      where: { guild_id_user_id: { guild_id: guildId, user_id: userId } },
+      include: {
+        user: { select: { id: true, username: true, discriminator: true, avatar: true, status: true, bot: true } },
+        role_assignments: { select: { role_id: true } },
+      },
+    });
+    if (existingMember) {
+      res.json(serializeGuildMember(existingMember));
+      return;
+    }
+
+    const ban = await prisma.ban.findUnique({
+      where: { guild_id_user_id: { guild_id: guildId, user_id: userId } },
+    });
+    if (ban) throw new AppError(403, 'BANNED_FROM_GUILD', 'You are banned from this server');
+
+    const currentGuildCount = await prisma.guildMember.count({ where: { user_id: userId } });
+    const maxGuildsSetting = await prisma.platformSettings.findUnique({ where: { key: 'max_guilds_per_user' } });
+    const maxGuilds = parseInt(maxGuildsSetting?.value || '100', 10);
+    if (currentGuildCount >= maxGuilds) {
+      throw new AppError(403, 'MAX_GUILDS_REACHED', 'Maximum number of servers reached');
+    }
+
+    if (guild.verification_level > 0) {
+      const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
+      if (!user?.email) {
+        throw new AppError(403, 'VERIFICATION_LEVEL_TOO_LOW', 'Verification level too low');
+      }
+    }
+
+    const verification = await prisma.guildMemberVerification.findUnique({
+      where: { guild_id: guildId },
+      select: { enabled: true },
+    });
+    const isPending = verification?.enabled ?? false;
+
+    await prisma.guildMember.create({
+      data: {
+        guild_id: guildId,
+        user_id: userId,
+        pending: isPending,
+      },
+    });
+
+    const member = await prisma.guildMember.findUnique({
+      where: { guild_id_user_id: { guild_id: guildId, user_id: userId } },
+      include: {
+        user: { select: { id: true, username: true, discriminator: true, avatar: true, status: true, bot: true } },
+        role_assignments: { select: { role_id: true } },
+      },
+    });
+    if (!member) throw new AppError(500, 'MEMBER_CREATE_FAILED', 'Failed to create guild membership');
+
+    const io = getIO();
+    if (io) {
+      io.to(`guild:${guildId}`).emit(GatewayEvents.GUILD_MEMBER_ADD, {
+        guild_id: guildId,
+        member: { user: member.user, roles: [], joined_at: member.joined_at, nickname: member.nickname },
+      });
+
+      if (guild.system_channel_id && guild.welcome_enabled) {
+        await createAndDispatchSystemMessage({
+          channelId: guild.system_channel_id,
+          content: `Bienvenue à ${member.user.username} !`,
+          type: 7,
+          guildId,
+        });
+      }
+
+      const guildWithStructure = await prisma.guild.findUnique({
+        where: { id: guildId },
+        include: {
+          channels: { orderBy: [{ type: 'asc' }, { position: 'asc' }] },
+          roles: { orderBy: { position: 'asc' } },
+          emojis: true,
+          stickers: true,
+          _count: { select: { members: true } },
+        },
+      });
+
+      const sockets = await io.in(`user:${userId}`).fetchSockets();
+      for (const socket of sockets) {
+        socket.join(`guild:${guildId}`);
+        for (const channel of guildWithStructure?.channels || []) {
+          socket.join(`channel:${channel.id}`);
+        }
+      }
+
+      if (guildWithStructure) {
+        io.to(`user:${userId}`).emit(GatewayEvents.GUILD_CREATE, {
+          guild: { ...guildWithStructure, member_count: guildWithStructure._count.members },
+        });
+      }
+    }
+
+    res.status(201).json(serializeGuildMember(member));
   } catch (err) {
     next(err);
   }

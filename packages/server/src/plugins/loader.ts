@@ -19,25 +19,48 @@ export async function loadPlugins(): Promise<void> {
         registry.register(plugin.slug, serverPlugin);
         
         // Initialiser le plugin avec le contexte
-        const context: ServerPluginContext = {
-          services: {
-            messages: null, // TODO: injecter les vrais services
-            channels: null,
-            guilds: null,
-            users: null,
+        const services = {
+          messages: {
+            create: async (data: any) => prisma.message.create({ data }),
+            findUnique: async (opts: any) => prisma.message.findUnique(opts),
           },
+          channels: {
+            findUnique: async (opts: any) => prisma.channel.findUnique(opts),
+            findMany: async (opts: any) => prisma.channel.findMany(opts),
+          },
+          guilds: {
+            findUnique: async (opts: any) => prisma.guild.findUnique(opts),
+          },
+          users: {
+            findUnique: async (opts: any) => prisma.user.findUnique(opts),
+          },
+        };
+
+        const context: ServerPluginContext = {
+          services,
           getGuildSettings: async (guildId: string) => {
             const settings = await prisma.guildPluginSettings.findUnique({
               where: { guild_id_plugin_id: { guild_id: guildId, plugin_id: plugin.id } },
             });
             return settings?.settings as any ?? null;
           },
-          emit: (event: string, room: string, data: unknown) => {
-            // TODO: injecter io pour émettre via Socket.IO
+          emit: async (event: string, room: string, data: unknown) => {
+            try {
+              // Try to emit via gateway if available
+              const gw = await import('../gateway/index.js');
+              const io = gw.getIO();
+              if (io) {
+                io.to(room).emit(event, data);
+                return;
+              }
+            } catch (e) {
+              // ignore and fallback
+            }
+            // Fallback: log to server console so plugin authors can see the event
             console.log(`Plugin ${plugin.slug} emit:`, event, room, data);
           },
         };
-        
+
         await serverPlugin.onEnable(context);
       }
     } catch (error) {

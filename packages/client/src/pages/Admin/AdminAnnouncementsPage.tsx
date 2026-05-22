@@ -94,6 +94,8 @@ export function AdminAnnouncementsPage() {
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [editAnn, setEditAnn] = useState<any | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
   const adminLevel = useAuthStore((s) => s.user?.admin_level ?? 0);
 
   const load = () => {
@@ -105,6 +107,39 @@ export function AdminAnnouncementsPage() {
   };
 
   useEffect(() => { load(); }, []);
+
+  const toggleAll = () => {
+    if (selected.size === announcements.length) setSelected(new Set());
+    else setSelected(new Set(announcements.map((a) => a.id)));
+  };
+
+  const toggleOne = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const runBulk = async (action: string, opts?: { confirmText?: string }) => {
+    if (selected.size === 0) return;
+    const count = selected.size;
+    if (opts?.confirmText && !window.confirm(opts.confirmText.replace('{count}', String(count)))) return;
+    setBulkBusy(true);
+    try {
+      const res = await api.admin.bulkAnnouncements<{ succeeded: number; failed: number }>(action, Array.from(selected));
+      if (res?.failed) {
+        window.alert(`${res.succeeded} réussi(s), ${res.failed} échec(s).`);
+      }
+      setSelected(new Set());
+      load();
+    } catch (e: any) {
+      window.alert(`Erreur : ${e?.message || 'inconnue'}`);
+    } finally {
+      setBulkBusy(false);
+    }
+  };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Supprimer cette annonce ?')) return;
@@ -141,11 +176,40 @@ export function AdminAnnouncementsPage() {
         )}
       </div>
 
-      {loading ? <div className={styles.loading}>Chargement…</div> : (
-        <div className={styles.tableWrapper}>
+      <div className={styles.tableWrapper}>
+        {selected.size > 0 && adminLevel >= 2 && (
+          <div className={styles.bulkBar}>
+            <span className={styles.bulkBarCount}>{selected.size} sélectionné(s)</span>
+            <div className={styles.bulkBarSpacer} />
+            <button className={`${styles.btn} ${styles.btnPrimary} ${styles.btnSmall}`} disabled={bulkBusy}
+              onClick={() => runBulk('activate', { confirmText: 'Activer {count} annonce(s) ?' })}>
+              Activer
+            </button>
+            <button className={`${styles.btn} ${styles.btnSecondary} ${styles.btnSmall}`} disabled={bulkBusy}
+              onClick={() => runBulk('deactivate', { confirmText: 'Désactiver {count} annonce(s) ?' })}>
+              Désactiver
+            </button>
+            <button className={`${styles.btn} ${styles.btnDanger} ${styles.btnSmall}`} disabled={bulkBusy}
+              onClick={() => runBulk('delete', { confirmText: 'Supprimer {count} annonce(s) ?' })}>
+              <Trash2 size={13} /> Supprimer
+            </button>
+            <button className={`${styles.btn} ${styles.btnSecondary} ${styles.btnSmall}`} onClick={() => setSelected(new Set())} disabled={bulkBusy}>
+              <X size={13} /> Annuler
+            </button>
+          </div>
+        )}
+
+        {loading ? (
+          <div className={styles.loading}>Chargement…</div>
+        ) : (
           <table className={styles.table}>
             <thead>
               <tr>
+                {adminLevel >= 2 && (
+                  <th className={styles.checkboxCell}>
+                    <input type="checkbox" checked={selected.size > 0 && selected.size === announcements.length} onChange={toggleAll} />
+                  </th>
+                )}
                 <th>Titre</th>
                 <th>Contenu</th>
                 <th>Type</th>
@@ -160,6 +224,11 @@ export function AdminAnnouncementsPage() {
                 const t = typeInfo(ann.type);
                 return (
                   <tr key={ann.id}>
+                    {adminLevel >= 2 && (
+                      <td className={styles.checkboxCell}>
+                        <input type="checkbox" checked={selected.has(ann.id)} onChange={() => toggleOne(ann.id)} />
+                      </td>
+                    )}
                     <td style={{ fontWeight: 600 }}>{ann.title}</td>
                     <td style={{ maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13, color: 'var(--text-muted)' }}>{ann.content}</td>
                     <td><span className={styles.badge} style={{ background: `${t.color}22`, color: t.color }}>{t.label}</span></td>
@@ -194,11 +263,13 @@ export function AdminAnnouncementsPage() {
                   </tr>
                 );
               })}
-              {announcements.length === 0 && <tr><td colSpan={7}><div className={styles.emptyState}>Aucune annonce.</div></td></tr>}
+              {announcements.length === 0 && (
+                <tr><td colSpan={7}><div className={styles.emptyState}>Aucune annonce.</div></td></tr>
+              )}
             </tbody>
           </table>
-        </div>
-      )}
+        )}
+      </div>
 
       {showCreate && <AnnouncementFormModal onClose={() => setShowCreate(false)} onSaved={load} />}
       {editAnn && <AnnouncementFormModal ann={editAnn} onClose={() => setEditAnn(null)} onSaved={load} />}

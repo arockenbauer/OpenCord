@@ -19,6 +19,7 @@ router.patch('/settings', requireAdmin(2), admin.updatePlatformSettings);
 
 // Users
 router.get('/users', admin.getUsers);
+router.post('/users/bulk', requireAdmin(2), admin.bulkUserAction);
 router.get('/users/:userId', admin.getUserAdmin);
 router.patch('/users/:userId', requireAdmin(2), admin.updateUserAdmin);
 router.post('/users/:userId/ban', requireAdmin(2), admin.banUserAdmin);
@@ -30,6 +31,7 @@ router.delete('/users/:userId/badges/:badgeId', requireAdmin(2), admin.removeBad
 
 // Badges
 router.get('/badges', admin.getBadges);
+router.post('/badges/bulk', requireAdmin(3), admin.bulkBadgeAction);
 router.post('/badges', requireAdmin(2), admin.createBadge);
 router.patch('/badges/:badgeId', requireAdmin(2), admin.updateBadge);
 router.delete('/badges/:badgeId', requireAdmin(3), admin.deleteBadge);
@@ -39,18 +41,21 @@ router.delete('/badges/:badgeId/assign/:userId', requireAdmin(2), admin.revokeBa
 
 // Guilds
 router.get('/guilds', admin.getGuildsAdmin);
+router.post('/guilds/bulk', requireAdmin(2), admin.bulkGuildAction);
 router.get('/guilds/:guildId', admin.getGuildAdmin);
 router.delete('/guilds/:guildId', requireAdmin(2), admin.deleteGuildAdmin);
 router.patch('/guilds/:guildId', requireAdmin(2), admin.updateGuildFeatures);
 
 // Reports
 router.get('/reports', admin.getReportsAdmin);
+router.post('/reports/bulk', requireAdmin(1), admin.bulkReportAction);
 router.patch('/reports/:reportId', requireAdmin(1), admin.updateReportAdmin);
 router.post('/reports/:reportId/resolve', requireAdmin(1), admin.resolveReport);
 router.post('/reports/:reportId/dismiss', requireAdmin(1), admin.dismissReport);
 
 // Plugins
 router.get('/plugins', admin.getPlugins);
+router.post('/plugins/bulk', requireAdmin(2), admin.bulkPluginAction);
 router.post('/plugins', requireAdmin(3), admin.createPlugin);
 router.get('/plugins/:slug', admin.getPlugin);
 router.patch('/plugins/:slug', requireAdmin(2), admin.updatePluginBySlug);
@@ -58,6 +63,7 @@ router.delete('/plugins/:slug', requireAdmin(3), admin.deletePlugin);
 
 // Announcements
 router.get('/announcements', announcements.getAnnouncements);
+router.post('/announcements/bulk', requireAdmin(2), admin.bulkAnnouncementAction);
 router.post('/announcements', requireAdmin(2), announcements.createAnnouncement);
 router.patch('/announcements/:announcementId', requireAdmin(2), announcements.updateAnnouncement);
 router.delete('/announcements/:announcementId', requireAdmin(2), announcements.deleteAnnouncement);
@@ -71,6 +77,7 @@ router.get('/channels', requireAdmin(2), admin.getAllChannelsAdmin);
 
 // Backups
 router.get('/backups', admin.getBackupList);
+router.post('/backups/bulk', requireAdmin(3), admin.bulkBackupAction);
 router.post('/backups', admin.createBackup);
 router.get('/backups/:filename/download', requireAdmin(3), admin.downloadBackup);
 router.post('/backups/:backupId/restore', admin.restoreBackup);

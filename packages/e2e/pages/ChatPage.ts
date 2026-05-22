@@ -9,7 +9,7 @@ export class ChatPage {
 
   async sendMessage(content: string) {
     await this.page.fill('[data-testid="message-input"]', content);
-    await this.page.click('[data-testid="message-send"]');
+    await this.page.locator('[data-testid="message-input"]').press('Enter');
   }
 
   async expectMessageVisible(content: string) {

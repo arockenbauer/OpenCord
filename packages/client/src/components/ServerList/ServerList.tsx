@@ -64,6 +64,7 @@ export function ServerList() {
         role="button"
         tabIndex={0}
         aria-label="Home"
+        data-testid="server-list-home"
       >
         <Home size={24} />
       </div>
@@ -75,6 +76,7 @@ export function ServerList() {
         role="button"
         tabIndex={0}
         aria-label="Explorer les serveurs publics"
+        data-testid="server-list-discovery"
       >
         <Compass size={22} />
       </div>
@@ -96,6 +98,7 @@ export function ServerList() {
             role="button"
             tabIndex={0}
             aria-label={guild.name}
+            data-testid={`guild-icon-${guild.id}`}
           >
             {isSelected && <div className={`${styles.indicator} ${styles.active}`} />}
             {!isSelected && hasUnread && <div className={`${styles.indicator} ${styles.unread}`} />}
@@ -112,6 +115,7 @@ export function ServerList() {
           role="button"
           tabIndex={0}
           aria-label="Panel Admin"
+          data-testid="server-list-admin"
         >
           <ShieldAlert size={22} />
         </div>
@@ -123,6 +127,7 @@ export function ServerList() {
         role="button"
         tabIndex={0}
         aria-label="Ajouter un serveur"
+        data-testid="server-list-create"
       >
         <Plus size={24} />
       </div>

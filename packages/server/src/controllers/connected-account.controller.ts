@@ -42,7 +42,8 @@ export async function getConnections(req: Request, res: Response, next: NextFunc
       verified: acc.verified,
       created_at: acc.created_at,
     }));
-    res.json(result);
+    // Return wrapped object for client consistency: { accounts: [...] }
+    res.json({ accounts: result });
   } catch (err) {
     next(err);
   }
@@ -55,16 +56,25 @@ export async function connectionCallback(req: Request, res: Response, next: Next
     const { type } = req.params;
     const { code } = req.body;
 
+    // Require explicit server configuration to enable simulated OAuth. By default, the
+    // endpoint is not implemented to avoid exposing fake/success-shaped integrations.
+    const fakeEnabled = process.env.ENABLE_FAKE_OAUTH === 'true';
+
+    if (!fakeEnabled) {
+      // Not configured: return 501 Not Implemented
+      throw new AppError(501, 'NOT_IMPLEMENTED', 'OAuth callbacks are not configured on this server');
+    }
+
     if (!code) throw new AppError(400, 'MISSING_CODE', 'Authorization code is required');
 
     const validTypes = ['github', 'twitter', 'twitch', 'youtube', 'spotify', 'steam', 'reddit', 'linkedin', 'xbox', 'playstation', 'battlenet', 'epicgames', 'leagueoflegends'];
     if (!validTypes.includes(type)) throw new AppError(400, 'INVALID_TYPE', 'Invalid platform type');
 
-    // Exchange code for token (simplified - in production, use actual OAuth flows)
-    // This is a mock implementation
-    const accessToken = 'mock_access_' + generateSnowflake();
-    const refreshToken = 'mock_refresh_' + generateSnowflake();
-    const platformUsername = 'user_' + generateSnowflake().slice(-6);
+    // Simulated exchange (only when ENABLE_FAKE_OAUTH=true). Make it explicit in response
+    // so clients and developers are not misled into thinking this is a real integration.
+    const accessToken = 'fake_access_' + generateSnowflake();
+    const refreshToken = 'fake_refresh_' + generateSnowflake();
+    const platformUsername = 'fake_user_' + generateSnowflake().slice(-6);
 
     const encryptedAccess = encrypt(accessToken);
     const encryptedRefresh = encrypt(refreshToken);
@@ -79,13 +89,14 @@ export async function connectionCallback(req: Request, res: Response, next: Next
         access_token: encryptedAccess,
         refresh_token: encryptedRefresh,
         token_expires_at: new Date(Date.now() + 3600000), // 1 hour
-        verified: true,
+        // Mark as unverified so UI can surface this as a non-authenticated/fake connection
+        verified: false,
       },
       update: {
         access_token: encryptedAccess,
         refresh_token: encryptedRefresh,
         token_expires_at: new Date(Date.now() + 3600000),
-        verified: true,
+        verified: false,
       },
     });
 
@@ -97,6 +108,8 @@ export async function connectionCallback(req: Request, res: Response, next: Next
       show_activity: account.show_activity,
       visibility: account.visibility,
       verified: account.verified,
+      // Explicit flag to indicate this was a simulated flow
+      simulated: true,
     });
   } catch (err) {
     next(err);

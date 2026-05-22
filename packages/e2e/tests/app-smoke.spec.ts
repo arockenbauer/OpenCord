@@ -21,7 +21,7 @@ async function login(page: Page, account: { email: string; password: string }): 
   await page.getByTestId('login-email').fill(account.email);
   await page.getByTestId('login-password').fill(account.password);
   await page.getByTestId('login-submit').click();
-  await page.waitForURL('**/channels/@me');
+  await expect(page).toHaveURL(/\/channels\/@me/);
 }
 
 async function navigateSpa(page: Page, route: string): Promise<void> {
@@ -43,7 +43,7 @@ test.describe('App smoke', () => {
     await page.getByTestId('register-date-of-birth').fill('1990-01-01');
     await page.getByTestId('register-submit').click();
 
-    await page.waitForURL('**/channels/@me');
+    await expect(page).toHaveURL(/\/channels\/@me/);
     await expect(page.locator('body')).toContainText(/Amis|Ajouter un ami/i);
     expect(failures).toEqual([]);
   });

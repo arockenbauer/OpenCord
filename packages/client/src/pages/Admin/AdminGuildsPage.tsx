@@ -111,12 +111,12 @@ export function AdminGuildsPage() {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
   const adminLevel = useAuthStore((s) => s.user?.admin_level ?? 0);
 
   const load = useCallback(() => {
     setLoading(true);
-    const params = new URLSearchParams({ page: String(page), limit: '50' });
-    if (search) params.set('search', search);
     api.admin.getGuilds<any>({ limit: 50, offset: (page - 1) * 50, search })
       .then((data) => { setGuilds((data as any).guilds ?? []); setTotal((data as any).total ?? 0); })
       .catch(() => {})
@@ -124,6 +124,47 @@ export function AdminGuildsPage() {
   }, [page, search]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => { setSelected(new Set()); }, [page, search]);
+
+  const toggleAll = () => {
+    if (selected.size === guilds.length) setSelected(new Set());
+    else setSelected(new Set(guilds.map((g) => g.id)));
+  };
+
+  const toggleOne = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const runBulk = async (action: string, opts?: { confirmText?: string; reason?: boolean }) => {
+    if (selected.size === 0) return;
+    const count = selected.size;
+    if (opts?.confirmText && !window.confirm(opts.confirmText.replace('{count}', String(count)))) return;
+    let reason: string | undefined;
+    if (opts?.reason) {
+      const r = window.prompt('Raison (optionnelle)');
+      if (r === null) return;
+      reason = r;
+    }
+    setBulkBusy(true);
+    try {
+      const res = await api.admin.bulkGuilds<{ succeeded: number; failed: number }>(action, Array.from(selected), reason);
+      if (res?.failed) {
+        window.alert(`${res.succeeded} réussi(s), ${res.failed} échec(s).`);
+      }
+      setSelected(new Set());
+      load();
+    } catch (e: any) {
+      window.alert(`Erreur : ${e?.message || 'inconnue'}`);
+    } finally {
+      setBulkBusy(false);
+    }
+  };
 
   return (
     <div>
@@ -139,10 +180,30 @@ export function AdminGuildsPage() {
           <Search size={16} style={{ color: 'var(--text-muted)' }} />
           <input className={styles.searchInput} value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Rechercher par nom…" />
         </div>
+
+        {selected.size > 0 && adminLevel >= 2 && (
+          <div className={styles.bulkBar}>
+            <span className={styles.bulkBarCount}>{selected.size} sélectionné(s)</span>
+            <div className={styles.bulkBarSpacer} />
+            <button className={`${styles.btn} ${styles.btnDanger} ${styles.btnSmall}`} disabled={bulkBusy}
+              onClick={() => runBulk('delete', { confirmText: 'Supprimer définitivement {count} serveur(s) ? Cette action est irréversible.', reason: true })}>
+              <Trash2 size={13} /> Supprimer
+            </button>
+            <button className={`${styles.btn} ${styles.btnSecondary} ${styles.btnSmall}`} onClick={() => setSelected(new Set())} disabled={bulkBusy}>
+              <X size={13} /> Annuler
+            </button>
+          </div>
+        )}
+
         {loading ? <div className={styles.loading}>Chargement…</div> : (
           <table className={styles.table}>
             <thead>
               <tr>
+                {adminLevel >= 2 && (
+                  <th className={styles.checkboxCell}>
+                    <input type="checkbox" checked={selected.size > 0 && selected.size === guilds.length} onChange={toggleAll} />
+                  </th>
+                )}
                 <th>Serveur</th>
                 <th>Propriétaire</th>
                 <th>Membres</th>
@@ -155,6 +216,11 @@ export function AdminGuildsPage() {
             <tbody>
               {guilds.map((g) => (
                 <tr key={g.id}>
+                  {adminLevel >= 2 && (
+                    <td className={styles.checkboxCell}>
+                      <input type="checkbox" checked={selected.has(g.id)} onChange={() => toggleOne(g.id)} />
+                    </td>
+                  )}
                   <td>
                     <div className={styles.userRow}>
                       <div className={styles.avatar} style={{ borderRadius: 12 }}>

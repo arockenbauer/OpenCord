@@ -25,6 +25,16 @@ export function ForumTagManager({ channelId, guildId, canManage }: ForumTagManag
   const [emoji, setEmoji] = useState('');
   const [moderated, setModerated] = useState(false);
 
+  // Bulk selection state
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const allSelected = selectedIds.length > 0 && selectedIds.length === tags.length;
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+  const toggleSelectAll = () => {
+    setSelectedIds(prev => (prev.length === tags.length ? [] : tags.map(t => t.id)));
+  };
+
   const loadTags = async () => {
     setLoading(true);
     try {
@@ -109,8 +119,55 @@ export function ForumTagManager({ channelId, guildId, canManage }: ForumTagManag
       )}
 
       <div className={styles.tagList}>
+        {canManage && (
+          <div className={styles.bulkActions}>
+            <label className={styles.selectAllLabel}>
+              <input type='checkbox' checked={allSelected} onChange={toggleSelectAll} /> Tout sélectionner
+            </label>
+            <button
+              className={styles.bulkDeleteBtn}
+              disabled={selectedIds.length === 0}
+              onClick={async () => {
+                if (!confirm(`Supprimer ${selectedIds.length} tags ?`)) return;
+                try {
+                  await Promise.all(selectedIds.map(id => api.forumTags.delete<any>(guildId, channelId, id)));
+                  setSelectedIds([]);
+                  loadTags();
+                } catch (err) {
+                  console.error('Failed to delete tags:', err);
+                }
+              }}
+            >
+              <Trash2 size={14} /> Supprimer la sélection
+            </button>
+            <button
+              className={styles.bulkModerateBtn}
+              disabled={selectedIds.length === 0}
+              onClick={async () => {
+                const makeModerated = confirm('Cochez OK pour activer "Modéré" pour la sélection, Annuler pour le désactiver.');
+                try {
+                  await Promise.all(selectedIds.map(id => api.forumTags.update<any>(guildId, channelId, id, { moderated: makeModerated })));
+                  setSelectedIds([]);
+                  loadTags();
+                } catch (err) {
+                  console.error('Failed to update tags:', err);
+                }
+              }}
+            >
+              <Pencil size={14} /> Basculer Modéré
+            </button>
+          </div>
+        )}
         {tags.map((tag) => (
           <div key={tag.id} className={styles.tagItem}>
+            {canManage && (
+              <input
+                type='checkbox'
+                checked={selectedIds.includes(tag.id)}
+                onChange={() => toggleSelect(tag.id)}
+                className={styles.selectCheckbox}
+              />
+            )}
             <span className={styles.tagEmoji}>{tag.emoji || <Tag size={14} />}</span>
             <span className={styles.tagName}>{tag.name}</span>
             {tag.moderated && <span className={styles.moderatedBadge}>Modéré</span>}

@@ -225,6 +225,8 @@ export function AdminBadgesPage() {
   const [editBadge, setEditBadge] = useState<any | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [assignBadgeId, setAssignBadgeId] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
   const adminLevel = useAuthStore((s) => s.user?.admin_level ?? 0);
 
   const load = () => {
@@ -236,6 +238,39 @@ export function AdminBadgesPage() {
   };
 
   useEffect(() => { load(); }, []);
+
+  const toggleAll = () => {
+    if (selected.size === badges.length) setSelected(new Set());
+    else setSelected(new Set(badges.map((b) => b.id)));
+  };
+
+  const toggleOne = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const runBulk = async (action: string, opts?: { confirmText?: string }) => {
+    if (selected.size === 0) return;
+    const count = selected.size;
+    if (opts?.confirmText && !window.confirm(opts.confirmText.replace('{count}', String(count)))) return;
+    setBulkBusy(true);
+    try {
+      const res = await api.admin.bulkBadges<{ succeeded: number; failed: number }>(action, Array.from(selected));
+      if (res?.failed) {
+        window.alert(`${res.succeeded} réussi(s), ${res.failed} échec(s).`);
+      }
+      setSelected(new Set());
+      load();
+    } catch (e: any) {
+      window.alert(`Erreur : ${e?.message || 'inconnue'}`);
+    } finally {
+      setBulkBusy(false);
+    }
+  };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Supprimer définitivement ce badge ?')) return;
@@ -261,13 +296,32 @@ export function AdminBadgesPage() {
         )}
       </div>
 
-      {loading ? (
-        <div className={styles.loading}>Chargement…</div>
-      ) : (
-        <div className={styles.tableWrapper}>
+      <div className={styles.tableWrapper}>
+        {selected.size > 0 && adminLevel >= 3 && (
+          <div className={styles.bulkBar}>
+            <span className={styles.bulkBarCount}>{selected.size} sélectionné(s)</span>
+            <div className={styles.bulkBarSpacer} />
+            <button className={`${styles.btn} ${styles.btnDanger} ${styles.btnSmall}`} disabled={bulkBusy}
+              onClick={() => runBulk('delete', { confirmText: 'Supprimer définitivement {count} badge(s) ? Cette action est irréversible.' })}>
+              <Trash2 size={13} /> Supprimer
+            </button>
+            <button className={`${styles.btn} ${styles.btnSecondary} ${styles.btnSmall}`} onClick={() => setSelected(new Set())} disabled={bulkBusy}>
+              <X size={13} /> Annuler
+            </button>
+          </div>
+        )}
+
+        {loading ? (
+          <div className={styles.loading}>Chargement…</div>
+        ) : (
           <table className={styles.table}>
             <thead>
               <tr>
+                {adminLevel >= 3 && (
+                  <th className={styles.checkboxCell}>
+                    <input type="checkbox" checked={selected.size > 0 && selected.size === badges.length} onChange={toggleAll} />
+                  </th>
+                )}
                 <th>Badge</th>
                 <th>Nom interne</th>
                 <th>Type</th>
@@ -279,6 +333,11 @@ export function AdminBadgesPage() {
             <tbody>
               {badges.map((badge) => (
                 <tr key={badge.id}>
+                  {adminLevel >= 3 && (
+                    <td className={styles.checkboxCell}>
+                      <input type="checkbox" checked={selected.has(badge.id)} onChange={() => toggleOne(badge.id)} />
+                    </td>
+                  )}
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <span style={{ fontSize: 22 }}>{badge.icon}</span>
@@ -318,8 +377,8 @@ export function AdminBadgesPage() {
               )}
             </tbody>
           </table>
-        </div>
-      )}
+        )}
+      </div>
 
       {showCreate && <BadgeFormModal onClose={() => setShowCreate(false)} onSaved={load} />}
       {editBadge && <BadgeFormModal badge={editBadge} onClose={() => setEditBadge(null)} onSaved={load} />}

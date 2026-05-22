@@ -1114,6 +1114,349 @@ export async function testEmailConfig(req: Request, res: Response, next: NextFun
   }
 }
 
+// ── BULK ACTIONS ─────────────────────────────────────────────────────
+
+function getReqIp(req: Request): string {
+  return (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || 'unknown';
+}
+
+function parseBulkIds(req: Request): string[] {
+  const raw = req.body?.ids;
+  if (!Array.isArray(raw)) throw new AppError(400, 'INVALID_IDS', 'ids must be an array');
+  const ids = raw.filter((v) => typeof v === 'string' && v.length > 0);
+  if (ids.length === 0) throw new AppError(400, 'INVALID_IDS', 'ids must contain at least one id');
+  if (ids.length > 500) throw new AppError(400, 'TOO_MANY_IDS', 'No more than 500 ids per bulk request');
+  return ids;
+}
+
+export async function bulkUserAction(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const ids = parseBulkIds(req);
+    const action = String(req.body?.action || '');
+    const reason = typeof req.body?.reason === 'string' ? req.body.reason : null;
+    const adminId = req.user!.userId;
+    const ip = getReqIp(req);
+
+    const selfIncluded = ids.includes(adminId);
+    if (selfIncluded && action !== 'force-logout') {
+      throw new AppError(400, 'INVALID_TARGET', 'You cannot apply this action to yourself');
+    }
+
+    const results: { id: string; ok: boolean; error?: string }[] = [];
+    const io = getIO();
+
+    const adminUser = await prisma.user.findUnique({ where: { id: adminId } });
+    if (!adminUser) throw new AppError(401, 'UNAUTHORIZED', 'Not found');
+
+    const protectedIds = new Set<string>();
+    if (action === 'ban' || action === 'disable' || action === 'delete') {
+      const higherOrEqual = await prisma.user.findMany({
+        where: { id: { in: ids }, admin_level: { gte: adminUser.admin_level } },
+        select: { id: true },
+      });
+      higherOrEqual.forEach((u) => { if (u.id !== adminId) protectedIds.add(u.id); });
+    }
+
+    for (const id of ids) {
+      if (id === adminId && action !== 'force-logout') {
+        results.push({ id, ok: false, error: 'Cannot target yourself' });
+        continue;
+      }
+      if (protectedIds.has(id)) {
+        results.push({ id, ok: false, error: 'Insufficient privileges' });
+        continue;
+      }
+      try {
+        switch (action) {
+          case 'ban': {
+            const now = new Date();
+            await prisma.user.update({ where: { id }, data: { banned: true, ban_reason: reason, banned_at: now, banned_by: adminId } });
+            await prisma.refreshToken.updateMany({ where: { user_id: id, is_revoked: false }, data: { is_revoked: true } });
+            if (io) io.to(`user:${id}`).disconnectSockets(true);
+            await createAdminAuditLog({ adminId, action: 'USER_BAN', targetType: 'user', targetId: id, details: { reason, bulk: true }, ipAddress: ip });
+            break;
+          }
+          case 'unban': {
+            await prisma.user.update({ where: { id }, data: { banned: false, ban_reason: null, banned_at: null, banned_by: null } });
+            await createAdminAuditLog({ adminId, action: 'USER_UNBAN', targetType: 'user', targetId: id, details: { bulk: true }, ipAddress: ip });
+            break;
+          }
+          case 'disable': {
+            await prisma.user.update({ where: { id }, data: { disabled: true } });
+            await prisma.refreshToken.updateMany({ where: { user_id: id, is_revoked: false }, data: { is_revoked: true } });
+            if (io) io.to(`user:${id}`).disconnectSockets(true);
+            await createAdminAuditLog({ adminId, action: 'USER_DISABLE', targetType: 'user', targetId: id, details: { bulk: true }, ipAddress: ip });
+            break;
+          }
+          case 'enable': {
+            await prisma.user.update({ where: { id }, data: { disabled: false } });
+            await createAdminAuditLog({ adminId, action: 'USER_ENABLE', targetType: 'user', targetId: id, details: { bulk: true }, ipAddress: ip });
+            break;
+          }
+          case 'force-logout': {
+            await prisma.refreshToken.updateMany({ where: { user_id: id, is_revoked: false }, data: { is_revoked: true } });
+            if (io) io.to(`user:${id}`).disconnectSockets(true);
+            await createAdminAuditLog({ adminId, action: 'USER_FORCE_LOGOUT', targetType: 'user', targetId: id, details: { bulk: true }, ipAddress: ip });
+            break;
+          }
+          case 'delete': {
+            if (adminUser.admin_level < 3) throw new AppError(403, 'FORBIDDEN', 'Only super admins can delete users');
+            const { executeAccountDeletion } = await import('../services/export.service.js');
+            await executeAccountDeletion(id, reason || 'Admin bulk deletion');
+            await createAdminAuditLog({ adminId, action: 'USER_FORCE_DELETE', targetType: 'user', targetId: id, details: { reason, bulk: true }, ipAddress: ip });
+            break;
+          }
+          default:
+            throw new AppError(400, 'INVALID_ACTION', `Unknown action: ${action}`);
+        }
+        results.push({ id, ok: true });
+      } catch (e: any) {
+        results.push({ id, ok: false, error: e?.message || 'failed' });
+      }
+    }
+
+    res.json({
+      action,
+      total: results.length,
+      succeeded: results.filter((r) => r.ok).length,
+      failed: results.filter((r) => !r.ok).length,
+      results,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function bulkGuildAction(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const ids = parseBulkIds(req);
+    const action = String(req.body?.action || '');
+    const reason = typeof req.body?.reason === 'string' ? req.body.reason : null;
+    const adminId = req.user!.userId;
+    const ip = getReqIp(req);
+    const results: { id: string; ok: boolean; error?: string }[] = [];
+
+    for (const id of ids) {
+      try {
+        switch (action) {
+          case 'delete': {
+            await prisma.guild.delete({ where: { id } });
+            await createAdminAuditLog({ adminId, action: 'GUILD_DELETE', targetType: 'guild', targetId: id, details: { reason, bulk: true }, ipAddress: ip });
+            break;
+          }
+          default:
+            throw new AppError(400, 'INVALID_ACTION', `Unknown action: ${action}`);
+        }
+        results.push({ id, ok: true });
+      } catch (e: any) {
+        results.push({ id, ok: false, error: e?.message || 'failed' });
+      }
+    }
+
+    res.json({
+      action,
+      total: results.length,
+      succeeded: results.filter((r) => r.ok).length,
+      failed: results.filter((r) => !r.ok).length,
+      results,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function bulkReportAction(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const ids = parseBulkIds(req);
+    const action = String(req.body?.action || '');
+    const adminId = req.user!.userId;
+    const ip = getReqIp(req);
+    const results: { id: string; ok: boolean; error?: string }[] = [];
+
+    for (const id of ids) {
+      try {
+        let status: 'resolved' | 'dismissed';
+        if (action === 'resolve') status = 'resolved';
+        else if (action === 'dismiss') status = 'dismissed';
+        else throw new AppError(400, 'INVALID_ACTION', `Unknown action: ${action}`);
+
+        await prisma.report.update({
+          where: { id },
+          data: { status, reviewer_id: adminId, resolved_at: new Date() },
+        });
+        await createAdminAuditLog({ adminId, action: 'REPORT_RESOLVE', targetType: 'report', targetId: id, details: { status, bulk: true }, ipAddress: ip });
+        results.push({ id, ok: true });
+      } catch (e: any) {
+        results.push({ id, ok: false, error: e?.message || 'failed' });
+      }
+    }
+
+    res.json({
+      action,
+      total: results.length,
+      succeeded: results.filter((r) => r.ok).length,
+      failed: results.filter((r) => !r.ok).length,
+      results,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function bulkAnnouncementAction(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const ids = parseBulkIds(req);
+    const action = String(req.body?.action || '');
+    const adminId = req.user!.userId;
+    const ip = getReqIp(req);
+    const results: { id: string; ok: boolean; error?: string }[] = [];
+
+    for (const id of ids) {
+      try {
+        switch (action) {
+          case 'delete': {
+            await prisma.announcement.delete({ where: { id } });
+            await createAdminAuditLog({ adminId, action: 'ANNOUNCEMENT_DELETE', targetType: 'announcement', targetId: id, details: { bulk: true }, ipAddress: ip });
+            break;
+          }
+          case 'activate': {
+            await prisma.announcement.update({ where: { id }, data: { active: true } });
+            break;
+          }
+          case 'deactivate': {
+            await prisma.announcement.update({ where: { id }, data: { active: false } });
+            break;
+          }
+          default:
+            throw new AppError(400, 'INVALID_ACTION', `Unknown action: ${action}`);
+        }
+        results.push({ id, ok: true });
+      } catch (e: any) {
+        results.push({ id, ok: false, error: e?.message || 'failed' });
+      }
+    }
+
+    res.json({
+      action,
+      total: results.length,
+      succeeded: results.filter((r) => r.ok).length,
+      failed: results.filter((r) => !r.ok).length,
+      results,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function bulkBadgeAction(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const ids = parseBulkIds(req);
+    const action = String(req.body?.action || '');
+    const adminId = req.user!.userId;
+    const ip = getReqIp(req);
+    const results: { id: string; ok: boolean; error?: string }[] = [];
+
+    for (const id of ids) {
+      try {
+        switch (action) {
+          case 'delete': {
+            await prisma.userBadge.deleteMany({ where: { badge_id: id } });
+            await prisma.badge.delete({ where: { id } });
+            await createAdminAuditLog({ adminId, action: 'BADGE_DELETE', targetType: 'badge', targetId: id, details: { bulk: true }, ipAddress: ip });
+            break;
+          }
+          default:
+            throw new AppError(400, 'INVALID_ACTION', `Unknown action: ${action}`);
+        }
+        results.push({ id, ok: true });
+      } catch (e: any) {
+        results.push({ id, ok: false, error: e?.message || 'failed' });
+      }
+    }
+
+    res.json({
+      action,
+      total: results.length,
+      succeeded: results.filter((r) => r.ok).length,
+      failed: results.filter((r) => !r.ok).length,
+      results,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function bulkPluginAction(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const ids = parseBulkIds(req);
+    const action = String(req.body?.action || '');
+    const adminId = req.user!.userId;
+    const ip = getReqIp(req);
+    const results: { id: string; ok: boolean; error?: string }[] = [];
+
+    for (const slug of ids) {
+      try {
+        switch (action) {
+          case 'enable': {
+            await prisma.plugin.updateMany({ where: { slug }, data: { enabled_by_default: true } });
+            await createAdminAuditLog({ adminId, action: 'PLUGIN_TOGGLE', targetType: 'plugin', targetId: slug, details: { action: 'enable', bulk: true }, ipAddress: ip });
+            break;
+          }
+          case 'disable': {
+            await prisma.plugin.updateMany({ where: { slug }, data: { enabled_by_default: false } });
+            await createAdminAuditLog({ adminId, action: 'PLUGIN_TOGGLE', targetType: 'plugin', targetId: slug, details: { action: 'disable', bulk: true }, ipAddress: ip });
+            break;
+          }
+          default:
+            throw new AppError(400, 'INVALID_ACTION', `Unknown action: ${action}`);
+        }
+        results.push({ id: slug, ok: true });
+      } catch (e: any) {
+        results.push({ id: slug, ok: false, error: e?.message || 'failed' });
+      }
+    }
+
+    res.json({
+      action,
+      total: results.length,
+      succeeded: results.filter((r) => r.ok).length,
+      failed: results.filter((r) => !r.ok).length,
+      results,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function bulkBackupAction(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const ids = parseBulkIds(req);
+    const action = String(req.body?.action || '');
+    const adminId = req.user!.userId;
+    const results: { id: string; ok: boolean; error?: string }[] = [];
+
+    for (const id of ids) {
+      try {
+        if (action !== 'delete') throw new AppError(400, 'INVALID_ACTION', `Unknown action: ${action}`);
+        await svcDeleteBackup(id, adminId);
+        results.push({ id, ok: true });
+      } catch (e: any) {
+        results.push({ id, ok: false, error: e?.message || 'failed' });
+      }
+    }
+
+    res.json({
+      action,
+      total: results.length,
+      succeeded: results.filter((r) => r.ok).length,
+      failed: results.filter((r) => !r.ok).length,
+      results,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 // ── GDPR - FORCE DELETE USER ──────────────────────────────────────────
 export async function forceDeleteUser(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {

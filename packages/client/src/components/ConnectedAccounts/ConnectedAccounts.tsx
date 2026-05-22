@@ -6,6 +6,8 @@ import styles from './ConnectedAccounts.module.css';
 interface ConnectedAccount {
   id: string;
   platform: string;
+  type?: string;
+  name?: string;
   platform_user_id: string;
   platform_username?: string;
   created_at: string;
@@ -48,8 +50,20 @@ export function ConnectedAccounts({ userId, isSelf }: { userId?: string; isSelf?
   const loadAccounts = async () => {
     setLoading(true);
     try {
-      const res = await api.connected_accounts.get<any>(userId);
-      setAccounts(res.accounts || []);
+      // If viewing own profile, use the authenticated endpoint which returns { connections: [...] }
+      if (isSelf) {
+        const res = await api.users.getConnections<any>();
+        const arr = Array.isArray(res) ? res : (res?.connections || []);
+        setAccounts(arr);
+      } else if (userId) {
+        // Viewing another user's profile: connected accounts are not exposed publicly by the API
+        setAccounts([]);
+      } else {
+        // Fallback: try the generic connected-accounts listing
+        const res = await api.connected_accounts.get<any>();
+        const arr = Array.isArray(res) ? res : (res?.connections || res?.accounts || []);
+        setAccounts(arr);
+      }
     } catch (err) {
       console.error('Failed to load connected accounts:', err);
     } finally {
@@ -59,7 +73,7 @@ export function ConnectedAccounts({ userId, isSelf }: { userId?: string; isSelf?
 
   useEffect(() => {
     loadAccounts();
-  }, [userId]);
+  }, [userId, isSelf]);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -109,8 +123,8 @@ export function ConnectedAccounts({ userId, isSelf }: { userId?: string; isSelf?
 
       <div className={styles.accountList}>
         {accounts.map((account) => {
-          const Icon = platformIcons[account.platform] || Link;
-          const label = platformLabels[account.platform] || account.platform;
+          const Icon = platformIcons[account.type || account.platform] || Link;
+          const label = platformLabels[account.type || account.platform] || (account.name || account.platform || account.type);
           return (
             <div key={account.id} className={styles.accountItem}>
               <div className={styles.accountIcon}>
@@ -119,7 +133,7 @@ export function ConnectedAccounts({ userId, isSelf }: { userId?: string; isSelf?
               <div className={styles.accountInfo}>
                 <div className={styles.accountPlatform}>{label}</div>
                 <div className={styles.accountUsername}>
-                  {account.platform_username || account.platform_user_id}
+                  {account.name || account.platform_username || account.platform_user_id}
                 </div>
               </div>
               {isSelf && (

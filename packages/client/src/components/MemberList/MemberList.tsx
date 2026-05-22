@@ -44,7 +44,7 @@ export function MemberList() {
   };
 
   return (
-    <div className={styles.container} role="listbox" aria-label="Membres">
+    <div className={styles.container} role="listbox" aria-label="Membres" data-testid="member-list">
       {Array.from(roleGroups.entries()).map(([name, members]) => (
         <div key={name} role="group" aria-labelledby={`group-${name}`}>
           <div className={styles.groupHeader} id={`group-${name}`}>{name} — {members.length}</div>

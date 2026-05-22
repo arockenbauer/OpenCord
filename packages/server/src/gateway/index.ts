@@ -448,10 +448,42 @@ export function setupGateway(httpServer: HttpServer): SocketServer {
 }
 
 async function getAccessibleChannels(userId: string, guildId: string): Promise<Array<{ id: string }>> {
+  // Load necessary helpers dynamically to avoid circular imports at module init
+  const { computeEffectivePermissions } = await import('../services/permission.service.js');
+  const { getMemberPermissions } = await import('../controllers/guild.controller.js');
+
+  // Load channels with overwrites
   const channels = await prisma.channel.findMany({
     where: { guild_id: guildId },
-    select: { id: true },
+    include: { permission_overwrites: true },
   });
-  // TODO: vérifier les permissions VIEW_CHANNEL
-  return channels;
+
+  // Preload member role ids and everyone role
+  const roleIds = (await prisma.guildMemberRole.findMany({ where: { guild_id: guildId, user_id: userId }, select: { role_id: true } })).map(r => r.role_id);
+  const everyoneRole = await prisma.role.findFirst({ where: { guild_id: guildId, name: '@everyone' }, select: { id: true } });
+
+  const basePerms = await getMemberPermissions(guildId, userId);
+
+  const accessible: Array<{ id: string }> = [];
+  for (const ch of channels) {
+    const everyoneOverwrite = everyoneRole
+      ? ch.permission_overwrites.find((ow: any) => ow.target_type === 'role' && ow.target_id === everyoneRole.id)
+      : null;
+    const roleOverwrites = ch.permission_overwrites.filter((ow: any) => ow.target_type === 'role' && roleIds.includes(ow.target_id));
+    const memberOverwrite = ch.permission_overwrites.find((ow: any) => ow.target_type === 'member' && ow.target_id === userId) || null;
+
+    const perms = computeEffectivePermissions(
+      basePerms,
+      everyoneOverwrite ? { allow: BigInt(everyoneOverwrite.allow), deny: BigInt(everyoneOverwrite.deny) } : null,
+      roleOverwrites.map((ow: any) => ({ allow: BigInt(ow.allow), deny: BigInt(ow.deny) })),
+      memberOverwrite ? { allow: BigInt(memberOverwrite.allow), deny: BigInt(memberOverwrite.deny) } : null,
+    );
+
+    // VIEW_CHANNEL = 0x400n
+    if ((perms & BigInt(0x400)) !== BigInt(0)) {
+      accessible.push({ id: ch.id });
+    }
+  }
+
+  return accessible;
 }

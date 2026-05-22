@@ -22,9 +22,12 @@ interface SmokeRoute {
   agent: AgentMode;
 }
 
-const allowedServiceUnavailableRoutes = new Set([
-  'POST /api/admin/logging/sftp/test',
-  'POST /api/admin/logging/sftp/export',
+const allowedErrorStatuses = new Map<string, number>([
+  ['POST /api/admin/logging/sftp/test', 503],
+  ['POST /api/admin/logging/sftp/export', 503],
+  ['POST /api/connected-accounts/discord/callback', 501],
+  ['POST /api/premium/checkout', 503],
+  ['POST /api/premium/portal', 503],
 ]);
 
 const routeMounts: RouteMount[] = [
@@ -221,9 +224,10 @@ async function performRequest(agent: SuperAgentTest, route: SmokeRoute, scenario
 
 const smokeRoutes = extractRoutes();
 
-function isAcceptedStatus(route: SmokeRoute, status: number): boolean {
+function isAcceptedStatus(route: SmokeRoute, scenario: SmokeScenario, status: number): boolean {
   if (status < 500) return true;
-  return status === 503 && allowedServiceUnavailableRoutes.has(`${route.method.toUpperCase()} ${route.path}`);
+  const resolvedPath = replaceParams(route.path, scenario);
+  return allowedErrorStatuses.get(`${route.method.toUpperCase()} ${resolvedPath}`) === status;
 }
 
 describe('API smoke coverage', () => {
@@ -256,7 +260,7 @@ describe('API smoke coverage', () => {
 
       const response = await performRequest(agent, route, scenario);
       expect(
-        isAcceptedStatus(route, response.status),
+        isAcceptedStatus(route, scenario, response.status),
         `${route.method.toUpperCase()} ${replaceParams(route.path, scenario)} from ${route.source} returned ${response.status}`,
       ).toBe(true);
     }

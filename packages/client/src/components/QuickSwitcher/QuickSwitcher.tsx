@@ -34,8 +34,8 @@ export function QuickSwitcher({ open, onClose }: { open: boolean; onClose: () =>
       // Search channels in current guild
       if (currentGuildId) {
         try {
-          const channelsRes: any = await api.get(`/guilds/${currentGuildId}/channels`);
-          const channels = channelsRes.data || [];
+          const guildRes: any = await api.get(`/guilds/${currentGuildId}`);
+          const channels = guildRes.channels || [];
           const filtered = channels.filter((ch: any) =>
             ch.name.toLowerCase().includes(query.toLowerCase())
           );
@@ -51,8 +51,8 @@ export function QuickSwitcher({ open, onClose }: { open: boolean; onClose: () =>
 
       // Search DMs
       try {
-        const dmsRes: any = await api.get('/channels');
-        const dms = dmsRes.data || [];
+        const dmsRes: any = await api.get('/dms');
+        const dms = Array.isArray(dmsRes) ? dmsRes : [];
         const filtered = dms.filter((dm: any) => {
           const name = dm.recipients?.map((r: any) => r.username).join(', ') || '';
           return name.toLowerCase().includes(query.toLowerCase());
@@ -69,7 +69,7 @@ export function QuickSwitcher({ open, onClose }: { open: boolean; onClose: () =>
       if (currentGuildId) {
         try {
           const membersRes: any = await api.get(`/guilds/${currentGuildId}/members?query=${encodeURIComponent(query)}&limit=10`);
-          const members = membersRes.data?.members || [];
+          const members = membersRes.members || [];
           results.push(...members.map((m: any) => ({
             id: m.user.id,
             type: 'member' as const,
@@ -85,7 +85,7 @@ export function QuickSwitcher({ open, onClose }: { open: boolean; onClose: () =>
       if (!currentGuildId || query.trim()) {
         try {
           const guildsRes: any = await api.get('/users/@me/guilds');
-          const guilds = guildsRes.data || [];
+          const guilds = guildsRes.guilds || [];
           const filtered = guilds.filter((g: any) =>
             g.name.toLowerCase().includes(query.toLowerCase())
           );

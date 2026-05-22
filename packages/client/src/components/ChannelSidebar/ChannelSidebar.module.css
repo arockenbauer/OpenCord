@@ -90,7 +90,7 @@
 }
 
 .sectionLabel {
-  padding: var(--spacing-3) var(--spacing-4) var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3) var(--spacing-1);
   color: var(--text-muted);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
@@ -140,8 +140,8 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
-  padding: 2px 8px 2px 16px;
-  margin: 1px var(--spacing-2);
+  padding: 2px 6px 2px 12px;
+  margin: 1px var(--spacing-1);
   border-radius: var(--radius-md);
   cursor: pointer;
   color: var(--text-muted);

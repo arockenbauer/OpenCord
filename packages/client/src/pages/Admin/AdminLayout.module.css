@@ -305,6 +305,34 @@
   gap: 6px;
 }
 
+.bulkBar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.bulkBarCount {
+  font-size: 13px;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.bulkBarSpacer { flex: 1; }
+
+.checkboxCell {
+  width: 36px;
+  padding-left: 16px;
+}
+.rowCheckbox,
+.headerCheckbox {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--brand, #5865f2);
+}
+
 /* User row */
 .userRow {
   display: flex;

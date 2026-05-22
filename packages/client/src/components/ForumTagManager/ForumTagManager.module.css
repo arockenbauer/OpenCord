@@ -32,7 +32,7 @@
 }
 
 .addBtn:hover {
-  background: var(--bg-hover);
+  background: var(--bg-modifier-hover);
 }
 
 .loading, .empty {
@@ -46,6 +46,70 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.bulkActions {
+  display: flex;
+  flex: 1 0 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.selectAllLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: auto;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.selectCheckbox {
+  accent-color: var(--bg-accent);
+}
+
+.bulkDeleteBtn,
+.bulkModerateBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition-speed);
+}
+
+.bulkDeleteBtn {
+  background: var(--danger);
+  color: #fff;
+}
+
+.bulkDeleteBtn:hover:not(:disabled) {
+  background: var(--danger-hover);
+}
+
+.bulkModerateBtn {
+  background: var(--bg-accent);
+  color: #fff;
+}
+
+.bulkModerateBtn:hover:not(:disabled) {
+  background: var(--bg-accent-hover);
+}
+
+.bulkDeleteBtn:disabled,
+.bulkModerateBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .tagItem {
@@ -69,7 +133,7 @@
 
 .moderatedBadge {
   font-size: 10px;
-  background: var(--bg-warning);
+  background: rgba(250, 166, 26, 0.16);
   color: var(--text-warning);
   padding: 2px 6px;
   border-radius: 4px;
@@ -105,7 +169,7 @@
 
 .input {
   padding: 6px 8px;
-  border: 1px solid var(--border-normal);
+  border: 1px solid var(--border);
   border-radius: 4px;
   background: var(--bg-primary);
   color: var(--text-primary);
@@ -127,8 +191,8 @@
 }
 
 .saveBtn {
-  background: var(--button-primary-bg);
-  color: var(--button-primary-text);
+  background: var(--bg-accent);
+  color: #fff;
   border: none;
   padding: 6px 12px;
   border-radius: 4px;
@@ -136,12 +200,20 @@
   font-size: 13px;
 }
 
+.saveBtn:hover {
+  background: var(--bg-accent-hover);
+}
+
 .cancelBtn {
   background: var(--bg-tertiary);
   color: var(--text-primary);
-  border: 1px solid var(--border-normal);
+  border: 1px solid var(--border);
   padding: 6px 12px;
   border-radius: 4px;
   cursor: pointer;
   font-size: 13px;
+}
+
+.cancelBtn:hover {
+  background: var(--bg-modifier-hover);
 }

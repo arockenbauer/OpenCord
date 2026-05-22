@@ -63,7 +63,7 @@ export function ChannelSidebar() {
     return (
       <div className={styles.container}>
         <div className={styles.dmHeader}>
-          <input className={styles.dmSearch} placeholder={t('common.search')} value={dmSearch} onChange={(e) => setDmSearch(e.target.value)} />
+          <input className={styles.dmSearch} placeholder={t('common.search')} value={dmSearch} onChange={(e) => setDmSearch(e.target.value)} data-testid="dm-search-input" />
         </div>
         <div className={styles.channelList}>
           <div className={styles.sectionLabel}>{t('dm.title')}</div>
@@ -77,6 +77,7 @@ export function ChannelSidebar() {
               <div
                 className={`${styles.channel} ${selectedChannelId === channel.id ? styles.active : ''}`}
                 onClick={() => selectChannel(channel.id)}
+                data-testid={`dm-channel-${channel.id}`}
               >
                 <MessageCircle size={16} />
                 <div className={styles.dmNameStack}>
@@ -176,7 +177,7 @@ export function ChannelSidebar() {
 
   return (
     <div className={styles.container}>
-      <div className={styles.header} onClick={toggleGuildMenu} onContextMenu={openServerMenu}>
+      <div className={styles.header} onClick={toggleGuildMenu} onContextMenu={openServerMenu} data-testid="guild-sidebar-header">
         <span>{guild.name}</span>
         <ChevronDown size={16} className={guildMenuOpen ? styles.chevronOpen : ''} />
       </div>
@@ -285,6 +286,7 @@ function ChannelItem({ channel, isActive, onClick, onContextMenu, user }: { chan
         role="button"
         tabIndex={0}
         aria-label={`Salon ${channel.name}${hasUnread ? ' (non lu)' : ''}${mentionCount > 0 ? ` (${mentionCount} mentions)` : ''}`}
+        data-testid={`channel-${channel.id}`}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (onClick) onClick(); } }}
         style={{ flex: 1 }}
       >
@@ -343,7 +345,7 @@ function ChannelItem({ channel, isActive, onClick, onContextMenu, user }: { chan
 function UserPanel({ user, onSettings, onOpenProfile }: { user: any; onSettings: () => void; onOpenProfile: (event: MouseEvent<HTMLButtonElement>) => void }) {
   return (
     <div className={styles.userPanel}>
-      <button className={styles.userIdentity} onClick={onOpenProfile} data-user-popout-trigger="true">
+      <button className={styles.userIdentity} onClick={onOpenProfile} data-user-popout-trigger="true" data-testid="own-profile-trigger">
         <div className={styles.userAvatar}>
           {user.avatar ? <img src={user.avatar} alt="" /> : user.username.slice(0, 1).toUpperCase()}
         </div>

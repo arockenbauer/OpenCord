@@ -1,5 +1,5 @@
-import { useEffect, useState, useCallback } from 'react';
-import { Search, UserX, UserCheck, LogOut, KeyRound, Award, X, Eye, Filter } from 'lucide-react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
+import { Search, UserX, UserCheck, LogOut, KeyRound, Award, X, Eye, Filter, Trash2 } from 'lucide-react';
 import { api } from '../../services/api';
 import { useAuthStore } from '../../stores/authStore';
 import styles from './AdminLayout.module.css';
@@ -163,7 +163,10 @@ export function AdminUsersPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [loading, setLoading] = useState(true);
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
   const adminLevel = useAuthStore((s) => s.user?.admin_level ?? 0);
+  const currentUserId = useAuthStore((s) => s.user?.id);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -181,6 +184,48 @@ export function AdminUsersPage() {
   }, [page, search, statusFilter]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => { setSelected(new Set()); }, [page, search, statusFilter]);
+
+  const selectableIds = useMemo(() => users.filter((u) => u.id !== currentUserId).map((u) => u.id), [users, currentUserId]);
+  const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selected.has(id));
+
+  const toggleAll = () => {
+    setSelected(allSelected ? new Set() : new Set(selectableIds));
+  };
+  const toggleOne = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const runBulk = async (action: string, opts?: { confirmText?: string; reason?: boolean }) => {
+    if (selected.size === 0) return;
+    const count = selected.size;
+    if (opts?.confirmText && !window.confirm(opts.confirmText.replace('{count}', String(count)))) return;
+    let reason: string | undefined;
+    if (opts?.reason) {
+      const r = window.prompt('Raison (optionnelle)');
+      if (r === null) return;
+      reason = r;
+    }
+    setBulkBusy(true);
+    try {
+      const res = await api.admin.bulkUsers<{ succeeded: number; failed: number }>(action, Array.from(selected), reason);
+      if (res?.failed) {
+        window.alert(`${res.succeeded} réussi(s), ${res.failed} échec(s).`);
+      }
+      setSelected(new Set());
+      load();
+    } catch (e: any) {
+      window.alert(`Erreur : ${e?.message || 'inconnue'}`);
+    } finally {
+      setBulkBusy(false);
+    }
+  };
 
   const statusBadge = (user: any) => {
     if (user.banned) return <span className={`${styles.badge} ${styles.badgeRed}`}>Banni</span>;
@@ -215,12 +260,53 @@ export function AdminUsersPage() {
           </select>
         </div>
 
+        {selected.size > 0 && adminLevel >= 2 && (
+          <div className={styles.bulkBar}>
+            <span className={styles.bulkBarCount}>{selected.size} sélectionné(s)</span>
+            <div className={styles.bulkBarSpacer} />
+            <button className={`${styles.btn} ${styles.btnDanger} ${styles.btnSmall}`} disabled={bulkBusy}
+              onClick={() => runBulk('ban', { confirmText: 'Bannir {count} utilisateur(s) ?', reason: true })}>
+              <UserX size={13} /> Bannir
+            </button>
+            <button className={`${styles.btn} ${styles.btnSecondary} ${styles.btnSmall}`} disabled={bulkBusy}
+              onClick={() => runBulk('unban', { confirmText: 'Débannir {count} utilisateur(s) ?' })}>
+              <UserCheck size={13} /> Débannir
+            </button>
+            <button className={`${styles.btn} ${styles.btnSecondary} ${styles.btnSmall}`} disabled={bulkBusy}
+              onClick={() => runBulk('disable', { confirmText: 'Désactiver {count} compte(s) ?' })}>
+              <UserX size={13} /> Désactiver
+            </button>
+            <button className={`${styles.btn} ${styles.btnSecondary} ${styles.btnSmall}`} disabled={bulkBusy}
+              onClick={() => runBulk('enable', { confirmText: 'Réactiver {count} compte(s) ?' })}>
+              <UserCheck size={13} /> Réactiver
+            </button>
+            <button className={`${styles.btn} ${styles.btnSecondary} ${styles.btnSmall}`} disabled={bulkBusy}
+              onClick={() => runBulk('force-logout', { confirmText: 'Forcer la déconnexion de {count} utilisateur(s) ?' })}>
+              <LogOut size={13} /> Déconnecter
+            </button>
+            {adminLevel >= 3 && (
+              <button className={`${styles.btn} ${styles.btnDanger} ${styles.btnSmall}`} disabled={bulkBusy}
+                onClick={() => runBulk('delete', { confirmText: 'SUPPRIMER DÉFINITIVEMENT {count} compte(s) ? Cette action est irréversible.', reason: true })}>
+                <Trash2 size={13} /> Supprimer
+              </button>
+            )}
+            <button className={`${styles.btn} ${styles.btnSecondary} ${styles.btnSmall}`} onClick={() => setSelected(new Set())} disabled={bulkBusy}>
+              <X size={13} /> Annuler
+            </button>
+          </div>
+        )}
+
         {loading ? (
           <div className={styles.loading}>Chargement…</div>
         ) : (
           <table className={styles.table}>
             <thead>
               <tr>
+                {adminLevel >= 2 && (
+                  <th className={styles.checkboxCell}>
+                    <input type="checkbox" className={styles.headerCheckbox} checked={allSelected} onChange={toggleAll} aria-label="Sélectionner tous" />
+                  </th>
+                )}
                 <th>Utilisateur</th>
                 <th>Email</th>
                 <th>Statut</th>
@@ -234,6 +320,16 @@ export function AdminUsersPage() {
             <tbody>
               {users.map((user) => (
                 <tr key={user.id}>
+                  {adminLevel >= 2 && (
+                    <td className={styles.checkboxCell}>
+                      <input type="checkbox" className={styles.rowCheckbox}
+                        checked={selected.has(user.id)}
+                        onChange={() => toggleOne(user.id)}
+                        disabled={user.id === currentUserId}
+                        aria-label={`Sélectionner ${user.username}`}
+                      />
+                    </td>
+                  )}
                   <td>
                     <div className={styles.userRow}>
                       <div className={styles.avatar}>
@@ -267,7 +363,7 @@ export function AdminUsersPage() {
                 </tr>
               ))}
               {users.length === 0 && (
-                <tr><td colSpan={8}><div className={styles.emptyState}>Aucun utilisateur trouvé.</div></td></tr>
+                <tr><td colSpan={adminLevel >= 2 ? 9 : 8}><div className={styles.emptyState}>Aucun utilisateur trouvé.</div></td></tr>
               )}
             </tbody>
           </table>

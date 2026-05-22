@@ -57,12 +57,16 @@ export default defineConfig({
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     headless: true,
+    viewport: { width: 1440, height: 900 },
+    locale: 'fr-FR',
+    timezoneId: 'UTC',
+    colorScheme: 'dark',
   },
   projects,
   webServer: {
     command: `npm --prefix ${repositoryRoot} run dev`,
     url: 'http://127.0.0.1:5173',
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     timeout: 30000,
     env: {
       ...process.env,

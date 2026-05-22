@@ -36,6 +36,8 @@ function getStatusLabel(status: string, customStatus?: string | null) {
 
 export function FriendsPage() {
   const navigate = useNavigate();
+  const currentUser = useAuthStore((s) => s.user);
+  const fetchMe = useAuthStore((s) => s.fetchMe);
   const relationships = useAuthStore((s) => s.relationships);
   const upsertRelationship = useAuthStore((s) => s.upsertRelationship);
   const removeRelationshipByUserId = useAuthStore((s) => s.removeRelationshipByUserId);
@@ -68,6 +70,12 @@ export function FriendsPage() {
         (r.user.global_name || r.user.username).toLowerCase().includes(search.toLowerCase())
       )
     : friends;
+
+  useEffect(() => {
+    if (!currentUser || relationships.length === 0) {
+      fetchMe().catch(() => undefined);
+    }
+  }, [currentUser, fetchMe, relationships.length]);
 
   useEffect(() => {
     // Notes are now handled by UserNoteEditor component
@@ -144,7 +152,7 @@ export function FriendsPage() {
   ];
 
   return (
-    <div className={styles.container}>
+    <div className={styles.container} data-testid="friends-page">
       {/* Left Sidebar - Guild/DM list */}
       <div className={styles.sidebar}>
         <div className={styles.sidebarHeader}>
@@ -214,6 +222,7 @@ export function FriendsPage() {
                 placeholder="Rechercher des amis..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
+                data-testid="friends-search"
               />
             </div>
           )}
@@ -459,6 +468,7 @@ function FriendRow({
     <div
       className={styles.friendRow}
       onContextMenu={(e) => { e.preventDefault(); onContextMenu(e.clientX, e.clientY); }}
+      data-testid={`friend-row-${rel.user.id}`}
     >
       <div className={styles.avatarWrap}>
         <UserAvatar user={rel.user} />
@@ -473,7 +483,7 @@ function FriendRow({
         <button className={styles.actionBtn} onClick={() => onOpenNote(rel)} title="Note">
           <FileText size={14} />
         </button>
-        <button className={styles.actionBtn} onClick={() => onOpenDM(rel.user.id)} title="Envoyer un message">
+        <button className={styles.actionBtn} onClick={() => onOpenDM(rel.user.id)} title="Envoyer un message" data-testid={`friend-message-${rel.user.id}`}>
           <MessageCircle size={16} />
         </button>
         <button className={`${styles.actionBtn} ${styles.actionBtnDanger}`} onClick={() => onRemove(rel.user.id)} title="Retirer">
@@ -525,8 +535,9 @@ function AddFriendPanel() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+          data-testid="add-friend-input"
         />
-        <button className={styles.addBtn} onClick={handleSend} disabled={loading || !input.trim()}>
+        <button className={styles.addBtn} onClick={handleSend} disabled={loading || !input.trim()} data-testid="add-friend-submit">
           {loading ? 'Envoi...' : 'Envoyer une demande'}
         </button>
       </div>

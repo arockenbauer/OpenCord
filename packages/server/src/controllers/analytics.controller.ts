@@ -15,7 +15,7 @@ function dateToISO(date: Date): string {
 
 async function requireAnalyticsPermission(guildId: string, userId: string) {
   const perms = await getMemberPermissions(guildId, userId);
-  if ((perms & PERMISSION_BITS.VIEW_GUILD_ANALYTICS) === BigInt(0)) {
+  if ((perms & PERMISSION_BITS.VIEW_GUILD_ANALYTICS) === 0n) {
     throw new AppError(403, 'MISSING_PERMISSIONS', 'Requires VIEW_GUILD_ANALYTICS permission');
   }
 }

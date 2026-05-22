@@ -69,6 +69,8 @@ export function AdminReportsPage() {
   const [targetTypeFilter, setTargetTypeFilter] = useState('');
   const [loading, setLoading] = useState(true);
   const [detailReport, setDetailReport] = useState<any | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -85,6 +87,41 @@ export function AdminReportsPage() {
   }, [page, statusFilter, targetTypeFilter]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => { setSelected(new Set()); }, [page, statusFilter, targetTypeFilter]);
+
+  const toggleAll = () => {
+    if (selected.size === reports.length) setSelected(new Set());
+    else setSelected(new Set(reports.map((r) => r.id)));
+  };
+
+  const toggleOne = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const runBulk = async (action: string, opts?: { confirmText?: string }) => {
+    if (selected.size === 0) return;
+    const count = selected.size;
+    if (opts?.confirmText && !window.confirm(opts.confirmText.replace('{count}', String(count)))) return;
+    setBulkBusy(true);
+    try {
+      const res = await api.admin.bulkReports<{ succeeded: number; failed: number }>(action, Array.from(selected));
+      if (res?.failed) {
+        window.alert(`${res.succeeded} réussi(s), ${res.failed} échec(s).`);
+      }
+      setSelected(new Set());
+      load();
+    } catch (e: any) {
+      window.alert(`Erreur : ${e?.message || 'inconnue'}`);
+    } finally {
+      setBulkBusy(false);
+    }
+  };
 
   const statusBadge = (s: string) => {
     if (s === 'pending') return <span className={`${styles.badge} ${styles.badgeYellow}`}>En attente</span>;
@@ -119,10 +156,31 @@ export function AdminReportsPage() {
           </select>
         </div>
 
+        {selected.size > 0 && (
+          <div className={styles.bulkBar}>
+            <span className={styles.bulkBarCount}>{selected.size} sélectionné(s)</span>
+            <div className={styles.bulkBarSpacer} />
+            <button className={`${styles.btn} ${styles.btnPrimary} ${styles.btnSmall}`} disabled={bulkBusy}
+              onClick={() => runBulk('resolve', { confirmText: 'Marquer {count} signalement(s) comme résolu(s) ?' })}>
+              <Check size={13} /> Résoudre
+            </button>
+            <button className={`${styles.btn} ${styles.btnSecondary} ${styles.btnSmall}`} disabled={bulkBusy}
+              onClick={() => runBulk('dismiss', { confirmText: 'Rejeter {count} signalement(s) ?' })}>
+              Rejeter
+            </button>
+            <button className={`${styles.btn} ${styles.btnSecondary} ${styles.btnSmall}`} onClick={() => setSelected(new Set())} disabled={bulkBusy}>
+              <X size={13} /> Annuler
+            </button>
+          </div>
+        )}
+
         {loading ? <div className={styles.loading}>Chargement…</div> : (
           <table className={styles.table}>
             <thead>
               <tr>
+                <th className={styles.checkboxCell}>
+                  <input type="checkbox" checked={selected.size > 0 && selected.size === reports.length} onChange={toggleAll} />
+                </th>
                 <th>Signalé par</th>
                 <th>Type cible</th>
                 <th>ID cible</th>
@@ -134,8 +192,11 @@ export function AdminReportsPage() {
             </thead>
             <tbody>
               {reports.map((r) => (
-                <tr key={r.id} style={{ cursor: 'pointer' }} onClick={() => setDetailReport(r)}>
-                  <td>
+                <tr key={r.id} style={{ cursor: 'pointer' }}>
+                  <td className={styles.checkboxCell} onClick={(e) => e.stopPropagation()}>
+                    <input type="checkbox" checked={selected.has(r.id)} onChange={() => toggleOne(r.id)} />
+                  </td>
+                  <td onClick={() => setDetailReport(r)}>
                     <div className={styles.userRow}>
                       <div className={styles.avatar} style={{ width: 28, height: 28, fontSize: 11 }}>
                         {r.reporter?.username?.slice(0, 1).toUpperCase() ?? '?'}

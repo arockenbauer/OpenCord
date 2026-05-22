@@ -17,6 +17,7 @@ interface DiscoverableGuild {
 export function DiscoveryPage() {
   const navigate = useNavigate();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const currentUser = useAuthStore((s) => s.user);
   const fetchMe = useAuthStore((s) => s.fetchMe);
   const [guilds, setGuilds] = useState<DiscoverableGuild[]>([]);
   const [query, setQuery] = useState('');
@@ -29,12 +30,14 @@ export function DiscoveryPage() {
       navigate('/login');
       return;
     }
-    fetchMe().catch(() => undefined);
+    if (!currentUser) {
+      fetchMe().catch(() => undefined);
+    }
     api.discovery.listGuilds<{ guilds: DiscoverableGuild[] }>({ limit: 48 })
       .then((data) => setGuilds(data.guilds || []))
       .catch((err: any) => setError(err.message || 'Impossible de charger la découverte.'))
       .finally(() => setLoading(false));
-  }, [fetchMe, isAuthenticated, navigate]);
+  }, [currentUser, fetchMe, isAuthenticated, navigate]);
 
   const filteredGuilds = useMemo(() => {
     const normalized = query.trim().toLowerCase();
