@@ -1,9 +1,1 @@
-{
-  "profile": "openai",
-  "env": {
-    "OPENAI_BASE_URL": "https://api.minimax.io/v1",
-    "OPENAI_MODEL": "MiniMax-M2.7",
-    "OPENAI_API_KEY": "sk-cp-I5Ny9YjCrTb0sR4GVSgkJgpKzQzSdcHRPNnY2tSDnhCc6Jmrd6Tubz4BqmYOghYW__1HZBWmFcEGwGWqRhmVP-ZZh-_0YAm5Qptdm3ul8FNCh6gUMR2fGgQ"
-  },
-  "createdAt": "2026-04-29T15:11:20.261Z"
-}
+{}
