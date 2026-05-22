@@ -48,7 +48,14 @@ export function InviteAcceptPage() {
         const guild = await fetchGuild(guildId);
         addGuild(guild as any);
       } catch {
-        if (result.guild) addGuild(result.guild as any);
+        addGuild({
+          ...(result.guild || {}),
+          id: guildId,
+          channels: [],
+          roles: [],
+          members: [],
+          emojis: [],
+        } as any);
       }
       localStorage.removeItem('pendingInviteCode');
       selectGuild(guildId);

@@ -148,6 +148,18 @@ function MemberItem({ member, guild, offline, onClick, onContextMenu }: { member
     );
   })() : null;
 
+  const roleColorBar = topRole?.color ? (
+    <div className={styles.roleColorBar} style={{ background: topRole.color }} />
+  ) : null;
+
+  const statusText = {
+    online: 'En ligne',
+    idle: 'Absent',
+    dnd: 'Ne pas déranger',
+    offline: 'Hors ligne',
+    invisible: 'Invisible',
+  }[member.user.status || 'offline'];
+
   return (
     <div
       className={`${styles.member} ${offline ? styles.offline : ''}`}
@@ -160,6 +172,7 @@ function MemberItem({ member, guild, offline, onClick, onContextMenu }: { member
       aria-label={`${displayName}${offline ? ' (hors ligne)' : ''}`}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick?.(e as any); } }}
     >
+      {roleColorBar}
       <div className={styles.avatar}>
         {member.user.avatar ? <img src={member.user.avatar} alt="" /> : displayName.slice(0, 1).toUpperCase()}
         <div className={styles.statusDot} style={{ background: statusColors[member.user.status] || statusColors.offline }} />

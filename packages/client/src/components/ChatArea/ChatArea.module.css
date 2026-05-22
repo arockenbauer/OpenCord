@@ -864,6 +864,73 @@
   font-weight: 600;
 }
 
+/* Quick Reactions */
+.quickReactions {
+  display: flex;
+  gap: 2px;
+  margin-right: 4px;
+}
+
+.quickReactionBtn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: var(--bg-modifier-hover);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 100ms, transform 100ms;
+  padding: 0;
+}
+
+.quickReactionBtn:hover {
+  background: var(--bg-modifier-active);
+  transform: scale(1.1);
+}
+
+/* Typing Indicator */
+.typingIndicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 16px;
+  min-height: 28px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.typingDots {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+}
+
+.typingDots span {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  animation: typingBounce 1.4s infinite ease-in-out;
+}
+
+.typingDots span:nth-child(1) { animation-delay: 0s; }
+.typingDots span:nth-child(2) { animation-delay: 0.2s; }
+.typingDots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes typingBounce {
+  0%, 60%, 100% { transform: translateY(0); }
+  30% { transform: translateY(-4px); }
+}
+
+.typingText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* New Messages Separator */
 .newMessagesSeparator {
   display: flex;

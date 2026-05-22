@@ -16,7 +16,7 @@ export async function createStageInstance(req: Request, res: Response, next: Nex
       include: { guild: true },
     });
 
-    if (!channel || channel.type !== 14) {
+    if (!channel || channel.type !== 14 || !channel.guild || !channel.guild_id) {
       throw new AppError(404, 'STAGE_CHANNEL_NOT_FOUND', 'Stage channel not found');
     }
 

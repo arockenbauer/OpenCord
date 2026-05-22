@@ -242,9 +242,12 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
   channelId: null,
   selfMute: false,
   selfDeaf: false,
+  selfVideo: false,
+  selfScreen: false,
   isConnecting: false,
   error: null,
   speakingUserIds: new Set(),
+  remoteProducers: new Map(),
 
   joinVoiceChannel: (guildId, channelId) => {
     const socket = getSocket();
@@ -268,7 +271,16 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
       socket.emit(GatewayEvents.VOICE_STATE_UPDATE, { guild_id: guildId, channel_id: null });
     }
     closeMedia();
-    set({ guildId: null, channelId: null, isConnecting: false, error: null, speakingUserIds: new Set() });
+    set({
+      guildId: null,
+      channelId: null,
+      selfVideo: false,
+      selfScreen: false,
+      isConnecting: false,
+      error: null,
+      speakingUserIds: new Set(),
+      remoteProducers: new Map(),
+    });
   },
 
   setSelfMute: (muted) => {

@@ -15,6 +15,7 @@ import { MessageContextMenu } from '../context-menus/MessageContextMenu';
 import { Tooltip } from '../Tooltip/Tooltip';
 import { VoiceVideo } from '../VoiceVideo/VoiceVideo';
 import { ThreadsPanel } from './ThreadsPanel';
+import { StageChannelView } from '../StageChannelView/StageChannelView';
 import { emitTyping } from '../../hooks/useGateway';
 import { api } from '../../services/api';
 import { announceMessage, announceTyping, announceChannelChange } from '../../utils/ariaAnnounce';
@@ -95,7 +96,8 @@ export function ChatArea() {
   const [showSlashAutocomplete, setShowSlashAutocomplete] = useState(false);
   const [pendingSlashCommandId, setPendingSlashCommandId] = useState<string | null>(null);
   const [msgCtxMenu, setMsgCtxMenu] = useState<{ msg: any; x: number; y: number } | null>(null);
-  const [sidePanel, setSidePanel] = useState<'pins' | 'search' | null>(null);
+  const [sidePanel, setSidePanel] = useState<'pins' | 'search' | 'threads' | null>(null);
+  const [selectedThread, setSelectedThread] = useState<any>(null);
   const [pinnedMessages, setPinnedMessages] = useState<any[]>([]);
   const [pinsLoading, setPinsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -481,6 +483,15 @@ export function ChatArea() {
     );
   }
 
+  if (selectedThread) {
+    return (
+      <ThreadView
+        thread={selectedThread}
+        onClose={() => setSelectedThread(null)}
+      />
+    );
+  }
+
   return (
     <div className={styles.container}>
       <div className={styles.header}>
@@ -556,9 +567,10 @@ export function ChatArea() {
             {groupedMessages.map((group, groupIndex) => {
               const headerMessage = group[0]!;
               const isNewMessage = lastReadMessageId && headerMessage.id === lastReadMessageId;
+              const displayName = getMessageDisplayName(headerMessage.author.id, headerMessage.author, guild);
 
               return (
-                <>
+                <div key={`group-${headerMessage.id}-${groupIndex}`}>
                   {isNewMessage && (
                     <div className={styles.newMessagesSeparator} role="separator" aria-label="Nouveaux messages">
                       <div className={styles.separatorLine} />
@@ -663,6 +675,8 @@ export function ChatArea() {
                     </div>
                   ))}
                 </div>
+                  )}
+                </div>
               );
             })}
             </div>
@@ -685,6 +699,23 @@ export function ChatArea() {
               <Reply size={14} />
               <span>Réponse à <strong>{replyTo.author.username}</strong></span>
               <button onClick={() => setReplyTo(null)}><X size={14} /></button>
+            </div>
+          )}
+
+          {typingNames.length > 0 && (
+            <div className={styles.typingIndicator} aria-label={`${typingNames.join(', ')} est en train d'écrire`}>
+              <div className={styles.typingDots}>
+                <span /><span /><span />
+              </div>
+              <span className={styles.typingText}>
+                {typingNames.length === 1 ? (
+                  <strong>{typingNames[0]}</strong>
+                ) : typingNames.length === 2 ? (
+                  <><strong>{typingNames[0]}</strong> et <strong>{typingNames[1]}</strong></>
+                ) : (
+                  <><strong>{typingNames[0]}</strong> et {typingNames.length - 1} autres</>
+                )} {typingNames.length === 1 ? 'est en train d\'écrire' : 'sont en train d\'écrire'}...
+              </span>
             </div>
           )}
 
@@ -774,7 +805,13 @@ export function ChatArea() {
                 <ThreadsPanel
                   channelId={selectedChannelId}
                   guild={guild}
-                  onSelectThread={(threadId) => { selectChannel(threadId); setSidePanel(null); }}
+                  onSelectThread={(threadId) => {
+                    const thread = guild?.channels?.find((c: any) => c.id === threadId);
+                    if (thread) {
+                      setSelectedThread(thread);
+                      setSidePanel(null);
+                    }
+                  }}
                 />
               ) : (
                 <>
@@ -1177,15 +1214,26 @@ function MessageActions({
   userId?: string;
   onReply: () => void;
   onDelete: () => void;
-  onReact: () => void;
+  onReact: (emoji: string) => void;
   onRetry: () => void;
   onMore: (event: MouseEvent<HTMLButtonElement>) => void;
 }) {
+  const quickReactions = ['👍', '❤️', '😂', '😮', '😢', '🎉'];
+
   return (
     <div className={styles.actions}>
-      <Tooltip content="Réagir" position="top" delay={300}>
-        <button onClick={onReact}><Smile size={16} /></button>
-      </Tooltip>
+      <div className={styles.quickReactions}>
+        {quickReactions.map((emoji) => (
+          <button
+            key={emoji}
+            className={styles.quickReactionBtn}
+            onClick={(e) => { e.stopPropagation(); onReact(emoji); }}
+            aria-label={`Réagir avec ${emoji}`}
+          >
+            {emoji}
+          </button>
+        ))}
+      </div>
       <Tooltip content="Répondre" position="top" delay={300}>
         <button onClick={onReply}><Reply size={16} /></button>
       </Tooltip>

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 
 interface UnreadState {
-  channelUnreads: Record<string, { mentionCount: number; hasUnread: boolean }>;
+  channelUnreads: Record<string, { mentionCount: number; hasUnread: boolean; lastMessageId?: string | null }>;
   markRead: (channelId: string) => void;
   incrementUnread: (channelId: string, hasMention: boolean) => void;
   initFromReadStates: (readStates: Array<{ channel_id: string; mention_count: number; last_read_message_id: string | null }>) => void;

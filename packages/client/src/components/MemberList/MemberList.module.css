@@ -23,8 +23,19 @@
   border-radius: var(--radius-md);
   cursor: pointer;
   transition: background 100ms;
+  position: relative;
 }
 .member:hover { background: var(--bg-modifier-hover); }
+
+.roleColorBar {
+  position: absolute;
+  left: 0;
+  top: 4px;
+  bottom: 4px;
+  width: 4px;
+  border-radius: 0 4px 4px 0;
+  background: var(--text-muted);
+}
 
 .avatar {
   width: 28px; height: 28px; border-radius: var(--radius-full);

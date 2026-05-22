@@ -148,7 +148,15 @@ export const useGuildStore = create<GuildState>((set, get) => ({
 
   addGuild: (guild) => set((state) => {
     const guilds = new Map(state.guilds);
-    guilds.set(guild.id, guild);
+    const existing = guilds.get(guild.id);
+    guilds.set(guild.id, {
+      ...existing,
+      ...guild,
+      channels: guild.channels || existing?.channels || [],
+      roles: guild.roles || existing?.roles || [],
+      members: guild.members || existing?.members || [],
+      emojis: guild.emojis || existing?.emojis || [],
+    });
     return { guilds };
   }),
 
@@ -183,7 +191,7 @@ export const useGuildStore = create<GuildState>((set, get) => ({
     }
 
     const guild = get().guilds.get(guildId);
-    const textChannel = guild?.channels.find((channel) => channel.type === 0);
+    const textChannel = (guild?.channels || []).find((channel) => channel.type === 0);
     set({ selectedGuildId: guildId, selectedChannelId: textChannel?.id || null });
   },
 

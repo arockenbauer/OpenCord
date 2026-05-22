@@ -44,7 +44,14 @@ export function CreateGuildModal() {
         const guild = await fetchGuild(guildId);
         addGuild(guild);
       } catch {
-        if (result.guild) addGuild(result.guild);
+        addGuild({
+          ...(result.guild || {}),
+          id: guildId,
+          channels: [],
+          roles: [],
+          members: [],
+          emojis: [],
+        } as any);
       }
       selectGuild(guildId);
       setShowCreateGuild(false);
