@@ -10,6 +10,7 @@ type ProducerInfo = {
   user_id?: string;
   channelId?: string;
   channel_id?: string;
+  appData?: any;
 };
 
 interface VoiceState {
@@ -17,15 +18,22 @@ interface VoiceState {
   channelId: string | null;
   selfMute: boolean;
   selfDeaf: boolean;
+  selfVideo: boolean;
+  selfScreen: boolean;
   isConnecting: boolean;
   error: string | null;
   speakingUserIds: Set<string>;
+  remoteProducers: Map<string, { userId: string; kind: string; producerId: string }>;
   joinVoiceChannel: (guildId: string, channelId: string) => void;
   leaveVoiceChannel: () => void;
   setSelfMute: (muted: boolean) => void;
   setSelfDeaf: (deafened: boolean) => void;
   toggleSelfMute: () => void;
   toggleSelfDeaf: () => void;
+  setSelfVideo: (enabled: boolean) => void;
+  toggleSelfVideo: () => void;
+  setSelfScreen: (enabled: boolean) => void;
+  toggleSelfScreen: () => void;
   handleVoiceServerUpdate: (payload: any) => Promise<void>;
   addProducer: (producer: ProducerInfo) => Promise<void>;
   closeProducer: (producerId: string) => void;
@@ -38,8 +46,12 @@ let sendTransport: any = null;
 let recvTransport: any = null;
 let localStream: MediaStream | null = null;
 let audioProducer: any = null;
+let videoProducer: any = null;
+let screenProducer: any = null;
 const consumers = new Map<string, any>();
 const remoteAudioElements = new Map<string, HTMLAudioElement>();
+const remoteVideoElements = new Map<string, HTMLVideoElement>();
+const remoteProducersMap = new Map<string, { userId: string; kind: string; producerId: string }>();
 
 function emitWithAck<T>(event: string, payload: any): Promise<T> {
   const socket = getSocket();
@@ -55,7 +67,11 @@ function emitWithAck<T>(event: string, payload: any): Promise<T> {
 
 function stopLocalMedia(): void {
   if (audioProducer && !audioProducer.closed) audioProducer.close();
+  if (videoProducer && !videoProducer.closed) videoProducer.close();
+  if (screenProducer && !screenProducer.closed) screenProducer.close();
   audioProducer = null;
+  videoProducer = null;
+  screenProducer = null;
   if (localStream) {
     localStream.getTracks().forEach((track) => track.stop());
   }
@@ -74,6 +90,13 @@ function closeMedia(): void {
     element.remove();
   }
   remoteAudioElements.clear();
+  for (const element of remoteVideoElements.values()) {
+    element.pause();
+    element.srcObject = null;
+    element.remove();
+  }
+  remoteVideoElements.clear();
+  remoteProducersMap.clear();
   if (sendTransport && !sendTransport.closed) sendTransport.close();
   if (recvTransport && !recvTransport.closed) recvTransport.close();
   sendTransport = null;
@@ -140,28 +163,77 @@ async function startLocalAudio(channelId: string, muted: boolean): Promise<void>
   audioProducer = await sendTransport.produce({ track, appData: { mediaTag: 'microphone', channelId } });
 }
 
+async function startLocalVideo(channelId: string, enabled: boolean): Promise<void> {
+  if (!navigator.mediaDevices?.getUserMedia || !sendTransport) return;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+    const track = stream.getVideoTracks()[0];
+    if (!track) return;
+    track.enabled = enabled;
+    videoProducer = await sendTransport.produce({ track, appData: { mediaTag: 'camera', channelId } });
+  } catch (err) {
+    console.error('Failed to start video:', err);
+  }
+}
+
+async function startScreenShare(channelId: string, enabled: boolean): Promise<void> {
+  if (!navigator.mediaDevices?.getDisplayMedia || !sendTransport) return;
+  try {
+    const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+    const track = stream.getVideoTracks()[0];
+    if (!track) return;
+    track.enabled = enabled;
+    track.onended = () => {
+      useVoiceStore.getState().setSelfScreen(false);
+    };
+    screenProducer = await sendTransport.produce({ track, appData: { mediaTag: 'screen', channelId } });
+  } catch (err) {
+    console.error('Failed to start screen share:', err);
+  }
+}
+
 async function consumeProducer(channelId: string, producer: ProducerInfo): Promise<void> {
-  if (!device || !recvTransport || producer.kind !== 'audio' || consumers.has(producer.id)) return;
+  if (!device || !recvTransport || consumers.has(producer.id)) return;
+  if (producer.kind !== 'audio' && producer.kind !== 'video') return;
+
   const payload = await emitWithAck<any>(GatewayEvents.VOICE_CONSUME, {
     channel_id: channelId,
     transport_id: recvTransport.id,
     producer_id: producer.id,
     rtpCapabilities: device.rtpCapabilities,
   });
+
   const consumer = await recvTransport.consume({
     id: payload.id,
     producerId: payload.producerId,
     kind: payload.kind,
     rtpParameters: payload.rtpParameters,
   });
+
   consumers.set(producer.id, consumer);
-  const stream = new MediaStream([consumer.track]);
-  const audio = new Audio();
-  audio.srcObject = stream;
-  audio.autoplay = true;
-  audio.dataset.producerId = producer.id;
-  document.body.appendChild(audio);
-  remoteAudioElements.set(producer.id, audio);
+  const userId = producer.userId || producer.user_id || 'unknown';
+  remoteProducersMap.set(producer.id, { userId, kind: producer.kind, producerId: producer.id });
+
+  if (producer.kind === 'audio') {
+    const stream = new MediaStream([consumer.track]);
+    const audio = new Audio();
+    audio.srcObject = stream;
+    audio.autoplay = true;
+    audio.dataset.producerId = producer.id;
+    document.body.appendChild(audio);
+    remoteAudioElements.set(producer.id, audio);
+  } else if (producer.kind === 'video') {
+    const stream = new MediaStream([consumer.track]);
+    const video = document.createElement('video');
+    video.srcObject = stream;
+    video.autoplay = true;
+    video.playsInline = true;
+    video.dataset.producerId = producer.id;
+    video.style.display = 'none';
+    document.body.appendChild(video);
+    remoteVideoElements.set(producer.id, video);
+  }
+
   await emitWithAck(GatewayEvents.VOICE_RESUME_CONSUMER, { channel_id: channelId, consumer_id: consumer.id });
 }
 
@@ -223,6 +295,48 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
   toggleSelfMute: () => get().setSelfMute(!get().selfMute),
   toggleSelfDeaf: () => get().setSelfDeaf(!get().selfDeaf),
 
+  setSelfVideo: (enabled) => {
+    const { guildId, channelId } = get();
+    if (enabled && !videoProducer && sendTransport && channelId) {
+      startLocalVideo(channelId, true);
+    } else if (!enabled && videoProducer) {
+      if (!videoProducer.closed) videoProducer.close();
+      videoProducer = null;
+    }
+    set({ selfVideo: enabled });
+    const socket = getSocket();
+    if (socket && guildId && channelId) {
+      socket.emit(GatewayEvents.VOICE_STATE_UPDATE, {
+        guild_id: guildId,
+        channel_id: channelId,
+        self_video: enabled,
+      });
+    }
+  },
+
+  toggleSelfVideo: () => get().setSelfVideo(!get().selfVideo),
+
+  setSelfScreen: (enabled) => {
+    const { guildId, channelId } = get();
+    if (enabled && !screenProducer && sendTransport && channelId) {
+      startScreenShare(channelId, true);
+    } else if (!enabled && screenProducer) {
+      if (!screenProducer.closed) screenProducer.close();
+      screenProducer = null;
+    }
+    set({ selfScreen: enabled });
+    const socket = getSocket();
+    if (socket && guildId && channelId) {
+      socket.emit(GatewayEvents.VOICE_STATE_UPDATE, {
+        guild_id: guildId,
+        channel_id: channelId,
+        self_screen: enabled,
+      });
+    }
+  },
+
+  toggleSelfScreen: () => get().setSelfScreen(!get().selfScreen),
+
   handleVoiceServerUpdate: async (payload) => {
     const channelId = payload.channel_id || payload.channelId;
     if (!channelId) return;
@@ -233,6 +347,8 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
       sendTransport = await createSendTransport(channelId, loadedDevice);
       recvTransport = await createRecvTransport(channelId, loadedDevice);
       await startLocalAudio(channelId, get().selfMute || get().selfDeaf);
+      if (get().selfVideo) await startLocalVideo(channelId, true);
+      if (get().selfScreen) await startScreenShare(channelId, true);
       const producers = Array.isArray(payload.producers) ? payload.producers : [];
       await Promise.all(producers.map((producer: ProducerInfo) => consumeProducer(channelId, producer)));
       set({ isConnecting: false, channelId, guildId: payload.guild_id || payload.guildId || get().guildId });
@@ -270,6 +386,15 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
 
   reset: () => {
     closeMedia();
-    set({ guildId: null, channelId: null, isConnecting: false, error: null, speakingUserIds: new Set() });
+    set({
+      guildId: null,
+      channelId: null,
+      selfVideo: false,
+      selfScreen: false,
+      isConnecting: false,
+      error: null,
+      speakingUserIds: new Set(),
+      remoteProducers: new Map(),
+    });
   },
 }));

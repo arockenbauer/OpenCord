@@ -19,6 +19,7 @@
     "has_account": "Already have an account?",
     "forgot_password": "Forgot password?",
     "two_factor_title": "Two-Factor Authentication",
+    "two_factor_subtitle": "Enter the code from your authentication app",
     "two_factor_code": "6-digit code",
     "two_factor_submit": "Verify",
     "logout": "Log Out",
@@ -332,7 +333,7 @@
       "streamer_mode_hide_streams": "Hide stream activities",
       "developer_mode": "Developer Mode",
       "developer_mode_desc": "Enable developer options",
-      "sdk_danger": "Developer Zone",
+      "sdk_danger": "Danger Zone",
       "api_experimental": "Experimental API Features"
     }
   },
@@ -572,7 +573,8 @@
     "mark_all_read": "Mark all as read",
     "empty": "No notifications yet.",
     "loading": "Loading…",
-    "unread_count": "{{count}} unread",
+    "unread_count_one": "{{count}} unread",
+    "unread_count_other": "{{count}} unread",
     "types": {
       "MENTION": "{{user}} mentioned you in #{{channel}}",
       "DM": "New message from {{user}}",

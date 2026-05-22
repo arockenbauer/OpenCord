@@ -1,18 +1,27 @@
 import { useState, FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../stores/authStore';
 import styles from './Auth.module.css';
 
 export function LoginPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
   const { login, twoFactorLogin, error, isLoading, clearError } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [twoFactor, setTwoFactor] = useState(false);
   const [partialToken, setPartialToken] = useState('');
   const [code, setCode] = useState('');
+
+  const getRedirectTarget = () => {
+    const params = new URLSearchParams(location.search);
+    const queryRedirect = params.get('redirect');
+    const stateRedirect = (location.state as { redirectTo?: string } | null)?.redirectTo;
+    const target = queryRedirect || stateRedirect || '/channels/@me';
+    return target.startsWith('/') && !target.startsWith('//') ? target : '/channels/@me';
+  };
 
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
@@ -23,7 +32,7 @@ export function LoginPage() {
         setTwoFactor(true);
         setPartialToken(result.partialToken);
       } else {
-        navigate('/channels/@me');
+        navigate(getRedirectTarget(), { replace: true });
       }
     } catch { /* error handled by store */ }
   };
@@ -33,7 +42,7 @@ export function LoginPage() {
     clearError();
     try {
       await twoFactorLogin(code, partialToken);
-      navigate('/channels/@me');
+      navigate(getRedirectTarget(), { replace: true });
     } catch { /* error handled by store */ }
   };
 

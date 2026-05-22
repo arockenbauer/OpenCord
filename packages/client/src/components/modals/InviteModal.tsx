@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Copy, Check, Trash2, Link, Settings, Hash, Clock, Users } from 'lucide-react';
 import { Modal, modalStyles } from '../Modal/Modal';
 import { api } from '../../services/api';
+import { useAuthStore } from '../../stores/authStore';
 import { format } from 'date-fns';
 
 interface Invite {
@@ -44,6 +45,7 @@ const MAX_USES_OPTIONS = [
 ];
 
 export function InviteModal({ guildId, channelId, onClose }: InviteModalProps) {
+  const relationships = useAuthStore((s) => s.relationships);
   const [invites, setInvites] = useState<Invite[]>([]);
   const [newInvite, setNewInvite] = useState<Invite | null>(null);
   const [maxAge, setMaxAge] = useState(604800);
@@ -54,10 +56,13 @@ export function InviteModal({ guildId, channelId, onClose }: InviteModalProps) {
   const [listLoading, setListLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState('');
+  const [friendSearch, setFriendSearch] = useState('');
+  const [sentFriendIds, setSentFriendIds] = useState<Set<string>>(new Set());
+  const [sendingFriendId, setSendingFriendId] = useState<string | null>(null);
 
   useEffect(() => {
     void loadInvites();
-  }, [guildId]);
+  }, [guildId, channelId]);
 
   const loadInvites = async () => {
     setListLoading(true);
@@ -71,11 +76,13 @@ export function InviteModal({ guildId, channelId, onClose }: InviteModalProps) {
       } else {
         await createInvite({ maxAge: 604800, maxUses: 0, temporary: false, reusable: true });
       }
-    } catch { /* handled */ }
+    } catch {
+      await createInvite({ maxAge: 604800, maxUses: 0, temporary: false, reusable: true });
+    }
     setListLoading(false);
   };
 
-  const createInvite = async (options?: { maxAge?: number; maxUses?: number; temporary?: boolean; reusable?: boolean }) => {
+  const createInvite = async (options?: { maxAge?: number; maxUses?: number; temporary?: boolean; reusable?: boolean }): Promise<Invite | null> => {
     setLoading(true);
     setError('');
     try {
@@ -91,10 +98,13 @@ export function InviteModal({ guildId, channelId, onClose }: InviteModalProps) {
       });
       setNewInvite(invite);
       setInvites((prev) => [invite, ...prev.filter((i) => i.code !== invite.code)]);
+      return invite;
     } catch (err: any) {
       setError(err.message || 'Erreur lors de la création de l\'invitation');
+      return null;
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleCreate = async () => {
@@ -117,9 +127,40 @@ export function InviteModal({ guildId, channelId, onClose }: InviteModalProps) {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const getActiveInvite = async () => {
+    if (activeInvite) return activeInvite;
+    return createInvite({ maxAge: 604800, maxUses: 0, temporary: false, reusable: true });
+  };
+
+  const handleSendToFriend = async (friend: any) => {
+    setSendingFriendId(friend.id);
+    setError('');
+    try {
+      const invite = await getActiveInvite();
+      if (!invite?.code) throw new Error('Impossible de créer le lien d\'invitation');
+      const channel = await api.users.createDM<any>(friend.id);
+      await api.dm.createMessage(channel.id, {
+        content: `${window.location.origin}/invite/${invite.code}`,
+      });
+      setSentFriendIds((prev) => new Set(prev).add(friend.id));
+    } catch (err: any) {
+      setError(err.message || 'Impossible d\'envoyer l\'invitation');
+    } finally {
+      setSendingFriendId(null);
+    }
+  };
+
   const inviteUrl = newInvite ? `${window.location.origin}/invite/${newInvite.code}` : '';
   const activeInvite = newInvite || invites[0] || null;
   const activeInviteUrl = activeInvite ? `${window.location.origin}/invite/${activeInvite.code}` : inviteUrl;
+  const friends = relationships
+    .filter((relationship) => relationship.type === 1)
+    .filter((relationship) => {
+      const query = friendSearch.trim().toLowerCase();
+      if (!query) return true;
+      const name = relationship.user.global_name || relationship.user.username;
+      return name.toLowerCase().includes(query) || relationship.user.username.toLowerCase().includes(query);
+    });
 
   return (
     <Modal onClose={onClose}>
@@ -158,6 +199,47 @@ export function InviteModal({ guildId, channelId, onClose }: InviteModalProps) {
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Users size={13} /> {activeInvite.uses}/{activeInvite.max_uses || '∞'}</span>
           </div>
         )}
+
+        <div style={{ marginTop: 16, marginBottom: 16 }}>
+          <div className={modalStyles.label}>Inviter des amis</div>
+          <input
+            className={modalStyles.input}
+            value={friendSearch}
+            onChange={(event) => setFriendSearch(event.target.value)}
+            placeholder="Rechercher des amis"
+            style={{ marginBottom: 10 }}
+            data-testid="invite-friends-search"
+          />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 220, overflowY: 'auto' }}>
+            {friends.length === 0 ? (
+              <div style={{ color: 'var(--text-muted)', fontSize: 13, padding: '8px 0' }}>Aucun ami à afficher.</div>
+            ) : friends.map((relationship) => {
+              const friend = relationship.user;
+              const displayName = friend.global_name || friend.username;
+              const sent = sentFriendIds.has(friend.id);
+              return (
+                <div key={friend.id} style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 44, padding: 6, borderRadius: 6, background: 'var(--bg-tertiary)' }}>
+                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--bg-accent)', color: 'white', display: 'grid', placeItems: 'center', overflow: 'hidden', flexShrink: 0, fontWeight: 700 }}>
+                    {friend.avatar ? <img src={friend.avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : displayName.slice(0, 1).toUpperCase()}
+                  </div>
+                  <div style={{ minWidth: 0, flex: 1, textAlign: 'left' }}>
+                    <div style={{ color: 'var(--text-primary)', fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</div>
+                    <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>@{friend.username}</div>
+                  </div>
+                  <button
+                    className={sent ? modalStyles.buttonSecondary : modalStyles.buttonPrimary}
+                    style={{ width: 88, minHeight: 32, padding: '0 10px', flexShrink: 0 }}
+                    onClick={() => void handleSendToFriend(friend)}
+                    disabled={sent || sendingFriendId !== null || loading}
+                    data-testid={`invite-friend-${friend.id}`}
+                  >
+                    {sendingFriendId === friend.id ? '...' : sent ? 'Envoyé' : 'Inviter'}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
 
         <button
           className={modalStyles.buttonSecondary}

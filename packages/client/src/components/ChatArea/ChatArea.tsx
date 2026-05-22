@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, KeyboardEvent, MouseEvent, ChangeEvent, useMemo } from 'react';
-import { Hash, Pin, Users, Search, PlusCircle, Smile, X, Reply, MoreHorizontal, Trash2, MessageCircle, UserPlus, Zap, Info, Volume2, Mic, MicOff, Headphones, PhoneOff } from 'lucide-react';
+import { Hash, Pin, Users, Search, PlusCircle, Smile, X, Reply, MoreHorizontal, Trash2, MessageCircle, UserPlus, Zap, Info, Volume2, Mic, MicOff, Headphones, PhoneOff, Video, Monitor } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { format } from 'date-fns';
 import MarkdownIt from 'markdown-it';
@@ -13,6 +13,8 @@ import { EmojiPicker } from '../EmojiPicker/EmojiPicker';
 import { SlashCommandAutocomplete } from '../SlashCommandAutocomplete/SlashCommandAutocomplete';
 import { MessageContextMenu } from '../context-menus/MessageContextMenu';
 import { Tooltip } from '../Tooltip/Tooltip';
+import { VoiceVideo } from '../VoiceVideo/VoiceVideo';
+import { ThreadsPanel } from './ThreadsPanel';
 import { emitTyping } from '../../hooks/useGateway';
 import { api } from '../../services/api';
 import { announceMessage, announceTyping, announceChannelChange } from '../../utils/ariaAnnounce';
@@ -71,6 +73,8 @@ export function ChatArea() {
   const currentUser = useAuthStore((s) => s.user);
   const toggleMemberList = useUIStore((s) => s.toggleMemberList);
   const setProfilePopover = useUIStore((s) => s.setProfilePopover);
+  const channelUnread = useUnreadStore((s) => selectedChannelId ? s.channelUnreads[selectedChannelId] : null);
+  const lastReadMessageId = channelUnread?.lastMessageId || null;
   const joinVoiceChannel = useVoiceStore((s) => s.joinVoiceChannel);
   const leaveVoiceChannel = useVoiceStore((s) => s.leaveVoiceChannel);
   const toggleSelfMute = useVoiceStore((s) => s.toggleSelfMute);
@@ -390,10 +394,14 @@ export function ChatArea() {
   const isDirectMessage = !guild;
   const isThread = channel?.type === 11;
   const isForum = channel?.type === 15;
+  const isStage = channel?.type === 14;
   const isVoiceLike = channel ? isVoiceLikeChannel(channel) : false;
   const canManageThreads = guild ? hasGuildPermission(guild, currentUser?.id || '', BigInt(0x400000000)) : false;
   const channelTitle = channel ? getConversationTitle(channel, currentUser?.id) : '';
   const headerTopic = channel ? (isDirectMessage ? getConversationSubtitle(channel) : channel.topic) : null;
+  const dmProfileUser = isDirectMessage
+    ? (channel as any)?.recipients?.find((recipient: any) => recipient.id !== currentUser?.id) || (channel as any)?.recipients?.[0] || null
+    : null;
   const messagePlaceholder = isDirectMessage
     ? t('dm.placeholder', { user: channelTitle })
     : t('channel.placeholder', { channel: channel?.name || '' });
@@ -440,6 +448,15 @@ export function ChatArea() {
     );
   }
 
+  if (isStage && guild) {
+    return (
+      <StageChannelView
+        guild={guild}
+        channel={channel}
+      />
+    );
+  }
+
   if (isVoiceLike && guild) {
     return (
       <VoiceChannelView
@@ -451,11 +468,15 @@ export function ChatArea() {
         error={voiceError}
         selfMute={selfMute}
         selfDeaf={selfDeaf}
+        selfVideo={useVoiceStore((s) => s.selfVideo)}
+        selfScreen={useVoiceStore((s) => s.selfScreen)}
         speakingUserIds={speakingUserIds}
         onJoin={() => joinVoiceChannel(guild.id, channel.id)}
         onLeave={leaveVoiceChannel}
         onToggleMute={toggleSelfMute}
         onToggleDeaf={toggleSelfDeaf}
+        onToggleVideo={() => useVoiceStore.getState().toggleSelfVideo()}
+        onToggleScreen={() => useVoiceStore.getState().toggleSelfScreen()}
       />
     );
   }
@@ -463,7 +484,17 @@ export function ChatArea() {
   return (
     <div className={styles.container}>
       <div className={styles.header}>
-        {isDirectMessage ? <MessageCircle size={20} className={styles.headerIcon} /> : <Hash size={20} className={styles.headerIcon} />}
+        {isDirectMessage && dmProfileUser ? (
+          <button
+            type="button"
+            className={styles.headerAvatar}
+            onClick={(event) => openProfile(event, dmProfileUser.id)}
+            data-user-popout-trigger="true"
+            aria-label={`Ouvrir le profil de ${channelTitle}`}
+          >
+            {dmProfileUser.avatar ? <img src={dmProfileUser.avatar} alt="" /> : channelTitle.slice(0, 1).toUpperCase()}
+          </button>
+        ) : isDirectMessage ? <MessageCircle size={20} className={styles.headerIcon} /> : <Hash size={20} className={styles.headerIcon} />}
         <span className={styles.headerName}>{channelTitle}</span>
         {headerTopic && <>
           <div className={styles.headerDivider} />
@@ -490,6 +521,13 @@ export function ChatArea() {
               </button>
             </>
           )}
+          {!isThread && !isDirectMessage && (channel?.type === 0 || channel?.type === 5) && (
+            <Tooltip content="Fils" position="bottom" delay={300}>
+              <button onClick={() => setSidePanel((current) => current === 'threads' ? null : 'threads')}>
+                <MessageCircle size={20} />
+              </button>
+            </Tooltip>
+          )}
           <Tooltip content={t('message.pinned')} position="bottom" delay={300}>
             <button onClick={() => setSidePanel((current) => current === 'pins' ? null : 'pins')}><Pin size={20} /></button>
           </Tooltip>
@@ -515,16 +553,22 @@ export function ChatArea() {
             </div>
 
             <div role="list" aria-label="Messages" data-testid="message-list">
-            {groupedMessages.map((group) => {
+            {groupedMessages.map((group, groupIndex) => {
               const headerMessage = group[0]!;
-
-              if (headerMessage.type && headerMessage.type !== 0 && headerMessage.type !== 19) {
-                return <SystemMessageRow key={headerMessage.id} msg={headerMessage} guild={guild} />;
-              }
-
-              const displayName = getMessageDisplayName(headerMessage.author.id, headerMessage.author, guild);
+              const isNewMessage = lastReadMessageId && headerMessage.id === lastReadMessageId;
 
               return (
+                <>
+                  {isNewMessage && (
+                    <div className={styles.newMessagesSeparator} role="separator" aria-label="Nouveaux messages">
+                      <div className={styles.separatorLine} />
+                      <span className={styles.separatorText}>Nouveaux messages</span>
+                      <div className={styles.separatorLine} />
+                    </div>
+                  )}
+                  {headerMessage.type && headerMessage.type !== 0 && headerMessage.type !== 19 ? (
+                    <SystemMessageRow key={headerMessage.id} msg={headerMessage} guild={guild} />
+                  ) : (
                 <div key={headerMessage.id} className={styles.messageGroup} role="listitem" aria-label={`Message de ${displayName}, ${format(new Date(headerMessage.created_at), 'dd/MM/yyyy HH:mm')}`} data-testid={`message-${headerMessage.id}`}>
                   <div className={styles.messageGroupHeader} onContextMenu={(e) => handleMessageContextMenu(e, headerMessage)}>
                     <button
@@ -693,10 +737,20 @@ export function ChatArea() {
           )}
         </div>
 
+        {isDirectMessage && dmProfileUser && !sidePanel && (
+          <DMProfilePanel
+            user={dmProfileUser}
+            channel={channel}
+            onOpenProfile={(event) => openProfile(event, dmProfileUser.id)}
+          />
+        )}
+
         {sidePanel && (
           <aside className={styles.sidePanel}>
             <div className={styles.sidePanelHeader}>
-              <div className={styles.sidePanelTitle}>{sidePanel === 'pins' ? t('message.pinned') : t('message.search')}</div>
+              <div className={styles.sidePanelTitle}>
+                {sidePanel === 'pins' ? t('message.pinned') : sidePanel === 'threads' ? 'Fils' : t('message.search')}
+              </div>
               <button className={styles.sidePanelClose} onClick={() => setSidePanel(null)}><X size={18} /></button>
             </div>
             <div className={styles.sidePanelBody}>
@@ -716,6 +770,12 @@ export function ChatArea() {
                     </button>
                   ))
                 )
+              ) : sidePanel === 'threads' ? (
+                <ThreadsPanel
+                  channelId={selectedChannelId}
+                  guild={guild}
+                  onSelectThread={(threadId) => { selectChannel(threadId); setSidePanel(null); }}
+                />
               ) : (
                 <>
                   <div className={styles.searchForm}>
@@ -786,11 +846,15 @@ function VoiceChannelView({
   error,
   selfMute,
   selfDeaf,
+  selfVideo,
+  selfScreen,
   speakingUserIds,
   onJoin,
   onLeave,
   onToggleMute,
   onToggleDeaf,
+  onToggleVideo,
+  onToggleScreen,
 }: {
   guild: any;
   channel: any;
@@ -800,11 +864,15 @@ function VoiceChannelView({
   error: string | null;
   selfMute: boolean;
   selfDeaf: boolean;
+  selfVideo: boolean;
+  selfScreen: boolean;
   speakingUserIds: Set<string>;
   onJoin: () => void;
   onLeave: () => void;
   onToggleMute: () => void;
   onToggleDeaf: () => void;
+  onToggleVideo: () => void;
+  onToggleScreen: () => void;
 }) {
   const voiceStates = useGuildStore((s) => s.voiceStates);
   const states = (voiceStates.get(guild.id) || []).filter((state: any) => state.channel_id === channel.id);
@@ -818,6 +886,38 @@ function VoiceChannelView({
   });
   const connectedCount = participants.length;
   const userLimit = channel.user_limit || 0;
+
+  if (isConnected) {
+    return (
+      <div className={styles.container} data-testid="voice-channel-view">
+        <VoiceVideo />
+        <div className={styles.voiceParticipantGrid}>
+          {participants.length === 0 ? (
+            <div className={styles.voiceEmpty}>Aucun participant connecté.</div>
+          ) : participants.map(({ state, user, displayName }: any) => {
+            const speaking = speakingUserIds.has(user.id);
+            return (
+              <div key={user.id} className={`${styles.voiceParticipant} ${speaking ? styles.voiceParticipantSpeaking : ''}`}>
+                <div className={styles.voiceParticipantAvatar}>
+                  {user.avatar ? <img src={user.avatar} alt="" /> : displayName.slice(0, 1).toUpperCase()}
+                </div>
+                <div className={styles.voiceParticipantInfo}>
+                  <div className={styles.voiceParticipantName}>
+                    {displayName}{user.id === currentUserId ? ' (vous)' : ''}
+                  </div>
+                  <div className={styles.voiceParticipantState}>
+                    {(state.self_mute || state.mute) && <span><MicOff size={12} /> Muet</span>}
+                    {(state.self_deaf || state.deaf) && <span><Headphones size={12} /> Sourd</span>}
+                    {!state.self_mute && !state.mute && !state.self_deaf && !state.deaf && <span>Disponible</span>}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.container} data-testid="voice-channel-view">
@@ -848,6 +948,14 @@ function VoiceChannelView({
                 <button className={styles.headerPillButton} onClick={onToggleDeaf} aria-pressed={selfDeaf}>
                   <Headphones size={16} />
                   {selfDeaf ? 'Sourd' : 'Casque'}
+                </button>
+                <button className={`${styles.headerPillButton} ${selfVideo ? styles.activeButton : ''}`} onClick={onToggleVideo}>
+                  <Video size={16} />
+                  {selfVideo ? 'Caméra' : 'Vidéo'}
+                </button>
+                <button className={`${styles.headerPillButton} ${selfScreen ? styles.activeButton : ''}`} onClick={onToggleScreen}>
+                  <Monitor size={16} />
+                  {selfScreen ? 'Partage' : 'Écran'}
                 </button>
                 <button className={styles.headerPillButton} onClick={onLeave}>
                   <PhoneOff size={16} />
@@ -890,6 +998,58 @@ function VoiceChannelView({
         </div>
       </div>
     </div>
+  );
+}
+
+function DMProfilePanel({ user, channel, onOpenProfile }: { user: any; channel: any; onOpenProfile: (event: MouseEvent<HTMLElement>) => void }) {
+  const displayName = user.global_name || user.username || 'Utilisateur';
+  const memberSince = user.created_at ? format(new Date(user.created_at), 'dd/MM/yyyy') : null;
+  const participantCount = channel.recipients?.length || 1;
+
+  return (
+    <aside className={styles.dmProfilePanel} data-testid="dm-profile-panel">
+      <div
+        className={styles.dmProfileBanner}
+        style={user.banner
+          ? { backgroundImage: `url(${user.banner})` }
+          : user.banner_color
+            ? { background: user.banner_color }
+            : undefined}
+      />
+      <button
+        type="button"
+        className={styles.dmProfileAvatar}
+        onClick={onOpenProfile}
+        data-user-popout-trigger="true"
+        aria-label={`Ouvrir le profil de ${displayName}`}
+      >
+        {user.avatar ? <img src={user.avatar} alt="" /> : displayName.slice(0, 1).toUpperCase()}
+        <span className={`${styles.dmProfileStatus} ${getStatusClassForChat(user.status, styles)}`} />
+      </button>
+      <div className={styles.dmProfileBody}>
+        <div className={styles.dmProfileName}>{displayName}</div>
+        <div className={styles.dmProfileTag}>{user.username}#{user.discriminator}</div>
+        {(user.custom_status_text || user.custom_status_emoji) && (
+          <div className={styles.dmProfileStatusText}>
+            {user.custom_status_emoji && <span>{user.custom_status_emoji}</span>}
+            <span>{user.custom_status_text || user.status}</span>
+          </div>
+        )}
+        {user.bio && <div className={styles.dmProfileBio}>{user.bio}</div>}
+        <div className={styles.dmProfileSection}>
+          <div className={styles.dmProfileSectionTitle}>Conversation</div>
+          <div className={styles.dmProfileSectionValue}>
+            {participantCount > 1 ? `${participantCount} participants` : 'Message privé'}
+          </div>
+        </div>
+        {memberSince && (
+          <div className={styles.dmProfileSection}>
+            <div className={styles.dmProfileSectionTitle}>Membre depuis</div>
+            <div className={styles.dmProfileSectionValue}>{memberSince}</div>
+          </div>
+        )}
+      </div>
+    </aside>
   );
 }
 
@@ -1148,6 +1308,13 @@ function getConversationSubtitle(channel: any): string | null {
     return recipients[0].custom_status_text || recipients[0].status || null;
   }
   return `${recipients.length} participants`;
+}
+
+function getStatusClassForChat(status: string, css: Record<string, string>): string {
+  if (status === 'online') return css.dmProfileStatusOnline || '';
+  if (status === 'idle') return css.dmProfileStatusIdle || '';
+  if (status === 'dnd') return css.dmProfileStatusDnd || '';
+  return css.dmProfileStatusOffline || '';
 }
 
 function isVoiceLikeChannel(channel: any): boolean {

@@ -1,5 +1,5 @@
 import { MouseEvent, useState, useRef, useEffect } from 'react';
-import { Hash, Volume2, Megaphone, ChevronDown, ChevronRight, Plus, Settings, Mic, MicOff, Headphones, MessageCircle, UserPlus, LogOut, Trash2, Edit3, Trash, Copy, Link, PhoneOff } from 'lucide-react';
+import { Hash, Volume2, Megaphone, ChevronDown, ChevronRight, Plus, Settings, Mic, MicOff, Headphones, MessageCircle, UserPlus, LogOut, Trash2, Edit3, Trash, Copy, Link, PhoneOff, X, Lock } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useGuildStore } from '../../stores/guildStore';
 import { useAuthStore } from '../../stores/authStore';
@@ -25,6 +25,7 @@ const channelIcons: Record<number, any> = {
 export function ChannelSidebar() {
   const { t } = useTranslation();
   const guild = useGuildStore((s) => s.getSelectedGuild());
+  const guilds = useGuildStore((s) => s.guilds);
   const dmChannels = useGuildStore((s) => s.dmChannels);
   const selectedChannelId = useGuildStore((s) => s.selectedChannelId);
   const selectChannel = useGuildStore((s) => s.selectChannel);
@@ -32,6 +33,7 @@ export function ChannelSidebar() {
   const voiceChannelId = useVoiceStore((s) => s.channelId);
   const voiceGuildId = useVoiceStore((s) => s.guildId);
   const user = useAuthStore((s) => s.user);
+  const relationships = useAuthStore((s) => s.relationships);
   const setShowServerSettings = useUIStore((s) => s.setShowServerSettings);
   const setShowUserSettings = useUIStore((s) => s.setShowUserSettings);
   const setActiveServerSettingsTab = useUIStore((s) => s.setActiveServerSettingsTab);
@@ -42,12 +44,94 @@ export function ChannelSidebar() {
   const [createChannel, setCreateChannel] = useState<{ categoryId: string | null } | null>(null);
   const [guildMenuOpen, setGuildMenuOpen] = useState(false);
   const [dmSearch, setDmSearch] = useState('');
+  const [newDMOpen, setNewDMOpen] = useState(false);
+  const [newDMSearch, setNewDMSearch] = useState('');
   const guildMenuRef = useRef<HTMLDivElement>(null);
 
   const openOwnProfile = (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
     const rect = event.currentTarget.getBoundingClientRect();
     useUIStore.getState().setProfilePopover?.({ userId: user!.id, x: rect.left, y: rect.top, width: rect.width, height: rect.height });
+  };
+
+  const openUserProfile = (event: MouseEvent<HTMLElement>, userId: string) => {
+    event.stopPropagation();
+    const rect = event.currentTarget.getBoundingClientRect();
+    useUIStore.getState().setProfilePopover?.({ userId, x: rect.left, y: rect.top, width: rect.width, height: rect.height });
+  };
+
+  const createInviteForGuild = async (targetGuild: any) => {
+    const inviteChannel = targetGuild.channels?.find((channel: any) => channel.type === 0 || channel.type === 5);
+    if (!inviteChannel) return null;
+    return api<any>(`/api/guilds/${targetGuild.id}/channels/${inviteChannel.id}/invites`, {
+      method: 'POST',
+      body: JSON.stringify({
+        max_age: 604800,
+        max_uses: 0,
+        temporary: false,
+        unique: false,
+        source: 'dm_context_menu',
+      }),
+    });
+  };
+
+  const inviteUserToGuild = async (recipient: any, targetGuild: any) => {
+    if (!recipient || !targetGuild) return;
+    const invite = await createInviteForGuild(targetGuild);
+    if (!invite?.code) return;
+    const inviteUrl = `${window.location.origin}/invite/${invite.code}`;
+    const dm = await api.users.createDM<any>(recipient.id);
+    useGuildStore.getState().addDMChannel(dm);
+    await api.dm.createMessage(dm.id, { content: inviteUrl });
+    useGuildStore.getState().selectGuild(null);
+    useGuildStore.getState().selectChannel(dm.id);
+  };
+
+  const openDMWithUser = async (recipientId: string) => {
+    const dm = await api.users.createDM<any>(recipientId);
+    useGuildStore.getState().addDMChannel(dm);
+    useGuildStore.getState().selectGuild(null);
+    useGuildStore.getState().selectChannel(dm.id);
+    setNewDMOpen(false);
+    setNewDMSearch('');
+  };
+
+  const openDMContextMenu = (event: MouseEvent<HTMLDivElement>, channel: any) => {
+    const recipient = getDMPrimaryRecipient(channel);
+    if (!recipient) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const inviteTargets = Array.from(guilds.values()).filter((item: any) => {
+      const isMember = item.members?.some((member: any) => member.user.id === recipient.id);
+      return !isMember && item.channels?.some((channelItem: any) => channelItem.type === 0 || channelItem.type === 5);
+    });
+
+    setContextMenu({
+      x: event.clientX,
+      y: event.clientY,
+      items: [
+        {
+          label: 'Voir le profil',
+          icon: <UserPlus size={16} />,
+          onClick: () => {
+            setTimeout(() => {
+              useUIStore.getState().setProfilePopover?.({ userId: recipient.id, x: event.clientX, y: event.clientY, width: 1, height: 1 });
+            }, 0);
+          },
+        },
+        {
+          label: 'Envoyer un message',
+          icon: <MessageCircle size={16} />,
+          onClick: () => selectChannel(channel.id),
+        },
+        ...(inviteTargets.length > 0 ? [{ separator: true }] : []),
+        ...inviteTargets.slice(0, 5).map((targetGuild: any) => ({
+          label: `Inviter à ${targetGuild.name}`,
+          icon: <UserPlus size={16} />,
+          onClick: () => void inviteUserToGuild(recipient, targetGuild),
+        })),
+      ],
+    });
   };
 
   const toggleGuildMenu = (e: MouseEvent<HTMLDivElement>) => {
@@ -67,11 +151,57 @@ export function ChannelSidebar() {
   }, [guildMenuOpen]);
 
   if (!guild) {
+    const friends = relationships.filter((relationship) => relationship.type === 1);
+    const filteredFriends = friends.filter((relationship) => {
+      const query = newDMSearch.trim().toLowerCase();
+      if (!query) return true;
+      const displayName = relationship.user.global_name || relationship.user.username;
+      return displayName.toLowerCase().includes(query) || relationship.user.username.toLowerCase().includes(query);
+    });
+
     return (
       <div className={styles.container}>
         <div className={styles.dmHeader}>
           <input className={styles.dmSearch} placeholder={t('common.search')} value={dmSearch} onChange={(e) => setDmSearch(e.target.value)} data-testid="dm-search-input" />
+          <Tooltip content="Nouveau MP" position="right" delay={300}>
+            <button className={styles.newDMButton} onClick={() => setNewDMOpen(true)} aria-label="Créer un message privé" data-testid="new-dm-button">
+              <Plus size={18} />
+            </button>
+          </Tooltip>
         </div>
+        {newDMOpen && (
+          <div className={styles.newDMPopover} data-testid="new-dm-popover">
+            <div className={styles.newDMHeader}>
+              <span>Nouveau message</span>
+              <button onClick={() => setNewDMOpen(false)} aria-label="Fermer"><X size={16} /></button>
+            </div>
+            <input
+              className={styles.newDMSearch}
+              value={newDMSearch}
+              onChange={(event) => setNewDMSearch(event.target.value)}
+              placeholder="Sélectionner un ami"
+              autoFocus
+            />
+            <div className={styles.newDMList}>
+              {filteredFriends.length === 0 ? (
+                <div className={styles.newDMEmpty}>Aucun ami disponible.</div>
+              ) : filteredFriends.map((relationship) => {
+                const displayName = relationship.user.global_name || relationship.user.username;
+                return (
+                  <button key={relationship.user.id} className={styles.newDMFriend} onClick={() => void openDMWithUser(relationship.user.id)}>
+                    <span className={styles.newDMFriendAvatar}>
+                      {relationship.user.avatar ? <img src={relationship.user.avatar} alt="" /> : displayName.slice(0, 1).toUpperCase()}
+                    </span>
+                    <span className={styles.newDMFriendInfo}>
+                      <span className={styles.newDMFriendName}>{displayName}</span>
+                      <span className={styles.newDMFriendTag}>@{relationship.user.username}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
         <div className={styles.channelList}>
           <div className={styles.sectionLabel}>{t('dm.title')}</div>
           {dmChannels.length === 0 && <div className={styles.dmEmpty}>{t('dm.empty')}</div>}
@@ -79,21 +209,38 @@ export function ChannelSidebar() {
             if (!dmSearch) return true;
             const name = getDMDisplayName(channel).toLowerCase();
             return name.includes(dmSearch.toLowerCase());
-          }).map((channel) => (
+          }).map((channel) => {
+            const recipient = getDMPrimaryRecipient(channel);
+            const displayName = getDMDisplayName(channel);
+            return (
             <Tooltip key={channel.id} content={getDMDisplayName(channel)} position="right" delay={300}>
               <div
                 className={`${styles.channel} ${selectedChannelId === channel.id ? styles.active : ''}`}
                 onClick={() => selectChannel(channel.id)}
+                onContextMenu={(event) => openDMContextMenu(event, channel)}
                 data-testid={`dm-channel-${channel.id}`}
               >
-                <MessageCircle size={16} />
+                {recipient ? (
+                  <button
+                    type="button"
+                    className={styles.dmAvatar}
+                    onClick={(event) => openUserProfile(event, recipient.id)}
+                    data-user-popout-trigger="true"
+                    aria-label={`Ouvrir le profil de ${displayName}`}
+                  >
+                    {recipient.avatar ? <img src={recipient.avatar} alt="" /> : displayName.slice(0, 1).toUpperCase()}
+                    <span className={`${styles.dmStatus} ${getDMStatusClass(recipient.status, styles)}`} />
+                  </button>
+                ) : (
+                  <MessageCircle size={16} />
+                )}
                 <div className={styles.dmNameStack}>
                   <span className={styles.channelName}>{getDMDisplayName(channel)}</span>
                   <span className={styles.dmMeta}>{getDMSubtitle(channel)}</span>
                 </div>
               </div>
             </Tooltip>
-          ))}
+          );})}
         </div>
         {user && <UserPanel user={user!} onSettings={() => useUIStore.getState().setShowUserSettings?.(true)} onOpenProfile={openOwnProfile} />}
       </div>
@@ -232,7 +379,8 @@ export function ChannelSidebar() {
 
         {categories.map((cat) => {
           const collapsed = collapsedCategories.has(cat.id);
-          const children = guild.channels.filter((c) => c.parent_id === cat.id && c.type !== 4);
+          const children = guild.channels.filter((c) => c.parent_id === cat.id && c.type !== 4 && c.type !== 11 && c.type !== 15);
+          const threads = guild.channels.filter((c) => c.parent_id === cat.id && (c.type === 11 || c.type === 15));
 
           return (
             <div key={cat.id}>
@@ -242,14 +390,45 @@ export function ChannelSidebar() {
                 <Plus size={16} className={styles.categoryAction} onClick={(e) => { e.stopPropagation(); setCreateChannel({ categoryId: cat.id }); }} />
               </div>
               {!collapsed && children.map((ch) => (
+                <div key={ch.id}>
+                  <ChannelItem
+                    channel={ch}
+                    isActive={selectedChannelId === ch.id}
+                    isVoiceConnected={voiceGuildId === guild.id && voiceChannelId === ch.id}
+                    onClick={() => isVoiceChannel(ch) ? joinVoiceChannel(guild.id, ch.id) : selectChannel(ch.id)}
+                    onContextMenu={(e) => openChannelContextMenu(e, ch)}
+                    user={user}
+                  />
+                  {ch.type === 0 || ch.type === 5 ? (
+                    <div className={styles.threadList}>
+                      {threads
+                        .filter((t: any) => t.parent_id === ch.id)
+                        .map((thread: any) => (
+                          <ChannelItem
+                            key={thread.id}
+                            channel={thread}
+                            isActive={selectedChannelId === thread.id}
+                            isVoiceConnected={false}
+                            onClick={() => selectChannel(thread.id)}
+                            onContextMenu={(e) => openChannelContextMenu(e, thread)}
+                            user={user}
+                            isThread
+                          />
+                        ))}
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+              {!collapsed && threads.filter((t: any) => !t.parent_id || !children.some((c: any) => c.id === t.parent_id)).map((thread: any) => (
                 <ChannelItem
-                  key={ch.id}
-                  channel={ch}
-                  isActive={selectedChannelId === ch.id}
-                  isVoiceConnected={voiceGuildId === guild.id && voiceChannelId === ch.id}
-                  onClick={() => isVoiceChannel(ch) ? joinVoiceChannel(guild.id, ch.id) : selectChannel(ch.id)}
-                  onContextMenu={(e) => openChannelContextMenu(e, ch)}
+                  key={thread.id}
+                  channel={thread}
+                  isActive={selectedChannelId === thread.id}
+                  isVoiceConnected={false}
+                  onClick={() => selectChannel(thread.id)}
+                  onContextMenu={(e) => openChannelContextMenu(e, thread)}
                   user={user}
+                  isThread
                 />
               ))}
             </div>
@@ -274,7 +453,7 @@ function isVoiceChannel(channel: any): boolean {
   return channel.type === 2 || channel.type === 13 || channel.type === 14;
 }
 
-function ChannelItem({ channel, isActive, isVoiceConnected, onClick, onContextMenu, user }: { channel: any; isActive: boolean; isVoiceConnected?: boolean; onClick: () => void; onContextMenu?: (e: MouseEvent<HTMLDivElement>) => void; user?: any }) {
+function ChannelItem({ channel, isActive, isVoiceConnected, onClick, onContextMenu, user, isThread: isThreadProp }: { channel: any; isActive: boolean; isVoiceConnected?: boolean; onClick: () => void; onContextMenu?: (e: MouseEvent<HTMLDivElement>) => void; user?: any; isThread?: boolean }) {
   const Icon = channelIcons[channel.type] || Hash;
   const unread = useUnreadStore((s) => s.channelUnreads[channel.id]);
   const hasUnread = unread?.hasUnread && !isActive;
@@ -284,7 +463,7 @@ function ChannelItem({ channel, isActive, isVoiceConnected, onClick, onContextMe
 
   // For voice channels, show avatars of connected currentUsers
   const isVoice = isVoiceChannel(channel);
-  const isThread = channel.type === 11;
+  const isThread = isThreadProp || channel.type === 11 || channel.type === 15;
   const connectedUsers = isVoice
     ? (voiceStates.get(channel.guild_id || '') || []).filter((vs: any) => vs.channel_id === channel.id)
     : [];
@@ -325,9 +504,14 @@ function ChannelItem({ channel, isActive, isVoiceConnected, onClick, onContextMe
             )}
           </div>
         ) : (
-          <Icon size={16} />
+          <div className={styles.channelIconWrapper}>
+            <Icon size={16} />
+            {channel.overwrite_permissions && channel.overwrite_permissions.length > 0 && (
+              <Lock size={10} className={styles.lockIcon} />
+            )}
+          </div>
         )}
-        <span className={`${styles.channelName} ${isFull ? styles.channelFull : ''}`}>{channel.name}</span>
+        <span className={`${styles.channelName} ${isFull ? styles.channelFull : ''} ${isThread ? styles.threadChannel : ''}`}>{channel.name}</span>
         {isThread && !isThreadMember && (
           <button className={styles.joinButton} onClick={(e) => { e.stopPropagation(); onClick(); }}>
             Rejoindre
@@ -420,6 +604,18 @@ function getDMDisplayName(channel: any): string {
     return recipient.global_name || recipient.username;
   }
   return channel.recipients.map((recipient: any) => recipient.global_name || recipient.username).join(', ');
+}
+
+function getDMPrimaryRecipient(channel: any): any | null {
+  if (!channel.recipients?.length) return null;
+  return channel.recipients[0] || null;
+}
+
+function getDMStatusClass(status: string, css: Record<string, string>): string {
+  if (status === 'online') return css.dmStatusOnline || '';
+  if (status === 'idle') return css.dmStatusIdle || '';
+  if (status === 'dnd') return css.dmStatusDnd || '';
+  return css.dmStatusOffline || '';
 }
 
 function getDMSubtitle(channel: any): string {

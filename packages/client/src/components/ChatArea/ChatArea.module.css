@@ -29,6 +29,28 @@
   flex-shrink: 0;
 }
 .headerIcon { color: var(--text-muted); }
+.headerAvatar {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  padding: 0;
+  border-radius: var(--radius-full);
+  background: var(--bg-accent);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+}
+
+.headerAvatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
 .headerName { font-weight: var(--font-weight-semibold); font-size: var(--font-size-md); }
 .headerDivider { width: 1px; height: 24px; background: var(--border); margin: 0 var(--spacing-2); }
 .headerTopic { flex: 1; font-size: var(--font-size-sm); color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -47,6 +69,10 @@
   color: var(--text-primary);
   font-size: 12px;
   font-weight: 700;
+}
+.activeButton {
+	background: var(--accent-primary);
+	color: white;
 }
 
 .voiceStage {
@@ -179,6 +205,120 @@
 .voiceEmpty {
   color: var(--text-muted);
   font-size: 14px;
+}
+
+.dmProfilePanel {
+  width: 300px;
+  flex: 0 0 300px;
+  background: var(--bg-secondary);
+  border-left: 1px solid var(--border);
+  overflow-y: auto;
+}
+
+.dmProfileBanner {
+  height: 92px;
+  background: linear-gradient(135deg, var(--bg-accent), var(--bg-tertiary));
+  background-size: cover;
+  background-position: center;
+}
+
+.dmProfileAvatar {
+  position: relative;
+  width: 84px;
+  height: 84px;
+  margin: -42px 16px 0;
+  padding: 0;
+  border-radius: var(--radius-full);
+  border: 6px solid var(--bg-secondary);
+  background: var(--bg-accent);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+}
+
+.dmProfileAvatar img {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
+
+.dmProfileStatus {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-full);
+  border: 4px solid var(--bg-secondary);
+}
+
+.dmProfileStatusOnline { background: var(--status-online); }
+.dmProfileStatusIdle { background: var(--status-idle); }
+.dmProfileStatusDnd { background: var(--status-dnd); }
+.dmProfileStatusOffline { background: var(--status-offline); }
+
+.dmProfileBody {
+  padding: 12px 16px 20px;
+}
+
+.dmProfileName {
+  color: var(--text-primary);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  overflow-wrap: anywhere;
+}
+
+.dmProfileTag {
+  margin-top: 2px;
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.dmProfileStatusText,
+.dmProfileBio,
+.dmProfileSection {
+  margin-top: 14px;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+}
+
+.dmProfileStatusText {
+  display: flex;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.dmProfileBio {
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: var(--font-size-sm);
+}
+
+.dmProfileSectionTitle {
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.dmProfileSectionValue {
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+}
+
+@media (max-width: 1120px) {
+  .dmProfilePanel {
+    display: none;
+  }
 }
 
 .headerPillButton:hover {
@@ -722,4 +862,76 @@
 .burstCount {
   color: var(--bg-accent);
   font-weight: 600;
+}
+
+/* New Messages Separator */
+.newMessagesSeparator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 16px 16px;
+  color: var(--text-danger);
+  font-size: 12px;
+  font-weight: var(--font-weight-semibold);
+}
+
+.separatorLine {
+  flex: 1;
+  height: 1px;
+  background: var(--text-danger);
+  opacity: 0.4;
+}
+
+.separatorText {
+  flex-shrink: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+/* Threads Panel */
+.threadsPanelHeader {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.threadCard {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 16px;
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background 100ms;
+  border-bottom: 1px solid var(--border);
+}
+
+.threadCard:hover {
+  background: var(--bg-modifier-hover);
+}
+
+.threadCardActive {
+  background: var(--bg-modifier-selected);
+}
+
+.threadCardContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.threadCardName {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.threadCardMeta {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  margin-top: 2px;
 }

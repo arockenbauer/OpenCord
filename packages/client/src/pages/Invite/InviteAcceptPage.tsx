@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../../services/api';
 import { useAuthStore } from '../../stores/authStore';
@@ -9,6 +9,7 @@ export function InviteAcceptPage() {
   const navigate = useNavigate();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const addGuild = useGuildStore((s) => s.addGuild);
+  const fetchGuild = useGuildStore((s) => s.fetchGuild);
   const selectGuild = useGuildStore((s) => s.selectGuild);
 
   const [invite, setInvite] = useState<any>(null);
@@ -29,26 +30,42 @@ export function InviteAcceptPage() {
       .finally(() => setLoading(false));
   }, [code]);
 
-  const handleJoin = async () => {
+  const handleJoin = useCallback(async () => {
     if (!code) return;
     if (!isAuthenticated) {
-      navigate('/login');
+      localStorage.setItem('pendingInviteCode', code);
+      navigate(`/login?redirect=${encodeURIComponent(`/invite/${code}`)}`, { state: { redirectTo: `/invite/${code}` } });
       return;
     }
 
     setJoining(true);
     setError('');
     try {
-      const guild = await api(`/api/invites/${code}`, { method: 'POST' });
-      addGuild(guild as any);
-      selectGuild((guild as any).id);
+      const result = await api<any>(`/api/invites/${code}`, { method: 'POST' });
+      const guildId = result?.guild?.id;
+      if (!guildId) throw new Error('Invitation invalide.');
+      try {
+        const guild = await fetchGuild(guildId);
+        addGuild(guild as any);
+      } catch {
+        if (result.guild) addGuild(result.guild as any);
+      }
+      localStorage.removeItem('pendingInviteCode');
+      selectGuild(guildId);
       navigate('/channels');
     } catch (err: any) {
       setError(err?.message || 'Impossible de rejoindre ce serveur.');
     } finally {
       setJoining(false);
     }
-  };
+  }, [addGuild, code, fetchGuild, isAuthenticated, navigate, selectGuild]);
+
+  useEffect(() => {
+    if (!code || !isAuthenticated || loading || joining || error) return;
+    if (localStorage.getItem('pendingInviteCode') === code) {
+      void handleJoin();
+    }
+  }, [code, error, handleJoin, isAuthenticated, joining, loading]);
 
   return (
     <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: '#313338', color: 'var(--text-primary)', padding: 16 }}>
