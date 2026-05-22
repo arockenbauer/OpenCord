@@ -123,19 +123,6 @@ function resolveIcon(badge: { name: string; icon?: string; label?: string; color
   return <span className={styles.badgeInitial}>{initial}</span>;
 }
 
-function getBadgeBackground(badge: {
-  display_type?: string;
-  gradient_start?: string;
-  gradient_end?: string;
-  background_color?: string;
-  color?: string;
-}): string {
-  if (badge.display_type === 'premium') {
-    return `linear-gradient(135deg, ${badge.gradient_start || '#FF73FA'}, ${badge.gradient_end || '#7367F0'})`;
-  }
-  return badge.background_color || badge.color || '#5865F2';
-}
-
 interface BadgeProps {
   badge: {
     id: string;
@@ -159,15 +146,13 @@ interface BadgeProps {
 }
 
 export function Badge({ badge, className = '' }: BadgeProps) {
-  const tooltipText = badge.description || badge.label || badge.name;
-  const bg = getBadgeBackground(badge);
+  const tooltipText = badge.label || badge.name;
   const showGlow = badge.display_type === 'premium' && badge.glow;
 
   return (
     <Tooltip content={tooltipText} position="top" delay={200}>
       <span
         className={`${styles.badge} ${className}`}
-        style={{ background: bg }}
         aria-label={tooltipText}
       >
         {showGlow && (

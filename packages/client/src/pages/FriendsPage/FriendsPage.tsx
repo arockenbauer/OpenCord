@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, type MouseEvent as ReactMouseEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UserPlus, Search, MessageCircle, UserX, ShieldBan, Check, X, ArrowLeft, FileText, ShieldAlert, Users } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import type { Relationship } from '../../stores/authStore';
 import { useGuildStore } from '../../stores/guildStore';
+import { useUIStore } from '../../stores/uiStore';
 import type { DMChannel } from '../../stores/guildStore';
 import { UserNoteEditor } from '../../components/UserNoteEditor/UserNoteEditor';
 import { api } from '../../services/api';
@@ -18,11 +19,18 @@ function getStatusClass(status: string, css: Record<string, string>) {
   return css.statusOffline;
 }
 
-function UserAvatar({ user, size = 40 }: { user: { avatar: string | null; global_name?: string | null; username: string }; size?: number }) {
+function UserAvatar({ user, size = 40 }: { user: { id?: string; avatar: string | null; global_name?: string | null; username: string }; size?: number }) {
+  const setProfilePopover = useUIStore((s) => s.setProfilePopover);
+  const openProfile = (event: ReactMouseEvent<HTMLButtonElement>) => {
+    if (!user.id) return;
+    event.stopPropagation();
+    const rect = event.currentTarget.getBoundingClientRect();
+    setProfilePopover({ userId: user.id, x: rect.left, y: rect.top, width: rect.width, height: rect.height });
+  };
   return (
-    <div className={styles.avatar} style={{ width: size, height: size, fontSize: size * 0.4 }}>
+    <button className={styles.avatar} style={{ width: size, height: size, fontSize: size * 0.4 }} onClick={openProfile} data-user-popout-trigger="true">
       {user.avatar ? <img src={user.avatar} alt="" /> : (user.global_name || user.username).slice(0, 1).toUpperCase()}
-    </div>
+    </button>
   );
 }
 
@@ -105,8 +113,8 @@ export function FriendsPage() {
     try {
       const rel = relationships.find((r) => r.user.id === userId);
       if (!rel) return;
-      const result = await api.friends.accept<{ id: string; type: number }>(userId);
-      upsertRelationship({ id: result.id, type: 1, user: rel.user });
+      const result = await api.friends.accept<{ id: string; type: number; user?: any }>(userId);
+      upsertRelationship({ id: result.id, type: 1, user: result.user || rel.user });
     } catch { /* ignore */ }
   };
 
@@ -495,6 +503,7 @@ function FriendRow({
 }
 
 function AddFriendPanel() {
+  const upsertRelationship = useAuthStore((s) => s.upsertRelationship);
   const [input, setInput] = useState('');
   const [msg, setMsg] = useState('');
   const [success, setSuccess] = useState(false);
@@ -509,10 +518,11 @@ function AddFriendPanel() {
     setMsg('');
     setSuccess(false);
     try {
-      await api('/api/relationships', {
+      const relationship = await api<{ id: string; type: number; user?: any }>('/api/relationships', {
         method: 'POST',
         body: JSON.stringify({ username, discriminator }),
       });
+      if (relationship.user) upsertRelationship(relationship as any);
       setSuccess(true);
       setMsg(`Demande envoyée à ${username} !`);
       setInput('');

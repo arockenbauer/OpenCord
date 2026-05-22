@@ -239,6 +239,7 @@ export async function revokeToken(token: string, clientId: string, clientSecret:
     }
   }
 
+  // Token not found, but client credentials are valid - return success: false instead of throwing
   return { success: false };
 }
 

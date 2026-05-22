@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, type MouseEvent } from 'react';
 import { UserPlus, MessageCircle, UserX, ShieldBan, Check, X } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { useGuildStore } from '../../stores/guildStore';
+import { useUIStore } from '../../stores/uiStore';
 import type { DMChannel } from '../../stores/guildStore';
 import { api } from '../../services/api';
 import styles from './FriendsView.module.css';
@@ -16,10 +17,19 @@ function getStatusClass(status: string, css: Record<string, string>) {
 }
 
 function UserAvatar({ user, size = 40 }: { user: any; size?: number }) {
+  const setProfilePopover = useUIStore((s) => s.setProfilePopover);
+
+  const openProfile = (event: MouseEvent<HTMLButtonElement>) => {
+    if (!user.id) return;
+    event.stopPropagation();
+    const rect = event.currentTarget.getBoundingClientRect();
+    setProfilePopover({ userId: user.id, x: rect.left, y: rect.top, width: rect.width, height: rect.height });
+  };
+
   return (
-    <div className={styles.avatar} style={{ width: size, height: size, fontSize: size * 0.4 }}>
+    <button className={styles.avatar} style={{ width: size, height: size, fontSize: size * 0.4 }} onClick={openProfile} data-user-popout-trigger="true">
       {user.avatar ? <img src={user.avatar} alt="" /> : (user.global_name || user.username).slice(0, 1).toUpperCase()}
-    </div>
+    </button>
   );
 }
 
@@ -54,8 +64,8 @@ export function FriendsView() {
     try {
       const rel = relationships.find((r) => r.user.id === userId);
       if (!rel) return;
-      const result = await api.friends.accept<{ id: string; type: number }>(rel.user.id);
-      upsertRelationship({ id: result.id, type: 1, user: rel.user });
+      const result = await api.friends.accept<{ id: string; type: number; user?: any }>(rel.user.id);
+      upsertRelationship({ id: result.id, type: 1, user: result.user || rel.user });
     } catch { /* ignore */ }
   };
 
@@ -233,6 +243,7 @@ function FriendSection({
 }
 
 function AddFriendPanel() {
+  const upsertRelationship = useAuthStore((s) => s.upsertRelationship);
   const [input, setInput] = useState('');
   const [msg, setMsg] = useState('');
   const [success, setSuccess] = useState(false);
@@ -247,7 +258,8 @@ function AddFriendPanel() {
     setMsg('');
     setSuccess(false);
     try {
-      await api.post('/relationships', { username, discriminator });
+      const relationship = await api.post<{ id: string; type: number; user?: any }>('/relationships', { username, discriminator });
+      if (relationship.user) upsertRelationship(relationship as any);
       setSuccess(true);
       setMsg(`Demande envoyée à ${username} !`);
       setInput('');

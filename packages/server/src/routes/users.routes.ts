@@ -51,6 +51,7 @@ router.put('/@me/notes/:userId', authenticate, users.setUserNote);
 router.delete('/@me/notes/:userId', authenticate, users.deleteUserNote);
 router.get('/@me/connections', authenticate, users.getConnections);
 router.post('/@me/connections', authenticate, users.createConnection);
+router.delete('/@me/connections/:platform', authenticate, users.deleteConnection);
 router.delete('/@me/connections/:platform/:platformUserId', authenticate, users.deleteConnection);
 router.get('/@me/activities', authenticate, users.getActivities);
 router.post('/@me/activities', authenticate, users.updateActivity);

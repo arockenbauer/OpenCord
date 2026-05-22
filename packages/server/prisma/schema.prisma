@@ -32,6 +32,8 @@ model User {
   locale                           String                         @default("fr")
   theme                            String                         @default("dark")
   font_size                        Int                            @default(14)
+  compact_mode                     Boolean                        @default(false)
+  show_activity                    Boolean                        @default(true)
   explicit_content_filter          Int                            @default(0)
   default_message_notifications    Int                            @default(0)
   allow_dms_from                   String                         @default("everyone")

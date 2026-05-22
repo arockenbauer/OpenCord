@@ -10,18 +10,54 @@
   pointer-events: none;
 }
 
+.tooltip::after {
+  content: '';
+  position: absolute;
+  width: 0;
+  height: 0;
+  border: 5px solid transparent;
+}
+
+.tooltip.top::after {
+  left: 50%;
+  bottom: -10px;
+  transform: translateX(-50%);
+  border-top-color: #111214;
+}
+
+.tooltip.bottom::after {
+  left: 50%;
+  top: -10px;
+  transform: translateX(-50%);
+  border-bottom-color: #111214;
+}
+
+.tooltip.left::after {
+  right: -10px;
+  top: 50%;
+  transform: translateY(-50%);
+  border-left-color: #111214;
+}
+
+.tooltip.right::after {
+  left: -10px;
+  top: 50%;
+  transform: translateY(-50%);
+  border-right-color: #111214;
+}
+
 @keyframes tooltipFadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
 }
 
 .content {
-  background: var(--bg-floating);
-  border-radius: var(--radius-md);
-  padding: 6px 10px;
-  font-size: var(--font-size-xs);
-  font-weight: 500;
-  color: var(--text-primary);
+  background: #111214;
+  border-radius: 5px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #f2f3f5;
   white-space: nowrap;
   max-width: 200px;
   overflow: hidden;

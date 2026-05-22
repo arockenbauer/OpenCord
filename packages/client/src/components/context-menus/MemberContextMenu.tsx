@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { MessageCircle, AtSign, UserMinus, Ban, Clock, Copy, ChevronRight, UserCog } from 'lucide-react';
+import { MessageCircle, AtSign, UserMinus, Ban, Clock, Copy, ChevronRight, UserCog, UserPlus } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { useGuildStore } from '../../stores/guildStore';
 import type { DMChannel } from '../../stores/guildStore';
@@ -96,6 +96,34 @@ export function MemberContextMenu({ member, guildId, position, onClose, onViewPr
     onClose();
   };
 
+  const handleInviteToServer = async () => {
+    const targetGuild = guild;
+    if (!targetGuild) return;
+    const inviteChannel = targetGuild.channels?.find((channel: any) => channel.type === 0 || channel.type === 5);
+    if (!inviteChannel) return;
+    onClose();
+    try {
+      const invite = await api<any>(`/api/guilds/${guildId}/channels/${inviteChannel.id}/invites`, {
+        method: 'POST',
+        body: JSON.stringify({
+          max_age: 604800,
+          max_uses: 0,
+          temporary: false,
+          unique: false,
+          source: 'context_menu',
+        }),
+      });
+      const inviteUrl = `${window.location.origin}/invite/${invite.code}`;
+      const channel = await api.users.createDM<DMChannel>(member.user.id);
+      addDMChannel(channel);
+      await api.dm.createMessage(channel.id, { content: inviteUrl });
+      selectGuild(null);
+      selectChannel(channel.id);
+    } catch {
+      /* Server permissions or DM privacy handle the failure. */
+    }
+  };
+
   const handleKick = async () => {
     if (!confirm(`Expulser ${displayName} ?`)) return;
     onClose();
@@ -147,6 +175,12 @@ export function MemberContextMenu({ member, guildId, position, onClose, onViewPr
         <button className={styles.item} onClick={handleOpenDM}>
           <MessageCircle size={16} />
           Envoyer un message
+        </button>
+      )}
+      {!isSelf && guild && (
+        <button className={styles.item} onClick={handleInviteToServer}>
+          <UserPlus size={16} />
+          Inviter au serveur
         </button>
       )}
       <button className={styles.item} onClick={handleMention}>

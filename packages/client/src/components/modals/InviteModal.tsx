@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Copy, Check, Trash2, Link } from 'lucide-react';
+import { Copy, Check, Trash2, Link, Settings, Hash, Clock, Users } from 'lucide-react';
 import { Modal, modalStyles } from '../Modal/Modal';
 import { api } from '../../services/api';
 import { format } from 'date-fns';
@@ -8,6 +8,7 @@ interface Invite {
   code: string;
   guild_id: string;
   channel_id: string;
+  channel?: { id: string; name: string; type: number };
   inviter?: { username: string; discriminator: string };
   uses: number;
   max_uses: number;
@@ -45,33 +46,48 @@ const MAX_USES_OPTIONS = [
 export function InviteModal({ guildId, channelId, onClose }: InviteModalProps) {
   const [invites, setInvites] = useState<Invite[]>([]);
   const [newInvite, setNewInvite] = useState<Invite | null>(null);
-  const [maxAge, setMaxAge] = useState(86400);
+  const [maxAge, setMaxAge] = useState(604800);
   const [maxUses, setMaxUses] = useState(0);
+  const [temporary, setTemporary] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [loading, setLoading] = useState(false);
   const [listLoading, setListLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    loadInvites();
-  }, []);
+    void loadInvites();
+  }, [guildId]);
 
   const loadInvites = async () => {
     setListLoading(true);
     try {
       const data = await api<Invite[]>(`/api/guilds/${guildId}/invites`);
-      setInvites(data || []);
+      const loaded = data || [];
+      setInvites(loaded);
+      const reusable = loaded.find((invite) => invite.channel_id === channelId && invite.max_age === 604800 && invite.max_uses === 0);
+      if (reusable) {
+        setNewInvite(reusable);
+      } else {
+        await createInvite({ maxAge: 604800, maxUses: 0, temporary: false, reusable: true });
+      }
     } catch { /* handled */ }
     setListLoading(false);
   };
 
-  const handleCreate = async () => {
+  const createInvite = async (options?: { maxAge?: number; maxUses?: number; temporary?: boolean; reusable?: boolean }) => {
     setLoading(true);
     setError('');
     try {
       const invite = await api<Invite>(`/api/guilds/${guildId}/invites`, {
         method: 'POST',
-        body: JSON.stringify({ channel_id: channelId, max_age: maxAge, max_uses: maxUses }),
+        body: JSON.stringify({
+          channel_id: channelId,
+          max_age: options?.maxAge ?? maxAge,
+          max_uses: options?.maxUses ?? maxUses,
+          temporary: options?.temporary ?? temporary,
+          unique: !(options?.reusable ?? false),
+        }),
       });
       setNewInvite(invite);
       setInvites((prev) => [invite, ...prev.filter((i) => i.code !== invite.code)]);
@@ -81,9 +97,14 @@ export function InviteModal({ guildId, channelId, onClose }: InviteModalProps) {
     setLoading(false);
   };
 
+  const handleCreate = async () => {
+    await createInvite();
+    setShowAdvanced(false);
+  };
+
   const handleDelete = async (code: string) => {
     try {
-      await api(`/api/guilds/${guildId}/invites/${code}`, { method: 'DELETE' });
+      await api(`/api/invites/${code}`, { method: 'DELETE' });
       setInvites((prev) => prev.filter((i) => i.code !== code));
       if (newInvite?.code === code) setNewInvite(null);
     } catch { /* handled */ }
@@ -97,6 +118,8 @@ export function InviteModal({ guildId, channelId, onClose }: InviteModalProps) {
   };
 
   const inviteUrl = newInvite ? `${window.location.origin}/invite/${newInvite.code}` : '';
+  const activeInvite = newInvite || invites[0] || null;
+  const activeInviteUrl = activeInvite ? `${window.location.origin}/invite/${activeInvite.code}` : inviteUrl;
 
   return (
     <Modal onClose={onClose}>
@@ -107,64 +130,89 @@ export function InviteModal({ guildId, channelId, onClose }: InviteModalProps) {
 
       {error && <div className={modalStyles.error}>{error}</div>}
 
-      {newInvite ? (
-        <div>
-          <div className={modalStyles.subtitle}>Lien d'invitation créé !</div>
-          <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
-            <input
-              readOnly
-              value={inviteUrl}
-              className={modalStyles.input}
-              style={{ flex: 1 }}
-            />
-            <button
-              className={modalStyles.buttonPrimary}
-              style={{ width: '100px', flexShrink: 0 }}
-              onClick={() => handleCopy(newInvite.code)}
-            >
-              {copied ? <Check size={16} /> : <Copy size={16} />}
-              {copied ? 'Copié' : 'Copier'}
-            </button>
-          </div>
-          <button className={modalStyles.buttonSecondary} onClick={() => setNewInvite(null)}>
-            Créer une autre invitation
+      <div>
+        <div className={modalStyles.subtitle}>Envoyez ce lien à vos amis pour les inviter sur le serveur.</div>
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+          <input
+            readOnly
+            value={activeInviteUrl}
+            className={modalStyles.input}
+            style={{ flex: 1, fontFamily: 'monospace', fontWeight: 600 }}
+            aria-label="Lien d'invitation"
+          />
+          <button
+            className={modalStyles.buttonPrimary}
+            style={{ width: '108px', flexShrink: 0 }}
+            onClick={() => activeInvite && handleCopy(activeInvite.code)}
+            disabled={!activeInvite}
+          >
+            {copied ? <Check size={16} /> : <Copy size={16} />}
+            {copied ? 'Copié' : 'Copier'}
           </button>
         </div>
-      ) : (
-        <div>
-          <div className={modalStyles.subtitle}>Configurez les options de votre invitation</div>
 
-          <div className={modalStyles.field}>
-            <label className={modalStyles.label}>Expiration</label>
-            <select
-              className={modalStyles.input}
-              value={maxAge}
-              onChange={(e) => setMaxAge(Number(e.target.value))}
-            >
-              {EXPIRY_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
+        {activeInvite && (
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', color: 'var(--text-muted)', fontSize: '12px', marginBottom: '12px' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Hash size={13} /> {activeInvite.channel_id === channelId ? 'Salon actuel' : activeInvite.channel?.name || 'Salon'}</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Clock size={13} /> {activeInvite.expires_at ? `Expire le ${format(new Date(activeInvite.expires_at), 'dd/MM/yyyy HH:mm')}` : 'N’expire jamais'}</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Users size={13} /> {activeInvite.uses}/{activeInvite.max_uses || '∞'}</span>
           </div>
+        )}
 
-          <div className={modalStyles.field}>
-            <label className={modalStyles.label}>Utilisations maximum</label>
-            <select
-              className={modalStyles.input}
-              value={maxUses}
-              onChange={(e) => setMaxUses(Number(e.target.value))}
-            >
-              {MAX_USES_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
+        <button
+          className={modalStyles.buttonSecondary}
+          onClick={() => setShowAdvanced((value) => !value)}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: showAdvanced ? 16 : 0 }}
+        >
+          <Settings size={16} />
+          Modifier le lien d'invitation
+        </button>
+
+        {showAdvanced && (
+          <div style={{ padding: '12px', borderRadius: 8, background: 'var(--bg-tertiary)', marginBottom: 12 }}>
+            <div className={modalStyles.field}>
+              <label className={modalStyles.label}>Expire après</label>
+              <select
+                className={modalStyles.input}
+                value={maxAge}
+                onChange={(e) => setMaxAge(Number(e.target.value))}
+              >
+                {EXPIRY_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className={modalStyles.field}>
+              <label className={modalStyles.label}>Nombre max d'utilisations</label>
+              <select
+                className={modalStyles.input}
+                value={maxUses}
+                onChange={(e) => setMaxUses(Number(e.target.value))}
+              >
+                {MAX_USES_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12, color: 'var(--text-primary)', fontSize: 14 }}>
+              <span>Accorder une adhésion temporaire</span>
+              <input type="checkbox" checked={temporary} onChange={(event) => setTemporary(event.target.checked)} />
+            </label>
+
+            <button className={modalStyles.buttonPrimary} onClick={handleCreate} disabled={loading}>
+              {loading ? 'Création…' : 'Générer un nouveau lien'}
+            </button>
           </div>
+        )}
 
+        {!activeInvite && !showAdvanced && (
           <button className={modalStyles.buttonPrimary} onClick={handleCreate} disabled={loading}>
             {loading ? 'Création…' : 'Créer une invitation'}
           </button>
-        </div>
-      )}
+        )}
+      </div>
 
       {invites.length > 0 && (
         <div style={{ marginTop: '24px' }}>

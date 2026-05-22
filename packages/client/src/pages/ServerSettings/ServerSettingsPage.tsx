@@ -706,6 +706,10 @@ function RolesTab({ guild }: { guild: any }) {
   const [roles, setRoles] = useState<any[]>(guild.roles || []);
 
   useEffect(() => {
+    setRoles(guild.roles || []);
+  }, [guild.roles]);
+
+  useEffect(() => {
     if (!selectedRole || activeRoleTab !== 'members') return;
     let mounted = true;
     setRoleMembersLoading(true);
@@ -743,6 +747,7 @@ function RolesTab({ guild }: { guild: any }) {
         body: JSON.stringify({ name: 'Nouveau rôle' }),
       });
       updateGuildStore(guild.id, { roles: [...guild.roles, role] });
+      setRoles((prev) => [...prev, role]);
       selectRole(role);
     } catch (e: any) { setMsg(e.message); }
   };
@@ -751,18 +756,25 @@ function RolesTab({ guild }: { guild: any }) {
     if (!selectedRole) return;
     setSaving(true);
     try {
+      const payload = selectedRole.name === '@everyone'
+        ? {
+            mentionable: roleMentionable,
+            permissions: rolePerms.toString(),
+          }
+        : {
+            name: roleName,
+            color: roleColor || null,
+            hoist: roleHoist,
+            mentionable: roleMentionable,
+            permissions: rolePerms.toString(),
+            unicode_emoji: roleUnicodeEmoji || null,
+          };
       const updated = await api<any>(`/api/guilds/${guild.id}/roles/${selectedRole.id}`, {
         method: 'PATCH',
-        body: JSON.stringify({
-          name: roleName,
-          color: roleColor || null,
-          hoist: roleHoist,
-          mentionable: roleMentionable,
-          permissions: rolePerms.toString(),
-          unicode_emoji: roleUnicodeEmoji || null,
-        }),
+        body: JSON.stringify(payload),
       });
       updateGuildStore(guild.id, { roles: guild.roles.map((r: any) => r.id === updated.id ? updated : r) });
+      setRoles((prev) => prev.map((r: any) => r.id === updated.id ? updated : r));
       setSelectedRole(updated);
       setMsg('Modifications enregistrées.');
     } catch (e: any) { setMsg(e.message); }
@@ -775,6 +787,7 @@ function RolesTab({ guild }: { guild: any }) {
     try {
       await api(`/api/guilds/${guild.id}/roles/${selectedRole.id}`, { method: 'DELETE' });
       updateGuildStore(guild.id, { roles: guild.roles.filter((r: any) => r.id !== selectedRole.id) });
+      setRoles((prev) => prev.filter((r: any) => r.id !== selectedRole.id));
       setSelectedRole(null);
     } catch (e: any) { setMsg(e.message); }
   };
@@ -787,6 +800,7 @@ function RolesTab({ guild }: { guild: any }) {
     try {
       const updated = await api<any>(`/api/guilds/${guild.id}/roles/${selectedRole.id}/icon`, { method: 'PATCH', body: form as any });
       updateGuildStore(guild.id, { roles: guild.roles.map((r: any) => r.id === updated.id ? updated : r) });
+      setRoles((prev) => prev.map((r: any) => r.id === updated.id ? updated : r));
       setSelectedRole(updated);
       setRoleIcon(updated.icon ?? null);
     } catch (err: any) { setMsg(err.message); }
@@ -794,7 +808,7 @@ function RolesTab({ guild }: { guild: any }) {
   };
 
   const moveRole = async (roleId: string, direction: -1 | 1) => {
-    const sorted = [...(guild.roles || [])].sort((a: any, b: any) => a.position - b.position);
+    const sorted = [...roles].sort((a: any, b: any) => a.position - b.position);
     const idx = sorted.findIndex((r: any) => r.id === roleId);
     if (idx <= 0 && direction === -1) return;
     if (idx >= sorted.length - 1 && direction === 1) return;
@@ -806,12 +820,13 @@ function RolesTab({ guild }: { guild: any }) {
         method: 'PATCH',
         body: JSON.stringify([{ id: roleId, position: other.position }, { id: other.id, position: sorted[idx].position }]),
       });
-      const updatedRoles = guild.roles.map((r: any) => {
+      const updatedRoles = roles.map((r: any) => {
         if (r.id === roleId) return { ...r, position: other.position };
         if (r.id === other.id) return { ...r, position: sorted[idx].position };
         return r;
       });
       updateGuildStore(guild.id, { roles: updatedRoles });
+      setRoles(updatedRoles);
     } catch (e: any) { setMsg(e.message); }
   };
 
@@ -840,10 +855,10 @@ function RolesTab({ guild }: { guild: any }) {
     const oldIndex = sortedRoles.findIndex((r: any) => r.id === active.id);
     const newIndex = sortedRoles.findIndex((r: any) => r.id === over.id);
     if (oldIndex < 0 || newIndex < 0) return;
-    const newRoles = arrayMove(sortedRoles, oldIndex, newIndex);
+    const newRoles = arrayMove(sortedRoles, oldIndex, newIndex).map((r: any, i: number) => ({ ...r, position: sortedRoles.length - i }));
     setRoles(newRoles);
     try {
-      const positions = newRoles.map((r: any, i: number) => ({ id: r.id, position: newRoles.length - i }));
+      const positions = newRoles.map((r: any) => ({ id: r.id, position: r.position }));
       await api(`/api/guilds/${guild.id}/roles/positions`, {
         method: 'PATCH',
         body: JSON.stringify(positions),
@@ -1295,6 +1310,24 @@ function ChannelsTab({ guild }: { guild: any }) {
     } catch (e: any) { setMsg(e.message); }
   };
 
+  const handleCycleOverwriteBit = async (overwriteId: string, bit: bigint) => {
+    const overwrite = overwrites.find((o) => o.id === overwriteId);
+    if (!overwrite) return;
+    const currentAllow = BigInt(overwrite.allow || '0');
+    const currentDeny = BigInt(overwrite.deny || '0');
+    const allowed = (currentAllow & bit) !== 0n;
+    const denied = (currentDeny & bit) !== 0n;
+    const nextAllow = allowed ? (currentAllow & ~bit) : denied ? currentAllow : (currentAllow | bit);
+    const nextDeny = allowed ? (currentDeny | bit) : denied ? (currentDeny & ~bit) : currentDeny;
+    try {
+      await api(`/api/channels/${selectedChannel.id}/permissions/${overwriteId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ allow: nextAllow.toString(), deny: nextDeny.toString() }),
+      });
+      setOverwrites((prev) => prev.map((o) => o.id === overwriteId ? { ...o, allow: nextAllow.toString(), deny: nextDeny.toString() } : o));
+    } catch (e: any) { setMsg(e.message); }
+  };
+
   const handleDeleteOverwrite = async (overwriteId: string) => {
     if (!confirm('Supprimer cette permission ?')) return;
     try {
@@ -1397,7 +1430,7 @@ function ChannelsTab({ guild }: { guild: any }) {
                         const allowed = (BigInt(ow.allow || '0') & p.bit) !== 0n;
                         const denied = (BigInt(ow.deny || '0') & p.bit) !== 0n;
                         return (
-                          <div key={p.bit.toString()} className={styles.permCell} onClick={() => !allowed && !denied && handleUpdateOverwrite(ow.id, 'allow', p.bit)}>
+                          <div key={p.bit.toString()} className={styles.permCell} onClick={() => handleCycleOverwriteBit(ow.id, p.bit)} title={`${p.label}: cliquer pour changer`}>
                             <span className={`${styles.permBadge} ${allowed ? styles.permAllowed : ''} ${denied ? styles.permDenied : ''}`}>
                               {!allowed && !denied ? '—' : allowed ? '✓' : '✗'}
                             </span>

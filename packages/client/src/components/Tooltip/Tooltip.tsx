@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import styles from './Tooltip.module.css';
 
 interface TooltipProps {
@@ -18,11 +19,14 @@ export function Tooltip({
 }: TooltipProps) {
   const [visible, setVisible] = useState(false);
   const [positioned, setPositioned] = useState(false);
+  const [resolvedPosition, setResolvedPosition] = useState(position);
   const [style, setStyle] = useState<React.CSSProperties>({});
   const triggerRef = useRef<HTMLDivElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const positionedRef = useRef(false);
+
+  const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 
   const showTooltip = useCallback(() => {
     if (disabled || !content) return;
@@ -36,9 +40,10 @@ export function Tooltip({
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     setVisible(false);
     setPositioned(false);
+    setResolvedPosition(position);
     setStyle({});
     positionedRef.current = false;
-  }, []);
+  }, [position]);
 
   useEffect(() => {
     return () => { if (timeoutRef.current) clearTimeout(timeoutRef.current); };
@@ -55,41 +60,64 @@ export function Tooltip({
       const triggerRect = triggerRef.current.getBoundingClientRect();
       const tooltipRect = tooltipRef.current.getBoundingClientRect();
       const gap = 10;
+      const padding = 8;
 
       let newStyle: React.CSSProperties = {};
+      let finalPosition = position;
 
       if (position === 'top') {
-        // Place tooltip's TOP edge above trigger with gap
+        const top = triggerRect.top - tooltipRect.height - gap;
+        finalPosition = top < padding ? 'bottom' : 'top';
         newStyle = {
-          top: `${triggerRect.top - tooltipRect.height - gap}px`,
-          left: `${triggerRect.left + triggerRect.width / 2}px`,
+          top: `${finalPosition === 'top' ? top : triggerRect.bottom + gap}px`,
+          left: `${clamp(
+            triggerRect.left + triggerRect.width / 2,
+            padding + tooltipRect.width / 2,
+            window.innerWidth - padding - tooltipRect.width / 2,
+          )}px`,
           transform: 'translateX(-50%)',
         };
       } else if (position === 'bottom') {
-        // Place tooltip's BOTTOM edge below trigger with gap
+        const top = triggerRect.bottom + gap;
+        finalPosition = top + tooltipRect.height > window.innerHeight - padding ? 'top' : 'bottom';
         newStyle = {
-          top: `${triggerRect.bottom + gap}px`,
-          left: `${triggerRect.left + triggerRect.width / 2}px`,
+          top: `${finalPosition === 'bottom' ? top : triggerRect.top - tooltipRect.height - gap}px`,
+          left: `${clamp(
+            triggerRect.left + triggerRect.width / 2,
+            padding + tooltipRect.width / 2,
+            window.innerWidth - padding - tooltipRect.width / 2,
+          )}px`,
           transform: 'translateX(-50%)',
         };
       } else if (position === 'left') {
-        // Place tooltip's RIGHT edge to the left of trigger with gap
+        const left = triggerRect.left - tooltipRect.width - gap;
+        finalPosition = left < padding ? 'right' : 'left';
         newStyle = {
-          top: `${triggerRect.top + triggerRect.height / 2}px`,
-          left: `${triggerRect.left - tooltipRect.width - gap}px`,
+          top: `${clamp(
+            triggerRect.top + triggerRect.height / 2,
+            padding + tooltipRect.height / 2,
+            window.innerHeight - padding - tooltipRect.height / 2,
+          )}px`,
+          left: `${finalPosition === 'left' ? left : triggerRect.right + gap}px`,
           transform: 'translateY(-50%)',
         };
       } else if (position === 'right') {
-        // Place tooltip's LEFT edge to the right of trigger with gap
+        const left = triggerRect.right + gap;
+        finalPosition = left + tooltipRect.width > window.innerWidth - padding ? 'left' : 'right';
         newStyle = {
-          top: `${triggerRect.top + triggerRect.height / 2}px`,
-          left: `${triggerRect.right + gap}px`,
+          top: `${clamp(
+            triggerRect.top + triggerRect.height / 2,
+            padding + tooltipRect.height / 2,
+            window.innerHeight - padding - tooltipRect.height / 2,
+          )}px`,
+          left: `${finalPosition === 'right' ? left : triggerRect.left - tooltipRect.width - gap}px`,
           transform: 'translateY(-50%)',
         };
       }
 
       positionedRef.current = true;
       setStyle(newStyle);
+      setResolvedPosition(finalPosition);
       setPositioned(true);
     });
 
@@ -106,15 +134,16 @@ export function Tooltip({
       onBlur={hideTooltip}
     >
       {children}
-      {visible && content && (
+      {visible && content && createPortal(
         <div
           ref={tooltipRef}
-          className={styles.tooltip}
+          className={`${styles.tooltip} ${styles[resolvedPosition]}`}
           style={{ ...style, visibility: positioned ? 'visible' : 'hidden' }}
           role="tooltip"
         >
           <div className={styles.content}>{content}</div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MessageCircle, ShieldBan, UserPlus, UserRoundCheck, X, Reply, Copy, Edit2, Trash2, ShieldAlert } from 'lucide-react';
+import { Check, MessageCircle, Plus, ShieldBan, UserPlus, UserRoundCheck, X, Reply, Copy, Edit2, Trash2, ShieldAlert } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuthStore } from '../../stores/authStore';
 import { useGuildStore } from '../../stores/guildStore';
@@ -242,12 +242,15 @@ function UserProfilePopout() {
   const addDMChannel = useGuildStore((s) => s.addDMChannel);
   const selectGuild = useGuildStore((s) => s.selectGuild);
   const selectChannel = useGuildStore((s) => s.selectChannel);
+  const updateMember = useGuildStore((s) => s.updateMember);
   const profilePopover = useUIStore((s) => s.profilePopover);
   const setProfilePopover = useUIStore((s) => s.setProfilePopover);
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [actionError, setActionError] = useState('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [roleActionId, setRoleActionId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!profilePopover) return;
@@ -255,6 +258,7 @@ function UserProfilePopout() {
     let mounted = true;
     setLoading(true);
     setError('');
+    setActionError('');
     setProfile(null);
 
     const query = selectedGuild?.id ? `?guild_id=${encodeURIComponent(selectedGuild.id)}` : '';
@@ -300,12 +304,37 @@ function UserProfilePopout() {
   const roles = profile?.guild_member?.roles || [];
   const mutualGuilds = profile?.mutual_guilds || [];
   const mutualFriends = profile?.mutual_friends || [];
+  const profileRoleIds = useMemo(() => new Set(roles.map((role: any) => role.id)), [roles]);
+  const guildMember = selectedGuild?.members.find((member: any) => member.user.id === profilePopover.userId);
+  const selectedGuildOwnerId = selectedGuild?.owner_id;
+  const currentHighestRole = selectedGuild && currentUser
+    ? getHighestClientRolePosition(selectedGuild, currentUser.id)
+    : 0;
+  const targetHighestRole = selectedGuild
+    ? getHighestClientRolePosition(selectedGuild, profilePopover.userId)
+    : 0;
+  const canManageGuildRoles = Boolean(
+    selectedGuild &&
+    profile?.guild_member &&
+    currentUser &&
+    !isSelf &&
+    hasGuildPermissionClient(selectedGuild, currentUser.id, BigInt(0x10000000)) &&
+    (selectedGuildOwnerId === currentUser.id || currentHighestRole > targetHighestRole),
+  );
+  const manageableRoles = selectedGuild?.roles
+    .filter((role: any) => role.name !== '@everyone')
+    .sort((a: any, b: any) => b.position - a.position)
+    .map((role: any) => ({
+      ...role,
+      manageable: canManageGuildRoles && Boolean(currentUser) && (selectedGuildOwnerId === currentUser?.id || currentHighestRole > role.position),
+    })) || [];
 
   const close = () => setProfilePopover(null);
 
   const handleOpenDM = async () => {
     if (!profile) return;
     setActionLoading('dm');
+    setActionError('');
     try {
       const channel = await api.users.createDM<DMChannel>(profile.id);
       addDMChannel(channel);
@@ -313,7 +342,7 @@ function UserProfilePopout() {
       selectChannel(channel.id);
       close();
     } catch (err: any) {
-      setError(err.message);
+      setActionError(err.message);
     }
     setActionLoading(null);
   };
@@ -321,14 +350,15 @@ function UserProfilePopout() {
   const handleRelationshipAction = async () => {
     if (!profile || !primaryAction) return;
     setActionLoading('relationship');
+    setActionError('');
     try {
       if (primaryAction === 'add' || primaryAction === 'accept') {
         if (primaryAction === 'accept') {
-          const result = await api.friends.accept<{ id: string; type: number }>(profile.id);
+          const result = await api.friends.accept<{ id: string; type: number; user?: any }>(profile.id);
           upsertRelationship({
             id: result.id,
             type: 1,
-            user: {
+            user: result.user || {
               id: profile.id,
               username: profile.username,
               discriminator: profile.discriminator,
@@ -340,10 +370,7 @@ function UserProfilePopout() {
           });
           setProfile((prev: any) => prev ? { ...prev, relationship_type: 1 } : prev);
         } else {
-          const relationship = await api<{ id: string; type: number }>('/api/relationships', {
-            method: 'POST',
-            body: JSON.stringify({ username: profile.username, discriminator: profile.discriminator }),
-          });
+          const relationship = await api.friends.add<{ id: string; type: number }>(profile.id);
           upsertRelationship({
             id: relationship.id,
             type: relationship.type,
@@ -365,7 +392,7 @@ function UserProfilePopout() {
         setProfile((prev: any) => prev ? { ...prev, relationship_type: null } : prev);
       }
     } catch (err: any) {
-      setError(err.message);
+      setActionError(err.message);
     }
     setActionLoading(null);
   };
@@ -373,6 +400,7 @@ function UserProfilePopout() {
   const handleBlockToggle = async () => {
     if (!profile) return;
     setActionLoading('block');
+    setActionError('');
     try {
       if (relationshipType === 2) {
         await api.friends.unblock(profile.id);
@@ -396,13 +424,52 @@ function UserProfilePopout() {
         setProfile((prev: any) => prev ? { ...prev, relationship_type: 2 } : prev);
       }
     } catch (err: any) {
-      setError(err.message);
+      setActionError(err.message);
     }
     setActionLoading(null);
   };
 
+  const handleRoleToggle = async (role: any) => {
+    if (!selectedGuild || !profile || !guildMember || !role.manageable) return;
+    const hasRole = profileRoleIds.has(role.id);
+    const nextRoleIds = hasRole
+      ? guildMember.roles.filter((roleId: string) => roleId !== role.id)
+      : [...guildMember.roles, role.id];
+    setRoleActionId(role.id);
+    setActionError('');
+
+    try {
+      if (hasRole) {
+        await api.guilds.removeRole(selectedGuild.id, profile.id, role.id);
+      } else {
+        await api.guilds.addRole(selectedGuild.id, profile.id, role.id);
+      }
+
+      const nextProfileRoles = manageableRoles
+        .filter((guildRole: any) => nextRoleIds.includes(guildRole.id))
+        .sort((a: any, b: any) => b.position - a.position);
+
+      updateMember(selectedGuild.id, {
+        ...guildMember,
+        roles: nextRoleIds,
+        user: guildMember.user,
+      } as any);
+      setProfile((prev: any) => prev ? {
+        ...prev,
+        guild_member: {
+          ...prev.guild_member,
+          roles: nextProfileRoles,
+        },
+      } : prev);
+    } catch (err: any) {
+      setActionError(err.message || 'Impossible de modifier les rôles');
+    } finally {
+      setRoleActionId(null);
+    }
+  };
+
   return (
-    <div className={styles.profilePopout} style={position} data-user-popout="true">
+    <div className={styles.profilePopout} style={position} data-user-popout="true" data-testid="user-profile-popout" role="dialog" aria-modal="false" aria-label="Profil utilisateur">
       {loading ? (
         <div className={styles.profileLoading}>Chargement…</div>
       ) : error ? (
@@ -479,6 +546,8 @@ function UserProfilePopout() {
               </div>
             )}
 
+            {actionError && <div className={styles.popoutActionError}>{actionError}</div>}
+
             <div className={styles.popoutSection}>
               <div className={styles.popoutSectionTitle}>Membre depuis</div>
               <div className={styles.popoutSectionValue}>{formatProfileDate(profile.created_at)}</div>
@@ -501,6 +570,38 @@ function UserProfilePopout() {
                     </span>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {selectedGuild && profile.guild_member && manageableRoles.length > 0 && (
+              <div className={styles.popoutSection}>
+                <div className={styles.popoutSectionTitle}>Gérer les rôles</div>
+                <div className={styles.popoutRoleManager} data-testid="profile-role-manager">
+                  {manageableRoles.map((role: any) => {
+                    const assigned = profileRoleIds.has(role.id);
+                    return (
+                      <button
+                        key={role.id}
+                        type="button"
+                        className={`${styles.popoutRoleToggle} ${assigned ? styles.popoutRoleToggleActive : ''}`}
+                        onClick={() => void handleRoleToggle(role)}
+                        disabled={!role.manageable || roleActionId !== null}
+                        title={!canManageGuildRoles ? 'Permission MANAGE_ROLES requise' : !role.manageable ? 'Rôle trop haut dans la hiérarchie' : undefined}
+                      >
+                        <span className={styles.popoutRoleDot} style={{ background: role.color || 'var(--text-muted)' }} />
+                        <span className={styles.popoutRoleToggleName}>{role.name}</span>
+                        <span className={styles.popoutRoleToggleIcon}>
+                          {roleActionId === role.id ? '...' : assigned ? <Check size={14} /> : <Plus size={14} />}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {!canManageGuildRoles && (
+                  <div className={styles.popoutRoleHint}>
+                    Vous pouvez voir les rôles, mais leur modification nécessite la permission et une hiérarchie supérieure.
+                  </div>
+                )}
               </div>
             )}
 
@@ -571,4 +672,39 @@ function getStatusClass(status: string, css: Record<string, string>) {
 
 function formatProfileDate(value: string) {
   return format(new Date(value), 'dd/MM/yyyy');
+}
+
+function hasGuildPermissionClient(guild: any, userId: string, bit: bigint): boolean {
+  if (guild.owner_id === userId) return true;
+  const everyoneRole = guild.roles?.find((role: any) => role.name === '@everyone');
+  const member = guild.members?.find((item: any) => item.user.id === userId);
+  if (!member) return false;
+
+  let permissions = parsePermissionBits(everyoneRole?.permissions);
+  for (const roleId of member.roles || []) {
+    const role = guild.roles?.find((item: any) => item.id === roleId);
+    permissions |= parsePermissionBits(role?.permissions);
+  }
+
+  if ((permissions & BigInt(0x8)) !== BigInt(0)) return true;
+  return (permissions & bit) !== BigInt(0);
+}
+
+function getHighestClientRolePosition(guild: any, userId: string): number {
+  if (guild.owner_id === userId) return Number.MAX_SAFE_INTEGER;
+  const member = guild.members?.find((item: any) => item.user.id === userId);
+  if (!member) return 0;
+  return (member.roles || []).reduce((highest: number, roleId: string) => {
+    const role = guild.roles?.find((item: any) => item.id === roleId);
+    return Math.max(highest, role?.position || 0);
+  }, 0);
+}
+
+function parsePermissionBits(value: string | number | bigint | null | undefined): bigint {
+  if (value === null || value === undefined || value === '') return BigInt(0);
+  try {
+    return BigInt(value);
+  } catch {
+    return BigInt(0);
+  }
 }

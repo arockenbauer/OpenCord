@@ -236,6 +236,8 @@
 }
 
 .avatar {
+  border: 0;
+  padding: 0;
   border-radius: var(--radius-full);
   background: var(--bg-accent);
   display: flex;
@@ -245,6 +247,7 @@
   font-weight: var(--font-weight-bold);
   overflow: hidden;
   flex-shrink: 0;
+  cursor: pointer;
 }
 
 .avatar img {

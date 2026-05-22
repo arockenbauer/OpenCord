@@ -45,6 +45,7 @@ export function ChannelSidebar() {
   const guildMenuRef = useRef<HTMLDivElement>(null);
 
   const openOwnProfile = (event: MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
     const rect = event.currentTarget.getBoundingClientRect();
     useUIStore.getState().setProfilePopover?.({ userId: user!.id, x: rect.left, y: rect.top, width: rect.width, height: rect.height });
   };
@@ -389,22 +390,22 @@ function UserPanel({ user, onSettings, onOpenProfile }: { user: any; onSettings:
       </button>
       <div className={styles.userActions}>
         <Tooltip content={selfMute ? 'Réactiver le micro' : 'Couper le micro'} position="top" delay={300}>
-          <button onClick={toggleSelfMute} className={selfMute ? styles.actionActive : undefined} aria-pressed={selfMute}>
+          <button onClick={toggleSelfMute} className={selfMute ? styles.actionActive : undefined} aria-pressed={selfMute} data-testid="voice-mute-toggle">
             {selfMute ? <MicOff size={16} /> : <Mic size={16} />}
           </button>
         </Tooltip>
         <Tooltip content={selfDeaf ? 'Réactiver le casque' : 'Couper le casque'} position="top" delay={300}>
-          <button onClick={toggleSelfDeaf} className={selfDeaf ? styles.actionActive : undefined} aria-pressed={selfDeaf}>
+          <button onClick={toggleSelfDeaf} className={selfDeaf ? styles.actionActive : undefined} aria-pressed={selfDeaf} data-testid="voice-deafen-toggle">
             <Headphones size={16} />
           </button>
         </Tooltip>
         {channelId && (
           <Tooltip content="Quitter le vocal" position="top" delay={300}>
-            <button onClick={leaveVoiceChannel}><PhoneOff size={16} /></button>
+            <button onClick={leaveVoiceChannel} data-testid="voice-leave-button"><PhoneOff size={16} /></button>
           </Tooltip>
         )}
         <Tooltip content="Paramètres" position="top" delay={300}>
-          <button onClick={onSettings}><Settings size={16} /></button>
+          <button onClick={onSettings} data-testid="user-settings-button"><Settings size={16} /></button>
         </Tooltip>
       </div>
     </div>

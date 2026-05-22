@@ -49,6 +49,138 @@
   font-weight: 700;
 }
 
+.voiceStage {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 24px;
+  background: var(--bg-primary);
+}
+
+.voiceHero {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.voiceHeroIcon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--bg-modifier-selected);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.voiceHeroTitle {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.voiceHeroMeta {
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.voiceHeroActions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.voiceError {
+  margin: 16px 0;
+  padding: 10px 12px;
+  border-radius: 4px;
+  background: rgba(237, 66, 69, 0.12);
+  color: #ed4245;
+  font-size: 13px;
+}
+
+.voiceParticipantGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.voiceParticipant {
+  min-height: 72px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  border: 1px solid transparent;
+}
+
+.voiceParticipantSpeaking {
+  border-color: #3ba55d;
+  box-shadow: 0 0 0 1px rgba(59, 165, 93, 0.35);
+}
+
+.voiceParticipantAvatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--bg-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 700;
+}
+
+.voiceParticipantAvatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.voiceParticipantInfo {
+  min-width: 0;
+}
+
+.voiceParticipantName {
+  color: var(--text-primary);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.voiceParticipantState {
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.voiceParticipantState span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.voiceEmpty {
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
 .headerPillButton:hover {
   background: var(--bg-modifier-hover);
 }
@@ -89,18 +221,33 @@
   color: var(--text-primary); font-weight: var(--font-weight-bold); font-size: var(--font-size-sm);
   flex-shrink: 0; cursor: pointer; overflow: hidden;
   margin-top: 2px;
+  padding: 0;
 }
 .avatar img { width: 100%; height: 100%; object-fit: cover; }
 
 .messageBody { flex: 1; min-width: 0; }
 .messageMeta { display: flex; align-items: baseline; gap: var(--spacing-2); margin-bottom: 2px; }
-.messageAuthor { font-weight: var(--font-weight-semibold); font-size: var(--font-size-md); cursor: pointer; }
+.messageAuthor {
+  display: inline;
+  padding: 0;
+  text-align: left;
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-md);
+  line-height: inherit;
+  cursor: pointer;
+}
 .messageAuthor:hover { text-decoration: underline; }
 .messageTimestamp { font-size: var(--font-size-xs); color: var(--text-muted); }
 .messageContent { font-size: var(--font-size-md); line-height: var(--line-height-normal); word-wrap: break-word; }
 .messageContent p { margin: 0; }
 .messageContent a { color: var(--text-link); text-decoration: none; }
 .messageContent a:hover { text-decoration: underline; }
+
+.discordSubtext {
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-normal);
+}
 .messageContent code { font-family: Consolas, monospace; background: var(--bg-tertiary); padding: 2px 4px; border-radius: 3px; font-size: 14px; }
 .messageContent pre { background: var(--bg-tertiary); padding: 8px; border-radius: 4px; overflow-x: auto; margin: 4px 0; }
 .messageContent pre code { padding: 0; background: transparent; }

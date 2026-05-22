@@ -1,0 +1,2 @@
+ALTER TABLE "User" ADD COLUMN "compact_mode" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "User" ADD COLUMN "show_activity" BOOLEAN NOT NULL DEFAULT true;

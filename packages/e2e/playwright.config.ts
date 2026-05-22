@@ -16,6 +16,11 @@ const projects = [
       browserName: 'chromium' as const,
       launchOptions: {
         executablePath: chromeExecutablePath,
+        args: [
+          '--use-fake-device-for-media-stream',
+          '--use-fake-ui-for-media-stream',
+          '--autoplay-policy=no-user-gesture-required',
+        ],
       },
     },
   },

@@ -23,7 +23,7 @@ export function InviteAcceptPage() {
       return;
     }
 
-    api(`/api/invites/${code}`)
+    api(`/api/invites/${code}?with_counts=true&with_expiration=true`)
       .then((data) => setInvite(data))
       .catch((err: any) => setError(err?.message || 'Invitation introuvable.'))
       .finally(() => setLoading(false));
@@ -42,7 +42,7 @@ export function InviteAcceptPage() {
       const guild = await api(`/api/invites/${code}`, { method: 'POST' });
       addGuild(guild as any);
       selectGuild((guild as any).id);
-      navigate('/channels/@me');
+      navigate('/channels');
     } catch (err: any) {
       setError(err?.message || 'Impossible de rejoindre ce serveur.');
     } finally {
@@ -51,24 +51,31 @@ export function InviteAcceptPage() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: 'var(--bg-primary)', color: 'var(--text-primary)', padding: 16 }}>
-      <div style={{ width: '100%', maxWidth: 460, border: '1px solid var(--border)', borderRadius: 12, background: 'var(--bg-secondary)', padding: 20 }}>
-        <h1 style={{ margin: 0, fontSize: 24 }}>Invitation serveur</h1>
+    <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: '#313338', color: 'var(--text-primary)', padding: 16 }}>
+      <div style={{ width: '100%', maxWidth: 440, borderRadius: 8, background: '#2b2d31', padding: 32, textAlign: 'center', boxShadow: 'var(--shadow-high)' }}>
+        <div style={{ width: 82, height: 82, margin: '0 auto 18px', borderRadius: 24, background: 'var(--bg-accent)', display: 'grid', placeItems: 'center', overflow: 'hidden', fontSize: 34, fontWeight: 800, color: 'white' }}>
+          {invite?.guild?.icon ? <img src={invite.guild.icon} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (invite?.guild?.name || '?').slice(0, 1).toUpperCase()}
+        </div>
+        <h1 style={{ margin: 0, fontSize: 16, color: 'var(--text-muted)', fontWeight: 600 }}>Vous avez été invité à rejoindre un serveur</h1>
         {loading && <p style={{ color: 'var(--text-muted)' }}>Chargement de l'invitation…</p>}
         {!loading && error && <p style={{ color: '#ED4245' }}>{error}</p>}
         {!loading && !error && invite && (
           <>
-            <p style={{ color: 'var(--text-muted)' }}>Vous êtes invité à rejoindre</p>
-            <h2 style={{ marginTop: 4 }}>{invite.guild?.name || 'Serveur'}</h2>
-            <p style={{ color: 'var(--text-muted)' }}>Salon: {invite.channel?.name || 'général'}</p>
+            <h2 style={{ margin: '10px 0 8px', fontSize: 26 }}>{invite.guild?.name || 'Serveur'}</h2>
+            {invite.guild?.description && <p style={{ color: 'var(--text-muted)', margin: '0 0 12px' }}>{invite.guild.description}</p>}
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 16, color: 'var(--text-muted)', fontSize: 13, marginBottom: 18 }}>
+              <span>{invite.guild?.approximate_member_count ?? 0} membres</span>
+              <span>#{invite.channel?.name || 'général'}</span>
+            </div>
             <button
               onClick={handleJoin}
               disabled={joining}
               data-testid="invite-accept-submit"
-              style={{ marginTop: 8, width: '100%', height: 42, border: 0, borderRadius: 8, cursor: joining ? 'default' : 'pointer', background: '#5865F2', color: 'white', fontWeight: 600 }}
+              style={{ marginTop: 8, width: '100%', height: 44, border: 0, borderRadius: 4, cursor: joining ? 'default' : 'pointer', background: '#5865F2', color: 'white', fontWeight: 700 }}
             >
               {joining ? 'Connexion…' : 'Rejoindre le serveur'}
             </button>
+            {invite.expires_at && <div style={{ marginTop: 12, color: 'var(--text-muted)', fontSize: 12 }}>Expire le {new Date(invite.expires_at).toLocaleString()}</div>}
           </>
         )}
       </div>

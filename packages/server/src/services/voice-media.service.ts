@@ -115,9 +115,6 @@ export async function createWebRtcTransport(channelId: string, userId: string) {
       room.transports.delete(transport.id);
     }
   });
-  transport.on('close', () => {
-    room.transports.delete(transport.id);
-  });
 
   return {
     id: transport.id,
@@ -150,9 +147,6 @@ export async function produce(
   remember(room.userProducers, userId, producer.id);
 
   producer.on('transportclose', () => {
-    room.producers.delete(producer.id);
-  });
-  producer.on('close', () => {
     room.producers.delete(producer.id);
   });
 

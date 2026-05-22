@@ -178,6 +178,14 @@ export const api = Object.assign(apiFn, {
       typedGet<T>(`/guilds/${guildId}/analytics/hourly?period=${period}`),
     getAnalyticsRetention: <T>(guildId: string) =>
       typedGet<T>(`/guilds/${guildId}/analytics/retention`),
+    getVoiceStates: <T>(guildId: string) => typedGet<T>(`/guilds/${guildId}/voice-states`),
+    updateMyVoiceState: <T>(guildId: string, data: unknown) =>
+      apiFn<T>(`/guilds/${guildId}/voice-states/@me`, { method: 'PATCH', body: JSON.stringify(data) }),
+    updateUserVoiceState: <T>(guildId: string, userId: string, data: unknown) =>
+      apiFn<T>(`/guilds/${guildId}/voice-states/${userId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    getSoundboardSounds: <T>(guildId: string) => typedGet<T>(`/guilds/${guildId}/soundboard-sounds`),
+    playSoundboardSound: <T>(guildId: string, soundId: string, data?: unknown) =>
+      typedPost<T>(`/guilds/${guildId}/soundboard-sounds/${soundId}/play`, data),
   },
 
   channels: {
@@ -249,13 +257,13 @@ export const api = Object.assign(apiFn, {
   },
 
   friends: {
-    get: <T>() => typedGet<T>('/users/@me/relationships'),
-    add: <T>(userId: string) => typedPost<T>('/users/@me/relationships', { user_id: userId }),
-    remove: <T>(userId: string) => apiFn<T>(`/users/@me/relationships/${userId}`, { method: 'DELETE' }),
-    accept: <T>(userId: string) => apiFn<T>(`/users/@me/relationships/${userId}`, { method: 'PUT' }),
-    reject: <T>(userId: string) => typedPost<T>(`/users/@me/relationships/${userId}/decline`),
-    block: <T>(userId: string) => apiFn<T>(`/users/@me/relationships/${userId}/block`, { method: 'PUT' }),
-    unblock: <T>(userId: string) => apiFn<T>(`/users/@me/relationships/${userId}/block`, { method: 'DELETE' }),
+    get: <T>() => typedGet<T>('/relationships'),
+    add: <T>(userId: string) => typedPost<T>('/relationships', { user_id: userId }),
+    remove: <T>(userId: string) => apiFn<T>(`/relationships/${userId}`, { method: 'DELETE' }),
+    accept: <T>(userId: string) => typedPost<T>(`/relationships/accept/${userId}`),
+    reject: <T>(userId: string) => typedPost<T>(`/relationships/decline/${userId}`),
+    block: <T>(userId: string) => apiFn<T>(`/relationships/${userId}/block`, { method: 'PUT' }),
+    unblock: <T>(userId: string) => apiFn<T>(`/relationships/${userId}/block`, { method: 'DELETE' }),
   },
 
   reports: {

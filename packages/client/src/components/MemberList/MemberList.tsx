@@ -34,6 +34,7 @@ export function MemberList() {
   }
 
   const openProfile = (event: MouseEvent<HTMLDivElement>, userId: string) => {
+    event.stopPropagation();
     const rect = event.currentTarget.getBoundingClientRect();
     setProfilePopover({ userId, x: rect.left, y: rect.top, width: rect.width, height: rect.height });
   };

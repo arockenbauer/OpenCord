@@ -731,6 +731,7 @@ export async function getUserSettings(req: Request, res: Response, next: NextFun
         explicit_content_filter: true,
         default_message_notifications: true,
         allow_dms_from: true,
+        font_size: true,
         locale: true,
         theme: true,
         streamer_mode_enabled: true,
@@ -747,8 +748,14 @@ export async function getUserSettings(req: Request, res: Response, next: NextFun
     const frPolicy = await prisma.$queryRaw<Array<{ allow_friend_requests_from: string | null }>>`
       SELECT allow_friend_requests_from FROM User WHERE id = ${req.user!.userId} LIMIT 1
     `;
+    const settingsFlags = await prisma.$queryRaw<Array<{ compact_mode: boolean | number | null; show_activity: boolean | number | null }>>`
+      SELECT compact_mode, show_activity FROM User WHERE id = ${req.user!.userId} LIMIT 1
+    `;
+    const flags = settingsFlags[0];
     res.json({
       ...user,
+      compact_mode: flags?.compact_mode === true || flags?.compact_mode === 1,
+      show_activity: flags?.show_activity !== false && flags?.show_activity !== 0,
       allow_friend_requests_from: frPolicy[0]?.allow_friend_requests_from || 'everyone',
     });
   } catch (err) {
@@ -759,13 +766,22 @@ export async function getUserSettings(req: Request, res: Response, next: NextFun
 export async function updateUserSettings(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const allowed = [
-      'explicit_content_filter', 'default_message_notifications', 'allow_dms_from', 'locale', 'theme',
+      'explicit_content_filter', 'default_message_notifications', 'allow_dms_from', 'locale', 'theme', 'font_size',
       'streamer_mode_enabled', 'streamer_mode_auto_detect', 'streamer_mode_hide_links', 'streamer_mode_hide_email',
       'streamer_mode_hide_notes', 'streamer_mode_hide_notifications', 'streamer_mode_hide_personal_info', 'streamer_mode_disable_sounds',
     ];
     const updateData: any = {};
     for (const field of allowed) {
       if (req.body[field] !== undefined) updateData[field] = req.body[field];
+    }
+
+    if (req.body.allow_dms_from !== undefined) {
+      const allowedDmPolicy = ['everyone', 'friends', 'none'];
+      const policy = String(req.body.allow_dms_from);
+      if (!allowedDmPolicy.includes(policy)) {
+        throw new AppError(400, 'INVALID_DM_POLICY', 'Invalid allow_dms_from value');
+      }
+      updateData.allow_dms_from = policy;
     }
 
     const user = await prisma.user.update({ where: { id: req.user!.userId }, data: updateData });
@@ -777,13 +793,26 @@ export async function updateUserSettings(req: Request, res: Response, next: Next
       }
       await prisma.$executeRaw`UPDATE User SET allow_friend_requests_from = ${policy} WHERE id = ${req.user!.userId}`;
     }
+    if (req.body.compact_mode !== undefined) {
+      await prisma.$executeRaw`UPDATE User SET compact_mode = ${Boolean(req.body.compact_mode)} WHERE id = ${req.user!.userId}`;
+    }
+    if (req.body.show_activity !== undefined) {
+      await prisma.$executeRaw`UPDATE User SET show_activity = ${Boolean(req.body.show_activity)} WHERE id = ${req.user!.userId}`;
+    }
     const frPolicy = await prisma.$queryRaw<Array<{ allow_friend_requests_from: string | null }>>`
       SELECT allow_friend_requests_from FROM User WHERE id = ${req.user!.userId} LIMIT 1
     `;
+    const settingsFlags = await prisma.$queryRaw<Array<{ compact_mode: boolean | number | null; show_activity: boolean | number | null }>>`
+      SELECT compact_mode, show_activity FROM User WHERE id = ${req.user!.userId} LIMIT 1
+    `;
+    const flags = settingsFlags[0];
     res.json({
       explicit_content_filter: user.explicit_content_filter,
       default_message_notifications: user.default_message_notifications,
       allow_dms_from: user.allow_dms_from,
+      font_size: user.font_size,
+      compact_mode: flags?.compact_mode === true || flags?.compact_mode === 1,
+      show_activity: flags?.show_activity !== false && flags?.show_activity !== 0,
       allow_friend_requests_from: frPolicy[0]?.allow_friend_requests_from || 'everyone',
       locale: user.locale,
       theme: user.theme,

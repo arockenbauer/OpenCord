@@ -20,7 +20,7 @@ export async function getRoles(req: Request, res: Response, next: NextFunction):
       where: { guild_id: req.params.guildId },
       orderBy: { position: 'asc' },
     });
-    res.json(roles);
+    res.json(serializeBigInt(roles));
   } catch (err) {
     next(err);
   }
@@ -57,7 +57,7 @@ export async function createRole(req: Request, res: Response, next: NextFunction
     ]);
     await markTemplateDirty(req.params.guildId);
 
-    res.status(201).json(role);
+    res.status(201).json(serializeBigInt(role));
   } catch (err) {
     next(err);
   }
@@ -103,7 +103,7 @@ export async function updateRole(req: Request, res: Response, next: NextFunction
     await writeAuditLog(req.params.guildId, req.user!.userId, AUDIT_LOG_ACTIONS.ROLE_UPDATE, role.id, 'ROLE', changes);
     await markTemplateDirty(req.params.guildId);
 
-    res.json(role);
+    res.json(serializeBigInt(role));
   } catch (err) {
     next(err);
   }
@@ -175,7 +175,7 @@ export async function updateRolePositions(req: Request, res: Response, next: Nex
     await writeAuditLog(req.params.guildId, req.user!.userId, AUDIT_LOG_ACTIONS.ROLE_CREATE, undefined, 'ROLE', [
       { key: 'positions', old_value: null, new_value: JSON.stringify(positions) },
     ]);
-    res.json({ roles });
+    res.json(serializeBigInt({ roles }));
   } catch (err) {
     next(err);
   }
@@ -206,7 +206,7 @@ export async function updateRoleIcon(req: Request, res: Response, next: NextFunc
     const io = getIO();
     if (io) io.to(`guild:${req.params.guildId}`).emit(GatewayEvents.GUILD_ROLE_UPDATE, serializeBigInt({ guild_id: req.params.guildId, role: updated }));
 
-    res.json(updated);
+    res.json(serializeBigInt(updated));
   } catch (err) {
     next(err);
   }

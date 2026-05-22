@@ -105,9 +105,11 @@ app.use((req, res, next) => {
 const uploadDir = process.env.UPLOAD_DIR || './uploads';
 fs.mkdirSync(uploadDir, { recursive: true });
 
-// Serve uploaded files under /files/* with proper security headers
-app.use('/files', (req, res, next) => {
-  const filePath = req.path;
+const staticUploads = express.static(path.resolve(uploadDir));
+
+// Serve uploaded files under /files/* and legacy /uploads/* URLs with proper security headers
+function serveUploadedFile(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const filePath = req.path.replace(/^\/+/, '');
   const resolvedPath = path.resolve(uploadDir, filePath);
 
   // Prevent directory traversal attacks
@@ -141,8 +143,11 @@ app.use('/files', (req, res, next) => {
     res.set('Content-Disposition', `attachment; filename="${originalName}"`);
   }
 
-  express.static(path.resolve(uploadDir))(req, res, next);
-});
+  staticUploads(req, res, next);
+}
+
+app.use('/files', serveUploadedFile);
+app.use('/uploads', serveUploadedFile);
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', usersRoutes);

@@ -133,7 +133,14 @@ export async function createDM(req: Request, res: Response, next: NextFunction):
     if (io) {
       for (const member of dm.members) {
         if (member.user_id !== req.user!.userId) {
-          io.to(`user:${member.user_id}`).emit(GatewayEvents.CHANNEL_CREATE, { channel: { ...channel, type: 1 } });
+          io.to(`user:${member.user_id}`).emit(GatewayEvents.CHANNEL_CREATE, {
+            channel: {
+              ...dm,
+              ...channel,
+              type: 1,
+              recipients: dm.members.filter((m) => m.user_id !== member.user_id).map((m) => m.user),
+            },
+          });
         }
       }
     }

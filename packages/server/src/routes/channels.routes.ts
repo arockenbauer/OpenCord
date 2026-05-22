@@ -13,6 +13,7 @@ router.get('/:channelId', authenticate, channels.getChannel);
 router.patch('/:channelId', authenticate, channels.updateChannel);
 router.delete('/:channelId', authenticate, channels.deleteChannel);
 router.put('/:channelId/permissions/:overwriteId', authenticate, channels.updatePermissionOverwrite);
+router.patch('/:channelId/permissions/:overwriteId', authenticate, channels.updatePermissionOverwrite);
 router.delete('/:channelId/permissions/:overwriteId', authenticate, channels.deletePermissionOverwrite);
 router.post('/:channelId/permissions', authenticate, channels.createPermissionOverwrite);
 

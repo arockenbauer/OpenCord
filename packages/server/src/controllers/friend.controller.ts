@@ -46,20 +46,24 @@ export async function sendFriendRequest(req: Request, res: Response, next: NextF
     }
 
     const { username, discriminator, user_id } = req.body;
-    let target: { id: string; username: string; discriminator: string } | null = null;
+    let target: {
+      id: string;
+      username: string;
+      discriminator: string;
+      avatar: string | null;
+      status: string;
+      global_name: string | null;
+      custom_status_text: string | null;
+    } | null = null;
     if (user_id) {
       target = await prisma.user.findUnique({
         where: { id: user_id },
-        select: { id: true, username: true, discriminator: true },
+        select: relationshipUserSelect,
       });
     } else {
       target = await prisma.user.findFirst({
         where: { username, discriminator },
-        select: {
-          id: true,
-          username: true,
-          discriminator: true,
-        },
+        select: relationshipUserSelect,
       });
     }
     if (!target) throw new AppError(404, 'USER_NOT_FOUND', 'User not found');
@@ -83,7 +87,7 @@ export async function sendFriendRequest(req: Request, res: Response, next: NextF
           io.to(`user:${req.user!.userId}`).emit(GatewayEvents.RELATIONSHIP_UPDATE, { id: existing.id, type: 1 });
           io.to(`user:${target.id}`).emit(GatewayEvents.RELATIONSHIP_UPDATE, { id: existing.id, type: 1 });
         }
-        res.json({ id: existing.id, type: 1 });
+        res.json({ id: existing.id, type: 1, user: target });
         return;
       }
       if (existing.status === 2) {
@@ -157,7 +161,7 @@ export async function sendFriendRequest(req: Request, res: Response, next: NextF
       });
     }
 
-    res.status(201).json({ id: friend.id, type: 0 });
+    res.status(201).json({ id: friend.id, type: 0, user: target });
   } catch (err) {
     next(err);
   }
@@ -249,6 +253,10 @@ export async function acceptFriendRequest(req: Request, res: Response, next: Nex
     if (!friend) throw new AppError(404, 'NOT_FOUND', 'Friend request not found');
 
     await prisma.friend.update({ where: { id: friend.id }, data: { status: 1 } });
+    const requester = await prisma.user.findUnique({
+      where: { id: req.params.userId },
+      select: relationshipUserSelect,
+    });
 
     const io = getIO();
     if (io) {
@@ -256,7 +264,7 @@ export async function acceptFriendRequest(req: Request, res: Response, next: Nex
       io.to(`user:${req.params.userId}`).emit(GatewayEvents.RELATIONSHIP_UPDATE, { id: friend.id, type: 1, user_id: req.user!.userId });
     }
 
-    res.json({ id: friend.id, type: 1 });
+    res.json({ id: friend.id, type: 1, user: requester });
   } catch (err) {
     next(err);
   }

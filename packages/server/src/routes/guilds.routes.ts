@@ -130,6 +130,8 @@ router.use('/:guildId', guildBoostRouter);
 router.get('/:guildId/boosts', authenticate, guilds.getGuildBoosters);
 
 // Channel invites
+router.get('/:guildId/invites', authenticate, invites.getGuildInvites);
+router.post('/:guildId/invites', authenticate, invites.createInvite);
 router.post('/:guildId/channels/:channelId/invites', authenticate, invites.createInvite);
 
 router.patch('/:guildId/channels', authenticate, channels.reorderChannels);

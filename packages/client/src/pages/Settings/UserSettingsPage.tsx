@@ -133,7 +133,7 @@ export function UserSettingsPage() {
             {section === 'connections' && <ConnectionsSection />}
             {section === 'applications' && <ApplicationsSection />}
             {section === 'plugins' && <PluginsSection />}
-            {section === 'activities' && <ActivitiesSection user={user} />}
+            {section === 'activities' && <ActivitiesSection user={user} updateUser={updateUser} />}
             {section === 'my-boosts' && <MyBoostsSection />}
           </div>
           <div className={styles.closeWrapper} onClick={() => setShowUserSettings(false)}>
@@ -309,12 +309,17 @@ function ProfileSection({ user, updateUser, setHasUnsaved }: { user: any; update
   const [globalName, setGlobalName] = useState(user.global_name || '');
   const [pronouns, setPronouns] = useState(user.pronouns || '');
   const [bannerColor, setBannerColor] = useState(user.banner_color || '#5865f2');
+  const [bannerPreview, setBannerPreview] = useState<string | null>(user.banner || null);
+  const [bannerFile, setBannerFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(user.avatar || null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState('');
   const [avatarExpanded, setAvatarExpanded] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const bannerInputRef = useRef<HTMLInputElement>(null);
+  const setUser = useAuthStore((s) => s.setUser);
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -326,24 +331,85 @@ function ProfileSection({ user, updateUser, setHasUnsaved }: { user: any; update
     reader.readAsDataURL(file);
   };
 
+  const handleBannerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setBannerFile(file);
+    setHasUnsaved?.(true);
+    const reader = new FileReader();
+    reader.onload = (ev) => setBannerPreview(ev.target?.result as string);
+    reader.readAsDataURL(file);
+  };
+
   const handleSave = async () => {
     setSaving(true);
+    setError('');
     try {
       const payload: Record<string, any> = { bio, global_name: globalName || null, pronouns: pronouns || null, banner_color: bannerColor };
       if (avatarFile) {
         const formData = new FormData();
         formData.append('avatar', avatarFile);
-        try {
-          const data = await api.patch<{ avatar: string }>('/api/users/@me/avatar', formData);
-          if (data.avatar) { setAvatarPreview(data.avatar); updateUser({ avatar: data.avatar }); }
-        } catch { updateUser({ avatar: user.avatar }); }
+        const data = await api.patch<{ avatar: string }>('/api/users/@me/avatar', formData);
+        if (data.avatar) {
+          setAvatarPreview(data.avatar);
+          setAvatarFile(null);
+          const current = useAuthStore.getState().user;
+          if (current) setUser({ ...current, avatar: data.avatar });
+        }
+      }
+      if (bannerFile) {
+        const formData = new FormData();
+        formData.append('banner', bannerFile);
+        const data = await api.patch<{ banner: string }>('/api/users/@me/banner', formData);
+        if (data.banner) {
+          setBannerPreview(data.banner);
+          setBannerFile(null);
+          const current = useAuthStore.getState().user;
+          if (current) setUser({ ...current, banner: data.banner });
+        }
       }
       await updateUser(payload);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
-    } catch { /* handled */ }
+    } catch (err: any) {
+      setError(err.message || 'Erreur lors de la modification du profil.');
+    }
     setSaving(false);
     setHasUnsaved?.(false);
+  };
+
+  const handleRemoveAvatar = async () => {
+    setSaving(true);
+    setError('');
+    try {
+      await api.delete<{ avatar: null }>('/api/users/@me/avatar');
+      setAvatarPreview(null);
+      setAvatarFile(null);
+      const current = useAuthStore.getState().user;
+      if (current) setUser({ ...current, avatar: null });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err: any) {
+      setError(err.message || "Erreur lors de la suppression de l'avatar.");
+    }
+    setSaving(false);
+  };
+
+  const handleRemoveBanner = async () => {
+    setSaving(true);
+    setError('');
+    try {
+      await api.delete<{ banner: null }>('/api/users/@me/banner');
+      setBannerPreview(null);
+      setBannerFile(null);
+      const current = useAuthStore.getState().user;
+      if (current) setUser({ ...current, banner: null });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err: any) {
+      setError(err.message || "Erreur lors de la suppression de la bannière.");
+    }
+    setSaving(false);
   };
 
   const inputStyle = { width: '100%', padding: '8px 12px', background: 'var(--bg-tertiary)', borderRadius: '4px', color: 'var(--text-primary)' };
@@ -352,6 +418,27 @@ function ProfileSection({ user, updateUser, setHasUnsaved }: { user: any; update
     <div>
       <div className={styles.pageTitle}>Profil</div>
       <div className={styles.card}>
+        <div style={{ marginBottom: '16px' }}>
+          <div
+            style={{
+              height: 120,
+              borderRadius: 8,
+              background: bannerPreview ? `url(${bannerPreview}) center/cover` : bannerColor,
+              border: '1px solid var(--border)',
+              marginBottom: 10,
+            }}
+          />
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button className={styles.editButton} onClick={() => bannerInputRef.current?.click()}>Changer la bannière</button>
+            {bannerPreview && (
+              <button className={styles.editButton} style={{ background: 'transparent' }} onClick={handleRemoveBanner} disabled={saving}>
+                Supprimer
+              </button>
+            )}
+          </div>
+          <input ref={bannerInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleBannerChange} />
+        </div>
+
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px' }}>
           <div
             style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'var(--bg-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', cursor: avatarPreview ? 'pointer' : 'default', fontSize: '28px', fontWeight: 700, color: 'white', flexShrink: 0 }}
@@ -362,6 +449,11 @@ function ProfileSection({ user, updateUser, setHasUnsaved }: { user: any; update
           </div>
           <div>
             <button className={styles.editButton} onClick={() => fileInputRef.current?.click()}>Changer l'avatar</button>
+            {avatarPreview && (
+              <button className={styles.editButton} style={{ marginLeft: 8, background: 'transparent' }} onClick={handleRemoveAvatar} disabled={saving}>
+                Supprimer
+              </button>
+            )}
             <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>JPG, PNG, GIF, WebP. 8 Mo max.</div>
           </div>
           <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleAvatarChange} />
@@ -369,11 +461,11 @@ function ProfileSection({ user, updateUser, setHasUnsaved }: { user: any; update
 
         <div style={{ marginBottom: '12px' }}>
           <div className={styles.cardLabel}>Nom d'affichage</div>
-          <input style={inputStyle} value={globalName} onChange={(e) => { setGlobalName(e.target.value); setHasUnsaved?.(true); }} placeholder={user.username} />
+          <input style={inputStyle} value={globalName} onChange={(e) => { setGlobalName(e.target.value); setHasUnsaved?.(true); }} placeholder={user.username} data-testid="profile-global-name" />
         </div>
         <div style={{ marginBottom: '12px' }}>
           <div className={styles.cardLabel}>Pronoms</div>
-          <input style={inputStyle} value={pronouns} onChange={(e) => { setPronouns(e.target.value); setHasUnsaved?.(true); }} placeholder="ils/elles, il/lui, elle/elle…" />
+          <input style={inputStyle} value={pronouns} onChange={(e) => { setPronouns(e.target.value); setHasUnsaved?.(true); }} placeholder="ils/elles, il/lui, elle/elle…" data-testid="profile-pronouns" />
         </div>
         <div style={{ marginBottom: '12px' }}>
           <div className={styles.cardLabel}>Bio</div>
@@ -382,6 +474,7 @@ function ProfileSection({ user, updateUser, setHasUnsaved }: { user: any; update
             value={bio}
             onChange={(e) => { setBio(e.target.value); setHasUnsaved?.(true); }}
             maxLength={user.premium ? 4000 : 190}
+            data-testid="profile-bio"
           />
           <div style={{ fontSize: '12px', color: 'var(--text-muted)', textAlign: 'right' }}>
             {bio.length}/{user.premium ? '4000' : '190'}
@@ -391,13 +484,14 @@ function ProfileSection({ user, updateUser, setHasUnsaved }: { user: any; update
         <div style={{ marginBottom: '16px' }}>
           <div className={styles.cardLabel}>Couleur de bannière</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '8px' }}>
-            <input type="color" value={bannerColor} onChange={(e) => { setBannerColor(e.target.value); setHasUnsaved?.(true); }} style={{ width: '40px', height: '40px', borderRadius: '8px', cursor: 'pointer', border: 'none' }} />
+            <input type="color" value={bannerColor} onChange={(e) => { setBannerColor(e.target.value); setHasUnsaved?.(true); }} style={{ width: '40px', height: '40px', borderRadius: '8px', cursor: 'pointer', border: 'none' }} data-testid="profile-banner-color" />
             <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{bannerColor}</span>
           </div>
         </div>
-        <button className={styles.editButton} onClick={handleSave} disabled={saving}>
+        <button className={styles.editButton} onClick={handleSave} disabled={saving} data-testid="profile-save">
           {saving ? '...' : saved ? 'Enregistré !' : 'Enregistrer'}
         </button>
+        {error && <div style={{ color: 'var(--danger)', marginTop: 10, fontSize: 13 }}>{error}</div>}
       </div>
       {avatarExpanded && (
         <div
@@ -451,7 +545,9 @@ function AppearanceSection({ user, updateUser, setHasUnsaved }: { user: any; upd
     const next = !compact;
     setCompact(next);
     setHasUnsaved?.(true);
-    await updateUser({ compact_mode: next });
+    await api.patch('/api/users/@me/settings', { compact_mode: next });
+    const current = useAuthStore.getState().user;
+    if (current) useAuthStore.getState().setUser({ ...current, compact_mode: next });
     setHasUnsaved?.(false);
   };
 
@@ -552,16 +648,18 @@ function AppearanceSection({ user, updateUser, setHasUnsaved }: { user: any; upd
 }
 
 function PrivacySection({ user, updateUser, setHasUnsaved }: { user: any; updateUser: (data: any) => Promise<void>; setHasUnsaved?: (v: boolean) => void }) {
-  const [allowFriendRequests, setAllowFriendRequests] = useState(user.allow_friend_requests !== false);
-  const [allowDmsFromServers, setAllowDmsFromServers] = useState(user.allow_dms_from_servers !== false);
+  const [friendRequestsFrom, setFriendRequestsFrom] = useState(user.allow_friend_requests_from || 'everyone');
+  const [dmsFrom, setDmsFrom] = useState(user.allow_dms_from || 'everyone');
   const [explicitContentFilter, setExplicitContentFilter] = useState(user.explicit_content_filter ?? 0);
   const [saving, setSaving] = useState(false);
 
-  const handleToggle = async (field: string, value: boolean) => {
+  const handlePolicyChange = async (field: string, value: string) => {
     setHasUnsaved?.(true);
+    setSaving(true);
     try {
       await updateUser({ [field]: value });
     } catch { /* handled */ }
+    setSaving(false);
     setHasUnsaved?.(false);
   };
 
@@ -576,6 +674,16 @@ function PrivacySection({ user, updateUser, setHasUnsaved }: { user: any; update
     { value: 0, label: 'Désactivé', desc: 'Ne pas analyser le contenu' },
     { value: 1, label: 'Amis seulement', desc: 'Analyser uniquement les messages des amis' },
     { value: 2, label: 'Tous', desc: 'Analyser tous les messages' },
+  ];
+  const dmOptions = [
+    { value: 'everyone', label: 'Tout le monde', desc: 'Les membres de vos serveurs et vos amis peuvent vous écrire.' },
+    { value: 'friends', label: 'Amis uniquement', desc: 'Seuls vos amis peuvent vous envoyer un message direct.' },
+    { value: 'none', label: 'Personne', desc: 'Bloque les nouveaux messages directs entrants.' },
+  ];
+  const friendRequestOptions = [
+    { value: 'everyone', label: 'Tout le monde', desc: 'Tous les utilisateurs peuvent vous envoyer une demande.' },
+    { value: 'friends_of_friends', label: 'Amis d’amis', desc: 'Uniquement les personnes avec des amis en commun.' },
+    { value: 'none', label: 'Personne', desc: 'Désactive les nouvelles demandes d’amis.' },
   ];
 
   return (
@@ -606,38 +714,45 @@ function PrivacySection({ user, updateUser, setHasUnsaved }: { user: any; update
       </div>
 
       <div className={styles.card}>
-        <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', marginBottom: '16px' }}>
-          <div>
-            <div style={{ fontWeight: 600, fontSize: '14px' }}>Demandes d'amis</div>
-            <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>Autoriser les autres à vous envoyer des demandes d'amis</div>
-          </div>
-          <input
-            type="checkbox"
-            checked={allowFriendRequests}
+        <div className={styles.cardLabel} style={{ marginBottom: '12px' }}>Messages directs</div>
+        {dmOptions.map((opt) => (
+          <button
+            key={opt.value}
             disabled={saving}
-            onChange={(e) => {
-              setAllowFriendRequests(e.target.checked);
-              handleToggle('allow_friend_requests', e.target.checked);
+            onClick={() => {
+              setDmsFrom(opt.value);
+              void handlePolicyChange('allow_dms_from', opt.value);
             }}
-            style={{ width: '18px', height: '18px' }}
-          />
-        </label>
-        <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}>
-          <div>
-            <div style={{ fontWeight: 600, fontSize: '14px' }}>Messages directs depuis les serveurs</div>
-            <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>Autoriser les membres de vos serveurs à vous envoyer des messages directs</div>
-          </div>
-          <input
-            type="checkbox"
-            checked={allowDmsFromServers}
+            style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '8px 12px', borderRadius: '4px', textAlign: 'left', width: '100%', background: dmsFrom === opt.value ? 'var(--bg-modifier-selected)' : 'transparent' }}
+          >
+            <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: dmsFrom === opt.value ? 'var(--bg-accent)' : 'var(--text-muted)' }} />
+            <div>
+              <div style={{ fontSize: '14px' }}>{opt.label}</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{opt.desc}</div>
+            </div>
+          </button>
+        ))}
+      </div>
+
+      <div className={styles.card}>
+        <div className={styles.cardLabel} style={{ marginBottom: '12px' }}>Demandes d'amis</div>
+        {friendRequestOptions.map((opt) => (
+          <button
+            key={opt.value}
             disabled={saving}
-            onChange={(e) => {
-              setAllowDmsFromServers(e.target.checked);
-              handleToggle('allow_dms_from_servers', e.target.checked);
+            onClick={() => {
+              setFriendRequestsFrom(opt.value);
+              void handlePolicyChange('allow_friend_requests_from', opt.value);
             }}
-            style={{ width: '18px', height: '18px' }}
-          />
-        </label>
+            style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '8px 12px', borderRadius: '4px', textAlign: 'left', width: '100%', background: friendRequestsFrom === opt.value ? 'var(--bg-modifier-selected)' : 'transparent' }}
+          >
+            <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: friendRequestsFrom === opt.value ? 'var(--bg-accent)' : 'var(--text-muted)' }} />
+            <div>
+              <div style={{ fontSize: '14px' }}>{opt.label}</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{opt.desc}</div>
+            </div>
+          </button>
+        ))}
       </div>
     </div>
   );
@@ -1035,12 +1150,12 @@ function KeybindsSection() {
 
 function StreamerModeSection({ user, updateUser }: { user: any; updateUser: (data: any) => Promise<void> }) {
   const [streamerMode, setStreamerMode] = useState(user.streamer_mode_enabled || false);
-  const [autoDetect, setAutoDetect] = useState(user.streamer_mode_auto_detect || true);
-  const [hideLinks, setHideLinks] = useState(user.streamer_mode_hide_links || true);
-  const [hideEmail, setHideEmail] = useState(user.streamer_mode_hide_email || true);
-  const [hideNotes, setHideNotes] = useState(user.streamer_mode_hide_notes || true);
-  const [hideNotifications, setHideNotifications] = useState(user.streamer_mode_hide_notifications || true);
-  const [hidePersonalInfo, setHidePersonalInfo] = useState(user.streamer_mode_hide_personal_info || true);
+  const [autoDetect, setAutoDetect] = useState(user.streamer_mode_auto_detect ?? true);
+  const [hideLinks, setHideLinks] = useState(user.streamer_mode_hide_links ?? true);
+  const [hideEmail, setHideEmail] = useState(user.streamer_mode_hide_email ?? true);
+  const [hideNotes, setHideNotes] = useState(user.streamer_mode_hide_notes ?? true);
+  const [hideNotifications, setHideNotifications] = useState(user.streamer_mode_hide_notifications ?? true);
+  const [hidePersonalInfo, setHidePersonalInfo] = useState(user.streamer_mode_hide_personal_info ?? true);
   const [disableSounds, setDisableSounds] = useState(user.streamer_mode_disable_sounds || false);
 
   const handleToggle = async (field: string, value: boolean) => {
@@ -1249,7 +1364,7 @@ function ConnectionsSection() {
         <div style={{ fontWeight: 600, fontSize: '14px', marginBottom: '4px' }}>Comptes liés</div>
         <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '16px' }}>Connectez vos autres comptes pour les afficher sur votre profil.</div>
         {availableIntegrations.map((intg) => {
-          const connected = connections.find((c) => c.platform === intg.platform);
+          const connected = connections.find((c) => (c.platform || c.type) === intg.platform);
           return (
             <div key={intg.platform} className={styles.cardRow} style={{ marginBottom: '12px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -1281,7 +1396,7 @@ function ConnectionsSection() {
                   style={{ background: 'transparent', fontSize: '12px', padding: '4px 10px' }}
                   onClick={async () => {
                     await api(`/api/users/@me/connections/${intg.platform}`, { method: 'DELETE' });
-                    setConnections((prev) => prev.filter((c) => c.platform !== intg.platform));
+                    setConnections((prev) => prev.filter((c) => (c.platform || c.type) !== intg.platform));
                   }}
                 >
                   Déconnecter
@@ -1650,9 +1765,10 @@ function PluginsSection() {
   );
 }
 
-function ActivitiesSection({ user }: { user: any }) {
+function ActivitiesSection({ user, updateUser }: { user: any; updateUser: (data: any) => Promise<void> }) {
   const [activities, setActivities] = useState<any[]>([]);
   const [games, setGames] = useState<any[]>([]);
+  const [showActivity, setShowActivity] = useState(user.show_activity !== false);
   const [showGameForm, setShowGameForm] = useState(false);
   const [newGameName, setNewGameName] = useState('');
   const [newGameIcon, setNewGameIcon] = useState('');
@@ -1688,6 +1804,14 @@ function ActivitiesSection({ user }: { user: any }) {
       await api(`/api/users/@me/games/${gameId}`, { method: 'DELETE' });
       setGames((prev) => prev.filter((g) => g.id !== gameId));
     } catch { /* handled */ }
+  };
+
+  const handleShowActivityToggle = async () => {
+    const next = !showActivity;
+    setShowActivity(next);
+    await api.patch('/api/users/@me/settings', { show_activity: next });
+    const current = useAuthStore.getState().user;
+    if (current) useAuthStore.getState().setUser({ ...current, show_activity: next });
   };
 
   return (
@@ -1786,7 +1910,7 @@ function ActivitiesSection({ user }: { user: any }) {
             <div style={{ fontWeight: 600, fontSize: '14px' }}>Afficher le statut de jeu</div>
             <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>Visible par vos amis</div>
           </div>
-          <input type="checkbox" defaultChecked style={{ width: '18px', height: '18px' }} />
+          <input type="checkbox" checked={showActivity} onChange={handleShowActivityToggle} style={{ width: '18px', height: '18px' }} />
         </label>
       </div>
     </div>

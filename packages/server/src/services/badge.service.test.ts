@@ -22,7 +22,7 @@ vi.mock('../utils/snowflake.js', () => ({
   generateSnowflake: mocks.generateSnowflake,
 }));
 
-import { assignBadge, getUserBadges, revokeBadge } from './badge.service.js';
+import { assignBadge, getUserBadges, revokeBadge, syncPremiumBadge } from './badge.service.js';
 
 describe('badge.service', () => {
   beforeEach(() => {
@@ -91,6 +91,36 @@ describe('badge.service', () => {
         include: { badge: true },
         orderBy: { badge: { priority: 'asc' } },
       });
+    });
+  });
+
+  describe('syncPremiumBadge', () => {
+    it('assigns the premium badge when isPremium is true', async () => {
+      mocks.prisma.badge.findFirst.mockResolvedValue({ id: 'badge-premium', name: 'OPENCORD_PLUS_SUBSCRIBER' });
+
+      await syncPremiumBadge('user-1', true);
+
+      expect(mocks.prisma.badge.findFirst).toHaveBeenCalledWith({ where: { name: 'OPENCORD_PLUS_SUBSCRIBER' } });
+      expect(mocks.prisma.userBadge.upsert).toHaveBeenCalled();
+    });
+
+    it('revokes the premium badge when isPremium is false', async () => {
+      mocks.prisma.badge.findFirst.mockResolvedValue({ id: 'badge-premium', name: 'OPENCORD_PLUS_SUBSCRIBER' });
+
+      await syncPremiumBadge('user-1', false);
+
+      expect(mocks.prisma.badge.findFirst).toHaveBeenCalledWith({ where: { name: 'OPENCORD_PLUS_SUBSCRIBER' } });
+      expect(mocks.prisma.userBadge.deleteMany).toHaveBeenCalled();
+    });
+
+    it('does nothing when the premium badge does not exist', async () => {
+      mocks.prisma.badge.findFirst.mockResolvedValue(null);
+
+      await syncPremiumBadge('user-1', true);
+      await syncPremiumBadge('user-1', false);
+
+      expect(mocks.prisma.userBadge.upsert).not.toHaveBeenCalled();
+      expect(mocks.prisma.userBadge.deleteMany).not.toHaveBeenCalled();
     });
   });
 });

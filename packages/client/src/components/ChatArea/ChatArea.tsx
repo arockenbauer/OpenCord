@@ -24,6 +24,26 @@ const md = new MarkdownIt({
   breaks: true,
 });
 
+md.block.ruler.before('paragraph', 'discord_subtext', (state: any, startLine: number, _endLine: number, silent: boolean) => {
+  const start = state.bMarks[startLine] + state.tShift[startLine];
+  const max = state.eMarks[startLine];
+  const marker = state.src.slice(start, start + 2);
+  const afterMarker = state.src.charCodeAt(start + 2);
+
+  if (marker !== '-#' || (afterMarker !== 0x20 && afterMarker !== 0x09)) return false;
+  if (silent) return true;
+
+  const content = state.src.slice(start + 3, max).trim();
+  const open = state.push('discord_subtext_open', 'div', 1);
+  open.attrSet('class', styles.discordSubtext);
+  const inline = state.push('inline', '', 0);
+  inline.content = content;
+  inline.children = [];
+  state.push('discord_subtext_close', 'div', -1);
+  state.line = startLine + 1;
+  return true;
+});
+
 export function ChatArea() {
   const { t } = useTranslation();
   const guild = useGuildStore((s) => s.getSelectedGuild());
@@ -507,22 +527,31 @@ export function ChatArea() {
               return (
                 <div key={headerMessage.id} className={styles.messageGroup} role="listitem" aria-label={`Message de ${displayName}, ${format(new Date(headerMessage.created_at), 'dd/MM/yyyy HH:mm')}`} data-testid={`message-${headerMessage.id}`}>
                   <div className={styles.messageGroupHeader} onContextMenu={(e) => handleMessageContextMenu(e, headerMessage)}>
-                    <div className={styles.avatar} onClick={(event) => openProfile(event, headerMessage.author.id)} data-user-popout-trigger="true">
+                    <button
+                      type="button"
+                      className={styles.avatar}
+                      onClick={(event) => openProfile(event, headerMessage.author.id)}
+                      data-user-popout-trigger="true"
+                      data-testid={`message-avatar-${headerMessage.author.id}`}
+                      aria-label={`Ouvrir le profil de ${displayName}`}
+                    >
                       {headerMessage.author.avatar
                         ? <img src={headerMessage.author.avatar} alt="" />
                         : headerMessage.author.username.slice(0, 1).toUpperCase()
                       }
-                    </div>
+                    </button>
                     <div className={styles.messageBody}>
                       <div className={styles.messageMeta}>
-                        <span
+                        <button
+                          type="button"
                           className={styles.messageAuthor}
                           style={{ color: getMemberColor(headerMessage.author.id, guild) }}
                           onClick={(event) => openProfile(event, headerMessage.author.id)}
                           data-user-popout-trigger="true"
+                          aria-label={`Ouvrir le profil de ${displayName}`}
                         >
                           {displayName}
-                        </span>
+                        </button>
                         <span className={styles.messageTimestamp}>
                           {format(new Date(headerMessage.created_at), 'dd/MM/yyyy HH:mm')}
                         </span>
@@ -744,6 +773,122 @@ export function ChatArea() {
           onStartThread={guild && channel?.type === 0 ? handleStartThreadFromMessage : undefined}
         />
       )}
+    </div>
+  );
+}
+
+function VoiceChannelView({
+  guild,
+  channel,
+  currentUserId,
+  isConnected,
+  isConnecting,
+  error,
+  selfMute,
+  selfDeaf,
+  speakingUserIds,
+  onJoin,
+  onLeave,
+  onToggleMute,
+  onToggleDeaf,
+}: {
+  guild: any;
+  channel: any;
+  currentUserId?: string;
+  isConnected: boolean;
+  isConnecting: boolean;
+  error: string | null;
+  selfMute: boolean;
+  selfDeaf: boolean;
+  speakingUserIds: Set<string>;
+  onJoin: () => void;
+  onLeave: () => void;
+  onToggleMute: () => void;
+  onToggleDeaf: () => void;
+}) {
+  const voiceStates = useGuildStore((s) => s.voiceStates);
+  const states = (voiceStates.get(guild.id) || []).filter((state: any) => state.channel_id === channel.id);
+  const participants = states.map((state: any) => {
+    const member = guild.members?.find((item: any) => item.user.id === state.user_id);
+    return {
+      state,
+      user: member?.user || { id: state.user_id, username: 'Utilisateur', avatar: null },
+      displayName: member?.nickname || member?.user.global_name || member?.user.username || 'Utilisateur',
+    };
+  });
+  const connectedCount = participants.length;
+  const userLimit = channel.user_limit || 0;
+
+  return (
+    <div className={styles.container} data-testid="voice-channel-view">
+      <div className={styles.header}>
+        <Volume2 size={20} className={styles.headerIcon} />
+        <span className={styles.headerName}>{channel.name}</span>
+        <div className={styles.headerDivider} />
+        <span className={styles.headerTopic}>
+          {connectedCount}{userLimit > 0 ? `/${userLimit}` : ''} connecté{connectedCount > 1 ? 's' : ''}
+        </span>
+      </div>
+      <div className={styles.voiceStage}>
+        <div className={styles.voiceHero}>
+          <div className={styles.voiceHeroIcon}><Volume2 size={36} /></div>
+          <div>
+            <div className={styles.voiceHeroTitle}>{channel.name}</div>
+            <div className={styles.voiceHeroMeta}>
+              {isConnected ? 'Connecté au vocal' : isConnecting ? 'Connexion en cours…' : 'Salon vocal'}
+            </div>
+          </div>
+          <div className={styles.voiceHeroActions}>
+            {isConnected ? (
+              <>
+                <button className={styles.headerPillButton} onClick={onToggleMute} aria-pressed={selfMute}>
+                  {selfMute ? <MicOff size={16} /> : <Mic size={16} />}
+                  {selfMute ? 'Muet' : 'Micro'}
+                </button>
+                <button className={styles.headerPillButton} onClick={onToggleDeaf} aria-pressed={selfDeaf}>
+                  <Headphones size={16} />
+                  {selfDeaf ? 'Sourd' : 'Casque'}
+                </button>
+                <button className={styles.headerPillButton} onClick={onLeave}>
+                  <PhoneOff size={16} />
+                  Quitter
+                </button>
+              </>
+            ) : (
+              <button className={styles.headerPillButton} onClick={onJoin} disabled={isConnecting}>
+                {isConnecting ? 'Connexion…' : 'Rejoindre'}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {error && <div className={styles.voiceError}>{error}</div>}
+
+        <div className={styles.voiceParticipantGrid}>
+          {participants.length === 0 ? (
+            <div className={styles.voiceEmpty}>Aucun participant connecté.</div>
+          ) : participants.map(({ state, user, displayName }: any) => {
+            const speaking = speakingUserIds.has(user.id);
+            return (
+              <div key={user.id} className={`${styles.voiceParticipant} ${speaking ? styles.voiceParticipantSpeaking : ''}`}>
+                <div className={styles.voiceParticipantAvatar}>
+                  {user.avatar ? <img src={user.avatar} alt="" /> : displayName.slice(0, 1).toUpperCase()}
+                </div>
+                <div className={styles.voiceParticipantInfo}>
+                  <div className={styles.voiceParticipantName}>
+                    {displayName}{user.id === currentUserId ? ' (vous)' : ''}
+                  </div>
+                  <div className={styles.voiceParticipantState}>
+                    {(state.self_mute || state.mute) && <span><MicOff size={12} /> Muet</span>}
+                    {(state.self_deaf || state.deaf) && <span><Headphones size={12} /> Sourd</span>}
+                    {!state.self_mute && !state.mute && !state.self_deaf && !state.deaf && <span>Disponible</span>}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
@@ -1003,6 +1148,14 @@ function getConversationSubtitle(channel: any): string | null {
     return recipients[0].custom_status_text || recipients[0].status || null;
   }
   return `${recipients.length} participants`;
+}
+
+function isVoiceLikeChannel(channel: any): boolean {
+  return channel.type === 2 || channel.type === 13 || channel.type === 14;
+}
+
+function isMessageLikeChannel(channel: any): boolean {
+  return !isVoiceLikeChannel(channel);
 }
 
 function hasGuildPermission(guild: any, userId: string, bit: bigint): boolean {
