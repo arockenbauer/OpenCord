@@ -5,14 +5,27 @@ import { generateSnowflake } from '../utils/snowflake.js';
 import { AppError } from '../utils/app-error.js';
 import { getMemberPermissions, checkPermission, requireMembership, writeAuditLog, AUDIT_LOG_ACTIONS } from './guild.controller.js';
 import { getIO } from '../gateway/index.js';
-import { GatewayEvents } from '@opencord/shared';
+import { GatewayEvents, PERMISSION_BITS } from '@opencord/shared';
 import { getChannelPermissions } from './message.controller.js';
 import { markTemplateDirty } from './guild.controller.js';
+import { serializeBigInt } from '../utils/serialize.js';
+
+async function emitChannelUpdate(channelId: string): Promise<void> {
+  const channel = await prisma.channel.findUnique({
+    where: { id: channelId },
+    include: { permission_overwrites: true },
+  });
+  if (!channel?.guild_id) return;
+  const io = getIO();
+  if (io) {
+    io.to(`guild:${channel.guild_id}`).emit(GatewayEvents.CHANNEL_UPDATE, serializeBigInt({ channel }));
+  }
+}
 
 export async function createChannel(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x10));
+    checkPermission(perms, PERMISSION_BITS.MANAGE_CHANNELS);
 
     const channel = await prisma.channel.create({
       data: {
@@ -55,7 +68,7 @@ export async function getChannel(req: Request, res: Response, next: NextFunction
     if (channel.guild_id) {
       await requireMembership(channel.guild_id, req.user!.userId);
       const perms = await getChannelPermissions(channel.id, req.user!.userId);
-      checkPermission(perms, BigInt(0x400)); // VIEW_CHANNEL
+      checkPermission(perms, PERMISSION_BITS.VIEW_CHANNEL);
     }
 
     res.json(channel);
@@ -71,7 +84,7 @@ export async function updateChannel(req: Request, res: Response, next: NextFunct
 
     if (channel.guild_id) {
       const perms = await getMemberPermissions(channel.guild_id, req.user!.userId);
-      checkPermission(perms, BigInt(0x10));
+      checkPermission(perms, PERMISSION_BITS.MANAGE_CHANNELS);
     }
 
     const allowedFields: Record<string, any> = {};
@@ -114,7 +127,7 @@ export async function deleteChannel(req: Request, res: Response, next: NextFunct
 
     if (channel.guild_id) {
       const perms = await getMemberPermissions(channel.guild_id, req.user!.userId);
-      checkPermission(perms, BigInt(0x10));
+      checkPermission(perms, PERMISSION_BITS.MANAGE_CHANNELS);
     }
 
     // Clean up related records for DM channels
@@ -147,38 +160,28 @@ export async function updatePermissionOverwrite(req: Request, res: Response, nex
     if (!channel || !channel.guild_id) throw new AppError(404, 'CHANNEL_NOT_FOUND', 'Channel not found');
 
     const perms = await getMemberPermissions(channel.guild_id, req.user!.userId);
-    checkPermission(perms, BigInt(0x10000000));
+    checkPermission(perms, PERMISSION_BITS.MANAGE_ROLES);
 
-    const updated = await prisma.permissionOverwrite.upsert({
-      where: {
-        channel_id_target_id_target_type: {
-          channel_id: req.params.channelId,
-          target_id: req.params.overwriteId,
-          target_type: req.body.type || 'role',
-        },
-      },
-      create: {
-        id: generateSnowflake(),
-        channel_id: req.params.channelId,
-        target_id: req.params.overwriteId,
-        target_type: req.body.type || 'role',
-        allow: BigInt(req.body.allow || '0'),
-        deny: BigInt(req.body.deny || '0'),
-      },
-      update: {
-        allow: BigInt(req.body.allow || '0'),
-        deny: BigInt(req.body.deny || '0'),
-      },
+    const existing = await prisma.permissionOverwrite.findFirst({
+      where: { id: req.params.overwriteId, channel_id: req.params.channelId },
+    });
+    if (!existing) throw new AppError(404, 'OVERWRITE_NOT_FOUND', 'Permission overwrite not found');
+
+    const data: { allow?: bigint; deny?: bigint } = {};
+    if (req.body.allow !== undefined) data.allow = BigInt(req.body.allow);
+    if (req.body.deny !== undefined) data.deny = BigInt(req.body.deny);
+
+    const updated = await prisma.permissionOverwrite.update({
+      where: { id: existing.id },
+      data,
     });
     await writeAuditLog(channel.guild_id, req.user!.userId, AUDIT_LOG_ACTIONS.CHANNEL_OVERWRITE_UPDATE, updated.id, 'PERMISSION_OVERWRITE', [
-      { key: 'channel_id', old_value: null, new_value: req.params.channelId },
-      { key: 'target_id', old_value: null, new_value: req.params.overwriteId },
-      { key: 'target_type', old_value: null, new_value: req.body.type || 'role' },
-      { key: 'allow', old_value: null, new_value: updated.allow.toString() },
-      { key: 'deny', old_value: null, new_value: updated.deny.toString() },
+      { key: 'allow', old_value: existing.allow.toString(), new_value: updated.allow.toString() },
+      { key: 'deny', old_value: existing.deny.toString(), new_value: updated.deny.toString() },
     ]);
+    await emitChannelUpdate(req.params.channelId);
 
-    res.json(updated);
+    res.json(serializeBigInt(updated));
   } catch (err) {
     next(err);
   }
@@ -190,14 +193,16 @@ export async function deletePermissionOverwrite(req: Request, res: Response, nex
     if (!channel || !channel.guild_id) throw new AppError(404, 'CHANNEL_NOT_FOUND', 'Channel not found');
 
     const perms = await getMemberPermissions(channel.guild_id, req.user!.userId);
-    checkPermission(perms, BigInt(0x10000000));
+    checkPermission(perms, PERMISSION_BITS.MANAGE_ROLES);
 
     const deleted = await prisma.permissionOverwrite.deleteMany({
-      where: { channel_id: req.params.channelId, target_id: req.params.overwriteId },
+      where: { id: req.params.overwriteId, channel_id: req.params.channelId },
     });
+    if (deleted.count === 0) throw new AppError(404, 'OVERWRITE_NOT_FOUND', 'Permission overwrite not found');
     await writeAuditLog(channel.guild_id, req.user!.userId, AUDIT_LOG_ACTIONS.CHANNEL_OVERWRITE_DELETE, req.params.overwriteId, 'PERMISSION_OVERWRITE', [
       { key: 'channel_id', old_value: req.params.channelId, new_value: null },
     ]);
+    await emitChannelUpdate(req.params.channelId);
 
     res.status(204).send();
   } catch (err) {
@@ -211,7 +216,7 @@ export async function createPermissionOverwrite(req: Request, res: Response, nex
     if (!channel || !channel.guild_id) throw new AppError(404, 'CHANNEL_NOT_FOUND', 'Channel not found');
 
     const perms = await getMemberPermissions(channel.guild_id, req.user!.userId);
-    checkPermission(perms, BigInt(0x10000000));
+    checkPermission(perms, PERMISSION_BITS.MANAGE_ROLES);
 
     const targetId = req.body.target_id;
     const targetType = req.body.type || 'role';
@@ -225,7 +230,8 @@ export async function createPermissionOverwrite(req: Request, res: Response, nex
         where: { id: existing.id },
         data: { allow: BigInt(req.body.allow || '0'), deny: BigInt(req.body.deny || '0') },
       });
-      res.json(updated);
+      await emitChannelUpdate(req.params.channelId);
+      res.json(serializeBigInt(updated));
       return;
     }
 
@@ -246,8 +252,9 @@ export async function createPermissionOverwrite(req: Request, res: Response, nex
       { key: 'allow', old_value: null, new_value: overwrite.allow.toString() },
       { key: 'deny', old_value: null, new_value: overwrite.deny.toString() },
     ]);
+    await emitChannelUpdate(req.params.channelId);
 
-    res.status(201).json(overwrite);
+    res.status(201).json(serializeBigInt(overwrite));
   } catch (err) {
     next(err);
   }

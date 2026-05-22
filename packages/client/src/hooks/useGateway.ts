@@ -5,6 +5,7 @@ import { useGuildStore } from '../stores/guildStore';
 import { useMessageStore } from '../stores/messageStore';
 import { useNotificationStore } from '../stores/notificationStore';
 import { useUnreadStore } from '../stores/unreadStore';
+import { useVoiceStore } from '../stores/voiceStore';
 import { GatewayEvents } from '@opencord/shared';
 
 export function useGateway() {
@@ -137,6 +138,27 @@ export function useGateway() {
 
     socket.on(GatewayEvents.VOICE_STATE_UPDATE, (data: any) => {
       updateVoiceState(data.guild_id, data.user_id, data.channel_id);
+      const currentUser = useAuthStore.getState().user;
+      if (currentUser?.id === data.user_id && data.channel_id === null) {
+        useVoiceStore.getState().reset();
+      }
+    });
+    socket.on(GatewayEvents.VOICE_SERVER_UPDATE, (data: any) => {
+      void useVoiceStore.getState().handleVoiceServerUpdate(data);
+    });
+    socket.on(GatewayEvents.VOICE_PRODUCER_ADDED, (data: any) => {
+      const currentUser = useAuthStore.getState().user;
+      if (data.userId === currentUser?.id || data.user_id === currentUser?.id) return;
+      void useVoiceStore.getState().addProducer(data);
+    });
+    socket.on(GatewayEvents.VOICE_PRODUCER_CLOSED, (data: any) => {
+      useVoiceStore.getState().closeProducer(data.producer_id || data.producerId);
+    });
+    socket.on(GatewayEvents.SPEAKING, (data: any) => {
+      useVoiceStore.getState().setSpeaking(data.user_id || data.userId, Boolean(data.speaking));
+    });
+    socket.on(GatewayEvents.VOICE_ERROR, (data: any) => {
+      useVoiceStore.setState({ error: data.message || 'Erreur vocale', isConnecting: false });
     });
 
     socket.on(GatewayEvents.USER_UPDATE, (data: any) => {

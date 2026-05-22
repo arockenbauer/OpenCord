@@ -111,6 +111,7 @@ model User {
   refresh_tokens                   RefreshToken[]
   reports_sent                     Report[]                       @relation("ReportReporter")
   stickers_created                 Sticker[]
+  soundboard_sounds_created        SoundboardSound[]
   thread_members                   ThreadMember[]
   activities                       UserActivity[]
   user_badges                      UserBadge[]
@@ -197,6 +198,7 @@ model Guild {
   roles                         Role[]
   stage_instances               StageInstance[]
   stickers                      Sticker[]
+  soundboard_sounds             SoundboardSound[]
   voice_states                  VoiceState[]
   webhooks                      Webhook[]
 }
@@ -483,6 +485,24 @@ model Sticker {
   created_at  DateTime @default(now())
   creator     User?    @relation(fields: [creator_id], references: [id])
   guild       Guild?   @relation(fields: [guild_id], references: [id], onDelete: Cascade)
+}
+
+model SoundboardSound {
+  id         String   @id
+  guild_id   String?
+  name       String
+  emoji      String?
+  file_path  String
+  mime_type  String
+  volume     Float    @default(1.0)
+  available  Boolean  @default(true)
+  created_by String?
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  creator    User?    @relation(fields: [created_by], references: [id])
+  guild      Guild?   @relation(fields: [guild_id], references: [id], onDelete: Cascade)
+
+  @@unique([guild_id, name])
 }
 
 model Webhook {

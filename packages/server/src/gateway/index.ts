@@ -5,6 +5,17 @@ import { prisma } from '../utils/prisma.js';
 import { GatewayEvents } from '@opencord/shared';
 import { logInfo, logError } from '../utils/logger.js';
 import { serializeBigInt } from '../utils/serialize.js';
+import { updateOwnVoiceState } from '../services/voice-state.service.js';
+import {
+  closeUserMedia,
+  connectTransport,
+  consume,
+  createWebRtcTransport,
+  getProducers,
+  getRtpCapabilities,
+  produce,
+  resumeConsumer,
+} from '../services/voice-media.service.js';
 
 let io: SocketServer | null = null;
 
@@ -187,6 +198,9 @@ async function buildReadyPayload(userId: string) {
   });
 
   const notifications_unread_count = await prisma.notification.count({ where: { user_id: userId, read: false } });
+  const voiceStates = await prisma.voiceState.findMany({
+    where: { guild_id: { in: guildIds } },
+  });
 
   return {
     user,
@@ -203,6 +217,7 @@ async function buildReadyPayload(userId: string) {
       user: r.user_id === userId ? r.target : r.user,
     })),
     notifications_unread_count,
+    voice_states: voiceStates,
   };
 }
 
@@ -369,45 +384,180 @@ export function setupGateway(httpServer: HttpServer): SocketServer {
       schedulePresenceFlush();
     });
 
-    // VOICE_STATE_UPDATE (différé selon spec)
-    socket.on(GatewayEvents.VOICE_STATE_UPDATE, async (data: any) => {
-      const { guild_id, channel_id, deaf, mute, self_deaf, self_mute, self_video, suppress } = data;
-      if (channel_id === null) {
-        await prisma.voiceState.deleteMany({ where: { user_id: userId, guild_id } });
-      } else {
-        await prisma.voiceState.upsert({
-          where: { guild_id_user_id: { guild_id, user_id: userId } },
-          create: {
-            id: `${guild_id}:${userId}`,
-            guild_id,
-            channel_id,
-            user_id: userId,
-            deaf: deaf || false,
-            mute: mute || false,
-            self_deaf: self_deaf || false,
-            self_mute: self_mute || false,
-            self_video: self_video || false,
-            suppress: suppress || false,
-          },
-          update: { channel_id, deaf, mute, self_deaf, self_mute, self_video, suppress },
-        });
-      }
-
-      socket.to(`guild:${guild_id}`).emit(GatewayEvents.VOICE_STATE_UPDATE, {
-        guild_id,
-        user_id: userId,
-        channel_id,
-        deaf,
-        mute,
-        self_deaf,
-        self_mute,
-        self_video,
-        suppress,
+    async function ensureVoiceAccess(channelId: string) {
+      const voiceState = await prisma.voiceState.findFirst({
+        where: { user_id: userId, channel_id: channelId },
       });
+      if (!voiceState) throw new Error('NOT_CONNECTED_TO_VOICE');
+      return voiceState;
+    }
+
+    socket.on(GatewayEvents.VOICE_STATE_UPDATE, async (data: any) => {
+      try {
+        const guildId = data.guild_id || data.guildId;
+        if (!guildId) throw new Error('MISSING_GUILD');
+        const state = await updateOwnVoiceState(guildId, userId, data, socket.id);
+        if ((state as any).channel_id) {
+          const secret = process.env.JWT_ACCESS_SECRET || process.env.JWT_SECRET || 'opencord_dev_jwt_secret_change_me_in_production_1234567890';
+          const token = jwt.sign(
+            { type: 'voice', userId, guildId, channelId: (state as any).channel_id, sessionId: socket.id },
+            secret,
+            { expiresIn: '5m' },
+          );
+          socket.emit(GatewayEvents.VOICE_SERVER_UPDATE, {
+            token,
+            guildId,
+            guild_id: guildId,
+            channelId: (state as any).channel_id,
+            channel_id: (state as any).channel_id,
+            endpoint: process.env.VOICE_ENDPOINT || process.env.CORS_ORIGIN || 'http://localhost:3000',
+            producers: getProducers((state as any).channel_id),
+          });
+        }
+      } catch (err: any) {
+        socket.emit(GatewayEvents.VOICE_ERROR, { message: err.message || 'Voice state update failed' });
+      }
+    });
+
+    socket.on(GatewayEvents.VOICE_GET_RTP_CAPABILITIES, async (data: any, ack?: (payload: any) => void) => {
+      try {
+        await ensureVoiceAccess(data.channel_id || data.channelId);
+        const rtpCapabilities = await getRtpCapabilities(data.channel_id || data.channelId);
+        const payload = { channel_id: data.channel_id || data.channelId, rtpCapabilities };
+        if (ack) ack(payload);
+        else socket.emit(GatewayEvents.VOICE_RTP_CAPABILITIES, payload);
+      } catch (err: any) {
+        const payload = { message: err.message || 'Unable to get RTP capabilities' };
+        if (ack) ack({ error: payload });
+        else socket.emit(GatewayEvents.VOICE_ERROR, payload);
+      }
+    });
+
+    socket.on(GatewayEvents.VOICE_CREATE_WEBRTC_TRANSPORT, async (data: any, ack?: (payload: any) => void) => {
+      try {
+        await ensureVoiceAccess(data.channel_id || data.channelId);
+        const transport = await createWebRtcTransport(data.channel_id || data.channelId, userId);
+        const payload = { channel_id: data.channel_id || data.channelId, transport };
+        if (ack) ack(payload);
+        else socket.emit(GatewayEvents.VOICE_WEBRTC_TRANSPORT_CREATED, payload);
+      } catch (err: any) {
+        const payload = { message: err.message || 'Unable to create voice transport' };
+        if (ack) ack({ error: payload });
+        else socket.emit(GatewayEvents.VOICE_ERROR, payload);
+      }
+    });
+
+    socket.on(GatewayEvents.VOICE_CONNECT_TRANSPORT, async (data: any, ack?: (payload: any) => void) => {
+      try {
+        await ensureVoiceAccess(data.channel_id || data.channelId);
+        await connectTransport(data.channel_id || data.channelId, data.transportId || data.transport_id, data.dtlsParameters || data.dtls_parameters);
+        const payload = { ok: true };
+        if (ack) ack(payload);
+        else socket.emit(GatewayEvents.VOICE_TRANSPORT_CONNECTED, payload);
+      } catch (err: any) {
+        const payload = { message: err.message || 'Unable to connect voice transport' };
+        if (ack) ack({ error: payload });
+        else socket.emit(GatewayEvents.VOICE_ERROR, payload);
+      }
+    });
+
+    socket.on(GatewayEvents.VOICE_PRODUCE, async (data: any, ack?: (payload: any) => void) => {
+      try {
+        const voiceState = await ensureVoiceAccess(data.channel_id || data.channelId);
+        const producer = await produce(
+          voiceState.channel_id!,
+          userId,
+          data.transportId || data.transport_id,
+          data.kind,
+          data.rtpParameters || data.rtp_parameters,
+          data.appData || data.app_data,
+        );
+        io?.to(`guild:${voiceState.guild_id}`).emit(GatewayEvents.VOICE_PRODUCER_ADDED, producer);
+        if (producer.kind === 'audio') {
+          socket.to(`guild:${voiceState.guild_id}`).emit(GatewayEvents.SPEAKING, { user_id: userId, userId, speaking: true, ssrc: producer.id });
+        }
+        const payload = { id: producer.id };
+        if (ack) ack(payload);
+        else socket.emit(GatewayEvents.VOICE_PRODUCED, payload);
+      } catch (err: any) {
+        const payload = { message: err.message || 'Unable to produce media' };
+        if (ack) ack({ error: payload });
+        else socket.emit(GatewayEvents.VOICE_ERROR, payload);
+      }
+    });
+
+    socket.on(GatewayEvents.VOICE_CONSUME, async (data: any, ack?: (payload: any) => void) => {
+      try {
+        const voiceState = await ensureVoiceAccess(data.channel_id || data.channelId);
+        const consumer = await consume(
+          voiceState.channel_id!,
+          data.transportId || data.transport_id,
+          data.producerId || data.producer_id,
+          data.rtpCapabilities || data.rtp_capabilities,
+        );
+        if (ack) ack(consumer);
+        else socket.emit(GatewayEvents.VOICE_CONSUMED, consumer);
+      } catch (err: any) {
+        const payload = { message: err.message || 'Unable to consume media' };
+        if (ack) ack({ error: payload });
+        else socket.emit(GatewayEvents.VOICE_ERROR, payload);
+      }
+    });
+
+    socket.on(GatewayEvents.VOICE_RESUME_CONSUMER, async (data: any, ack?: (payload: any) => void) => {
+      try {
+        const voiceState = await ensureVoiceAccess(data.channel_id || data.channelId);
+        await resumeConsumer(voiceState.channel_id!, data.consumerId || data.consumer_id);
+        if (ack) ack({ ok: true });
+      } catch (err: any) {
+        const payload = { message: err.message || 'Unable to resume consumer' };
+        if (ack) ack({ error: payload });
+        else socket.emit(GatewayEvents.VOICE_ERROR, payload);
+      }
+    });
+
+    socket.on(GatewayEvents.SPEAKING, async (data: any) => {
+      try {
+        const voiceState = await ensureVoiceAccess(data.channel_id || data.channelId);
+        socket.to(`guild:${voiceState.guild_id}`).emit(GatewayEvents.SPEAKING, {
+          user_id: userId,
+          userId,
+          speaking: Boolean(data.speaking),
+          ssrc: data.ssrc,
+        });
+      } catch {
+        // Ignore stale speaking updates.
+      }
     });
 
     // Déconnexion
     socket.on('disconnect', async () => {
+      const disconnectedVoiceStates = await prisma.voiceState.findMany({
+        where: { user_id: userId, session_id: socket.id },
+      });
+      for (const state of disconnectedVoiceStates) {
+        if (state.channel_id) {
+          const closedProducerIds = closeUserMedia(state.channel_id, userId);
+          for (const producerId of closedProducerIds) {
+            io?.to(`guild:${state.guild_id}`).emit(GatewayEvents.VOICE_PRODUCER_CLOSED, {
+              producer_id: producerId,
+              producerId,
+              user_id: userId,
+              userId,
+              channel_id: state.channel_id,
+              channelId: state.channel_id,
+            });
+          }
+        }
+        await prisma.voiceState.delete({ where: { id: state.id } }).catch(() => undefined);
+        io?.to(`guild:${state.guild_id}`).emit(GatewayEvents.VOICE_STATE_UPDATE, {
+          guild_id: state.guild_id,
+          user_id: userId,
+          channel_id: null,
+          session_id: socket.id,
+        });
+      }
+
       const presence = presenceStore.get(userId);
       if (presence) {
         presence.socket_ids.delete(socket.id);

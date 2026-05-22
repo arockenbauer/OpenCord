@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { authenticate } from '../middleware/auth.middleware.js';
 import { validate } from '../middleware/validate.middleware.js';
 import { guildOperationsRateLimit, searchRateLimit } from '../middleware/rate-limit.middleware.js';
-import { uploadIcon, uploadBanner, uploadSticker, uploadEventImage } from '../middleware/upload.middleware.js';
+import { uploadIcon, uploadBanner, uploadSticker, uploadEventImage, uploadSoundboardSound } from '../middleware/upload.middleware.js';
 import { createGuildSchema, updateGuildSchema, deleteGuildSchema, searchMessagesSchema } from '@opencord/shared';
 import * as guilds from '../controllers/guild.controller.js';
 import * as automod from '../controllers/automod.controller.js';
@@ -15,6 +15,7 @@ import * as ban from '../controllers/ban.controller.js';
 import * as slashCommands from '../controllers/slashcommand.controller.js';
 import * as invites from '../controllers/invite.controller.js';
 import * as channels from '../controllers/channel.controller.js';
+import * as voice from '../controllers/voice.controller.js';
 import { guildBoostRouter } from './premium.routes.js';
 
 const router = Router();
@@ -76,6 +77,22 @@ router.post('/:guildId/slash-commands', authenticate, slashCommands.createSlashC
 router.patch('/:guildId/slash-commands/:commandId', authenticate, slashCommands.updateSlashCommand);
 router.delete('/:guildId/slash-commands/:commandId', authenticate, slashCommands.deleteSlashCommand);
 router.post('/:guildId/slash-commands/execute', authenticate, slashCommands.handleSlashCommandInteraction);
+
+router.get('/:guildId/voice-states', authenticate, voice.getVoiceStates);
+router.get('/:guildId/voice-states/@me', authenticate, voice.getMyVoiceState);
+router.patch('/:guildId/voice-states/@me', authenticate, voice.patchMyVoiceState);
+router.patch('/:guildId/voice-states/:userId', authenticate, voice.patchUserVoiceState);
+
+router.post('/:guildId/stage-instances', authenticate, voice.createStageInstance);
+router.get('/:guildId/stage-instances/:channelId', authenticate, voice.getStageInstance);
+router.patch('/:guildId/stage-instances/:channelId', authenticate, voice.updateStageInstance);
+router.delete('/:guildId/stage-instances/:channelId', authenticate, voice.deleteStageInstance);
+
+router.get('/:guildId/soundboard-sounds', authenticate, voice.getSoundboardSounds);
+router.post('/:guildId/soundboard-sounds', authenticate, uploadSoundboardSound, voice.createSoundboardSound);
+router.patch('/:guildId/soundboard-sounds/:soundId', authenticate, voice.updateSoundboardSound);
+router.delete('/:guildId/soundboard-sounds/:soundId', authenticate, voice.deleteSoundboardSound);
+router.post('/:guildId/soundboard-sounds/:soundId/play', authenticate, voice.playSoundboardSound);
 
 router.get('/:guildId/widget', authenticate, guilds.getWidget);
 router.patch('/:guildId/widget', authenticate, guilds.updateWidget);

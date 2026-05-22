@@ -7,7 +7,7 @@ import { generateSnowflake } from '../utils/snowflake.js';
 import { AppError } from '../utils/app-error.js';
 import { getMemberPermissions, checkPermission, getHighestRolePosition, requireMembership, writeAuditLog, AUDIT_LOG_ACTIONS } from './guild.controller.js';
 import { getIO } from '../gateway/index.js';
-import { GatewayEvents } from '@opencord/shared';
+import { GatewayEvents, PERMISSION_BITS } from '@opencord/shared';
 import { serializeBigInt } from '../utils/serialize.js';
 import { markTemplateDirty } from './guild.controller.js';
 
@@ -29,7 +29,7 @@ export async function getRoles(req: Request, res: Response, next: NextFunction):
 export async function createRole(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x10000000));
+    checkPermission(perms, PERMISSION_BITS.MANAGE_ROLES);
 
     const maxPos = await prisma.role.aggregate({ where: { guild_id: req.params.guildId }, _max: { position: true } });
 
@@ -66,23 +66,27 @@ export async function createRole(req: Request, res: Response, next: NextFunction
 export async function updateRole(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x10000000));
+    checkPermission(perms, PERMISSION_BITS.MANAGE_ROLES);
     const actorHighestRole = await getHighestRolePosition(req.params.guildId, req.user!.userId);
     const targetRole = await prisma.role.findFirst({ where: { id: req.params.roleId, guild_id: req.params.guildId } });
     if (!targetRole) throw new AppError(404, 'ROLE_NOT_FOUND', 'Role not found');
-    if (targetRole.name === '@everyone') throw new AppError(400, 'CANNOT_EDIT', 'Cannot edit @everyone role');
-    if (actorHighestRole <= targetRole.position) {
+    if (targetRole.name === '@everyone') {
+      const invalidEveryoneFields = ['name', 'color', 'hoist', 'position', 'unicode_emoji'].filter((field) => req.body[field] !== undefined);
+      if (invalidEveryoneFields.length > 0) {
+        throw new AppError(400, 'CANNOT_EDIT_EVERYONE', 'Only permissions and mentionable can be edited on @everyone');
+      }
+    } else if (actorHighestRole <= targetRole.position) {
       throw new AppError(403, 'ROLE_HIERARCHY', 'Cannot edit a role equal or higher than your top role');
     }
 
     const data: any = {};
-    if (req.body.name !== undefined) data.name = req.body.name;
-    if (req.body.color !== undefined) data.color = req.body.color;
-    if (req.body.hoist !== undefined) data.hoist = req.body.hoist;
+    if (targetRole.name !== '@everyone' && req.body.name !== undefined) data.name = req.body.name;
+    if (targetRole.name !== '@everyone' && req.body.color !== undefined) data.color = req.body.color;
+    if (targetRole.name !== '@everyone' && req.body.hoist !== undefined) data.hoist = req.body.hoist;
     if (req.body.mentionable !== undefined) data.mentionable = req.body.mentionable;
     if (req.body.permissions !== undefined) data.permissions = BigInt(req.body.permissions);
-    if (req.body.position !== undefined) data.position = req.body.position;
-    if (req.body.unicode_emoji !== undefined) data.unicode_emoji = req.body.unicode_emoji;
+    if (targetRole.name !== '@everyone' && req.body.position !== undefined) data.position = req.body.position;
+    if (targetRole.name !== '@everyone' && req.body.unicode_emoji !== undefined) data.unicode_emoji = req.body.unicode_emoji;
 
     const role = await prisma.role.update({ where: { id: req.params.roleId }, data });
 
@@ -108,7 +112,7 @@ export async function updateRole(req: Request, res: Response, next: NextFunction
 export async function deleteRole(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x10000000));
+    checkPermission(perms, PERMISSION_BITS.MANAGE_ROLES);
     const actorHighestRole = await getHighestRolePosition(req.params.guildId, req.user!.userId);
 
     const role = await prisma.role.findUnique({ where: { id: req.params.roleId } });
@@ -134,7 +138,7 @@ export async function deleteRole(req: Request, res: Response, next: NextFunction
 export async function updateRolePositions(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x10000000));
+    checkPermission(perms, PERMISSION_BITS.MANAGE_ROLES);
     const actorHighestRole = await getHighestRolePosition(req.params.guildId, req.user!.userId);
 
     const positions: { id: string; position: number }[] = req.body;
@@ -180,7 +184,7 @@ export async function updateRolePositions(req: Request, res: Response, next: Nex
 export async function updateRoleIcon(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x10000000));
+    checkPermission(perms, PERMISSION_BITS.MANAGE_ROLES);
 
     const role = await prisma.role.findFirst({ where: { id: req.params.roleId, guild_id: req.params.guildId } });
     if (!role) throw new AppError(404, 'ROLE_NOT_FOUND', 'Role not found');
@@ -222,7 +226,7 @@ export async function getRoleConnections(req: Request, res: Response, next: Next
 export async function updateRoleConnections(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x10000000));
+    checkPermission(perms, PERMISSION_BITS.MANAGE_ROLES);
 
     const role = await prisma.role.findFirst({ where: { id: req.params.roleId, guild_id: req.params.guildId } });
     if (!role) throw new AppError(404, 'ROLE_NOT_FOUND', 'Role not found');

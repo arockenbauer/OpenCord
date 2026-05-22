@@ -16,6 +16,8 @@ export const updateUserSchema = z.object({
   allow_dms_from: z.number().int().min(0).max(2).optional(),
   discriminator: z.string().regex(/^\d{4}$/).optional(),
   global_name: z.string().max(LIMITS.MAX_USERNAME_LENGTH).optional().nullable(),
+  pronouns: z.string().max(40).optional().nullable(),
+  accent_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional().nullable(),
 }).strip();
 
 export const deleteUserSchema = z.object({

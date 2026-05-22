@@ -9,12 +9,12 @@ const router = Router({ mergeParams: true });
 router.get('/', authenticate, roles.getRoles);
 router.post('/', authenticate, roles.createRole);
 router.patch('/positions', authenticate, roles.updateRolePositions);
+router.get('/hierarchy', authenticate, roles.getRoleHierarchy);
 router.patch('/:roleId', authenticate, roles.updateRole);
 router.delete('/:roleId', authenticate, roles.deleteRole);
 router.patch('/:roleId/icon', authenticate, uploadRoleIcon, roles.updateRoleIcon);
 router.get('/:roleId/connections', authenticate, roles.getRoleConnections);
 router.patch('/:roleId/connections', authenticate, roles.updateRoleConnections);
-router.get('/hierarchy', authenticate, roles.getRoleHierarchy);
 
 // Role Connection Requirements (Guild Admin)
 router.get('/:roleId/role-connection-requirements', authenticate, linkedRole.getRoleConnectionRequirements);

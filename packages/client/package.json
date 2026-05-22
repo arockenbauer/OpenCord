@@ -24,6 +24,7 @@
     "i18next-http-backend": "^3.0.6",
     "lucide-react": "^0.372.0",
     "markdown-it": "^14.1.0",
+    "mediasoup-client": "^3.20.0",
     "mousetrap": "^1.6.5",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",

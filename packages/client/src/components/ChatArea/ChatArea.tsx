@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, KeyboardEvent, MouseEvent, ChangeEvent, useMemo } from 'react';
-import { Hash, Pin, Users, Search, PlusCircle, Smile, X, Reply, MoreHorizontal, Trash2, MessageCircle, UserPlus, Zap, Info } from 'lucide-react';
+import { Hash, Pin, Users, Search, PlusCircle, Smile, X, Reply, MoreHorizontal, Trash2, MessageCircle, UserPlus, Zap, Info, Volume2, Mic, MicOff, Headphones, PhoneOff } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { format } from 'date-fns';
 import MarkdownIt from 'markdown-it';
@@ -8,6 +8,7 @@ import { useMessageStore } from '../../stores/messageStore';
 import { useAuthStore } from '../../stores/authStore';
 import { useUIStore } from '../../stores/uiStore';
 import { useUnreadStore } from '../../stores/unreadStore';
+import { useVoiceStore } from '../../stores/voiceStore';
 import { EmojiPicker } from '../EmojiPicker/EmojiPicker';
 import { SlashCommandAutocomplete } from '../SlashCommandAutocomplete/SlashCommandAutocomplete';
 import { MessageContextMenu } from '../context-menus/MessageContextMenu';
@@ -50,6 +51,17 @@ export function ChatArea() {
   const currentUser = useAuthStore((s) => s.user);
   const toggleMemberList = useUIStore((s) => s.toggleMemberList);
   const setProfilePopover = useUIStore((s) => s.setProfilePopover);
+  const joinVoiceChannel = useVoiceStore((s) => s.joinVoiceChannel);
+  const leaveVoiceChannel = useVoiceStore((s) => s.leaveVoiceChannel);
+  const toggleSelfMute = useVoiceStore((s) => s.toggleSelfMute);
+  const toggleSelfDeaf = useVoiceStore((s) => s.toggleSelfDeaf);
+  const voiceChannelId = useVoiceStore((s) => s.channelId);
+  const voiceGuildId = useVoiceStore((s) => s.guildId);
+  const selfMute = useVoiceStore((s) => s.selfMute);
+  const selfDeaf = useVoiceStore((s) => s.selfDeaf);
+  const voiceConnecting = useVoiceStore((s) => s.isConnecting);
+  const voiceError = useVoiceStore((s) => s.error);
+  const speakingUserIds = useVoiceStore((s) => s.speakingUserIds);
 
   const [inputValue, setInputValue] = useState('');
   const [replyTo, setReplyTo] = useState<any>(null);
@@ -74,11 +86,11 @@ export function ChatArea() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    if (selectedChannelId) {
+    if (selectedChannelId && channel && isMessageLikeChannel(channel)) {
       fetchMessages(selectedChannelId);
       useUnreadStore.getState().markRead(selectedChannelId);
     }
-  }, [selectedChannelId, fetchMessages]);
+  }, [selectedChannelId, channel?.type, fetchMessages]);
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -355,23 +367,16 @@ export function ChatArea() {
     setSidePanel(null);
   };
 
-  if (!selectedChannelId || !channel) {
-    return (
-      <div className={styles.container} data-testid="chat-area">
-        <div className={styles.emptyState}>{guild ? t('guild.no_guilds') : t('dm.empty')}</div>
-      </div>
-    );
-  }
-
   const isDirectMessage = !guild;
-  const isThread = channel.type === 11;
-  const isForum = channel.type === 15;
+  const isThread = channel?.type === 11;
+  const isForum = channel?.type === 15;
+  const isVoiceLike = channel ? isVoiceLikeChannel(channel) : false;
   const canManageThreads = guild ? hasGuildPermission(guild, currentUser?.id || '', BigInt(0x400000000)) : false;
-  const channelTitle = getConversationTitle(channel, currentUser?.id);
-  const headerTopic = isDirectMessage ? getConversationSubtitle(channel) : channel.topic;
+  const channelTitle = channel ? getConversationTitle(channel, currentUser?.id) : '';
+  const headerTopic = channel ? (isDirectMessage ? getConversationSubtitle(channel) : channel.topic) : null;
   const messagePlaceholder = isDirectMessage
     ? t('dm.placeholder', { user: channelTitle })
-    : t('channel.placeholder', { channel: channel.name });
+    : t('channel.placeholder', { channel: channel?.name || '' });
   const groupedMessages = groupMessages(messages);
   const guildMembers = guild?.members || [];
   const typingNames = typingUsers ? Array.from(typingUsers)
@@ -381,7 +386,7 @@ export function ChatArea() {
         const member = guildMembers.find((item) => item.user.id === id);
         return member?.nickname || member?.user.global_name || member?.user.username || id;
       }
-      const recipient = channel.recipients?.find((item: any) => item.id === id);
+      const recipient = channel?.recipients?.find((item: any) => item.id === id);
       return recipient?.global_name || recipient?.username || id;
     })
     .filter(Boolean) : [];
@@ -406,6 +411,34 @@ export function ChatArea() {
       announceChannelChange(channelTitle);
     }
   }, [channelTitle]);
+
+  if (!selectedChannelId || !channel) {
+    return (
+      <div className={styles.container} data-testid="chat-area">
+        <div className={styles.emptyState}>{guild ? t('guild.no_guilds') : t('dm.empty')}</div>
+      </div>
+    );
+  }
+
+  if (isVoiceLike && guild) {
+    return (
+      <VoiceChannelView
+        guild={guild}
+        channel={channel}
+        currentUserId={currentUser?.id}
+        isConnected={voiceGuildId === guild.id && voiceChannelId === channel.id}
+        isConnecting={voiceConnecting}
+        error={voiceError}
+        selfMute={selfMute}
+        selfDeaf={selfDeaf}
+        speakingUserIds={speakingUserIds}
+        onJoin={() => joinVoiceChannel(guild.id, channel.id)}
+        onLeave={leaveVoiceChannel}
+        onToggleMute={toggleSelfMute}
+        onToggleDeaf={toggleSelfDeaf}
+      />
+    );
+  }
 
   return (
     <div className={styles.container}>
@@ -520,6 +553,7 @@ export function ChatArea() {
                       onDelete={() => selectedChannelId && deleteMessage(selectedChannelId, headerMessage.id)}
                       onReact={() => handleReaction(headerMessage.id, '👍')}
                       onRetry={() => selectedChannelId && retryMessage(selectedChannelId, headerMessage.id)}
+                      onMore={(event) => setMsgCtxMenu({ msg: headerMessage, x: event.clientX, y: event.clientY })}
                     />
                   </div>
 
@@ -551,6 +585,7 @@ export function ChatArea() {
                         onDelete={() => selectedChannelId && deleteMessage(selectedChannelId, message.id)}
                         onReact={() => handleReaction(message.id, '👍')}
                         onRetry={() => selectedChannelId && retryMessage(selectedChannelId, message.id)}
+                        onMore={(event) => setMsgCtxMenu({ msg: message, x: event.clientX, y: event.clientY })}
                       />
                     </div>
                   ))}
@@ -831,6 +866,7 @@ function MessageActions({
   onDelete,
   onReact,
   onRetry,
+  onMore,
 }: {
   msg: any;
   userId?: string;
@@ -838,6 +874,7 @@ function MessageActions({
   onDelete: () => void;
   onReact: () => void;
   onRetry: () => void;
+  onMore: (event: MouseEvent<HTMLButtonElement>) => void;
 }) {
   return (
     <div className={styles.actions}>
@@ -858,7 +895,7 @@ function MessageActions({
         </Tooltip>
       )}
       <Tooltip content="Plus" position="top" delay={300}>
-        <button><MoreHorizontal size={16} /></button>
+        <button onClick={onMore}><MoreHorizontal size={16} /></button>
       </Tooltip>
     </div>
   );

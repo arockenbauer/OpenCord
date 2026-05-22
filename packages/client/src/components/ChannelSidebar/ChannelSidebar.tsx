@@ -1,10 +1,11 @@
 import { MouseEvent, useState, useRef, useEffect } from 'react';
-import { Hash, Volume2, Megaphone, ChevronDown, ChevronRight, Plus, Settings, Mic, MicOff, Headphones, MessageCircle, UserPlus, LogOut, Trash2, Edit3, Trash, Copy, Link } from 'lucide-react';
+import { Hash, Volume2, Megaphone, ChevronDown, ChevronRight, Plus, Settings, Mic, MicOff, Headphones, MessageCircle, UserPlus, LogOut, Trash2, Edit3, Trash, Copy, Link, PhoneOff } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useGuildStore } from '../../stores/guildStore';
 import { useAuthStore } from '../../stores/authStore';
 import { useUIStore } from '../../stores/uiStore';
 import { useUnreadStore } from '../../stores/unreadStore';
+import { useVoiceStore } from '../../stores/voiceStore';
 import { CreateChannelModal } from '../modals/CreateChannelModal';
 import { Tooltip } from '../Tooltip/Tooltip';
 import { api } from '../../services/api';
@@ -13,6 +14,8 @@ import styles from './ChannelSidebar.module.css';
 const channelIcons: Record<number, any> = {
   0: Hash,
   2: Volume2,
+  13: Volume2,
+  14: Volume2,
   4: undefined,
   5: Megaphone,
   11: MessageCircle,
@@ -25,6 +28,9 @@ export function ChannelSidebar() {
   const dmChannels = useGuildStore((s) => s.dmChannels);
   const selectedChannelId = useGuildStore((s) => s.selectedChannelId);
   const selectChannel = useGuildStore((s) => s.selectChannel);
+  const joinVoiceChannel = useVoiceStore((s) => s.joinVoiceChannel);
+  const voiceChannelId = useVoiceStore((s) => s.channelId);
+  const voiceGuildId = useVoiceStore((s) => s.guildId);
   const user = useAuthStore((s) => s.user);
   const setShowServerSettings = useUIStore((s) => s.setShowServerSettings);
   const setShowUserSettings = useUIStore((s) => s.setShowUserSettings);
@@ -212,7 +218,15 @@ export function ChannelSidebar() {
 
       <div className={styles.channelList}>
         {orphanChannels.map((ch) => (
-          <ChannelItem key={ch.id} channel={ch} isActive={selectedChannelId === ch.id} onClick={() => selectChannel(ch.id)} onContextMenu={(e) => openChannelContextMenu(e, ch)} user={user} />
+          <ChannelItem
+            key={ch.id}
+            channel={ch}
+            isActive={selectedChannelId === ch.id}
+            isVoiceConnected={voiceGuildId === guild.id && voiceChannelId === ch.id}
+            onClick={() => isVoiceChannel(ch) ? joinVoiceChannel(guild.id, ch.id) : selectChannel(ch.id)}
+            onContextMenu={(e) => openChannelContextMenu(e, ch)}
+            user={user}
+          />
         ))}
 
         {categories.map((cat) => {
@@ -227,7 +241,15 @@ export function ChannelSidebar() {
                 <Plus size={16} className={styles.categoryAction} onClick={(e) => { e.stopPropagation(); setCreateChannel({ categoryId: cat.id }); }} />
               </div>
               {!collapsed && children.map((ch) => (
-                <ChannelItem key={ch.id} channel={ch} isActive={selectedChannelId === ch.id} onClick={() => selectChannel(ch.id)} onContextMenu={(e) => openChannelContextMenu(e, ch)} user={user} />
+                <ChannelItem
+                  key={ch.id}
+                  channel={ch}
+                  isActive={selectedChannelId === ch.id}
+                  isVoiceConnected={voiceGuildId === guild.id && voiceChannelId === ch.id}
+                  onClick={() => isVoiceChannel(ch) ? joinVoiceChannel(guild.id, ch.id) : selectChannel(ch.id)}
+                  onContextMenu={(e) => openChannelContextMenu(e, ch)}
+                  user={user}
+                />
               ))}
             </div>
           );
@@ -247,7 +269,11 @@ export function ChannelSidebar() {
   );
 }
 
-function ChannelItem({ channel, isActive, onClick, onContextMenu, user }: { channel: any; isActive: boolean; onClick: () => void; onContextMenu?: (e: MouseEvent<HTMLDivElement>) => void; user?: any }) {
+function isVoiceChannel(channel: any): boolean {
+  return channel.type === 2 || channel.type === 13 || channel.type === 14;
+}
+
+function ChannelItem({ channel, isActive, isVoiceConnected, onClick, onContextMenu, user }: { channel: any; isActive: boolean; isVoiceConnected?: boolean; onClick: () => void; onContextMenu?: (e: MouseEvent<HTMLDivElement>) => void; user?: any }) {
   const Icon = channelIcons[channel.type] || Hash;
   const unread = useUnreadStore((s) => s.channelUnreads[channel.id]);
   const hasUnread = unread?.hasUnread && !isActive;
@@ -256,7 +282,7 @@ function ChannelItem({ channel, isActive, onClick, onContextMenu, user }: { chan
   const members = useGuildStore((s) => s.getSelectedGuild()?.members) || [];
 
   // For voice channels, show avatars of connected currentUsers
-  const isVoice = channel.type === 2;
+  const isVoice = isVoiceChannel(channel);
   const isThread = channel.type === 11;
   const connectedUsers = isVoice
     ? (voiceStates.get(channel.guild_id || '') || []).filter((vs: any) => vs.channel_id === channel.id)
@@ -270,7 +296,7 @@ function ChannelItem({ channel, isActive, onClick, onContextMenu, user }: { chan
   const userLimit = channel.user_limit || 0;
   const showLimit = userLimit > 0;
   const isFull = showLimit && connectedUsers.length >= userLimit;
-  const isConnected = userIds.includes(user?.id || '');
+  const isConnected = isVoiceConnected || userIds.includes(user?.id || '');
 
   // For threads, check membership and show member count
   const threadMemberCount = isThread ? (channel.member_count || 0) : 0;
@@ -343,6 +369,13 @@ function ChannelItem({ channel, isActive, onClick, onContextMenu, user }: { chan
 }
 
 function UserPanel({ user, onSettings, onOpenProfile }: { user: any; onSettings: () => void; onOpenProfile: (event: MouseEvent<HTMLButtonElement>) => void }) {
+  const channelId = useVoiceStore((s) => s.channelId);
+  const selfMute = useVoiceStore((s) => s.selfMute);
+  const selfDeaf = useVoiceStore((s) => s.selfDeaf);
+  const toggleSelfMute = useVoiceStore((s) => s.toggleSelfMute);
+  const toggleSelfDeaf = useVoiceStore((s) => s.toggleSelfDeaf);
+  const leaveVoiceChannel = useVoiceStore((s) => s.leaveVoiceChannel);
+
   return (
     <div className={styles.userPanel}>
       <button className={styles.userIdentity} onClick={onOpenProfile} data-user-popout-trigger="true" data-testid="own-profile-trigger">
@@ -355,12 +388,21 @@ function UserPanel({ user, onSettings, onOpenProfile }: { user: any; onSettings:
         </div>
       </button>
       <div className={styles.userActions}>
-        <Tooltip content="Muet" position="top" delay={300}>
-          <button><Mic size={16} /></button>
+        <Tooltip content={selfMute ? 'Réactiver le micro' : 'Couper le micro'} position="top" delay={300}>
+          <button onClick={toggleSelfMute} className={selfMute ? styles.actionActive : undefined} aria-pressed={selfMute}>
+            {selfMute ? <MicOff size={16} /> : <Mic size={16} />}
+          </button>
         </Tooltip>
-        <Tooltip content="Casque" position="top" delay={300}>
-          <button><Headphones size={16} /></button>
+        <Tooltip content={selfDeaf ? 'Réactiver le casque' : 'Couper le casque'} position="top" delay={300}>
+          <button onClick={toggleSelfDeaf} className={selfDeaf ? styles.actionActive : undefined} aria-pressed={selfDeaf}>
+            <Headphones size={16} />
+          </button>
         </Tooltip>
+        {channelId && (
+          <Tooltip content="Quitter le vocal" position="top" delay={300}>
+            <button onClick={leaveVoiceChannel}><PhoneOff size={16} /></button>
+          </Tooltip>
+        )}
         <Tooltip content="Paramètres" position="top" delay={300}>
           <button onClick={onSettings}><Settings size={16} /></button>
         </Tooltip>

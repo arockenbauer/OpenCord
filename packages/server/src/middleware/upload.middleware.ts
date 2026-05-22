@@ -28,6 +28,8 @@ const ALLOWED_ATTACHMENT_TYPES = [
   'application/zip', 'application/x-zip-compressed',
   'application/json', 'text/csv', 'application/xml',
 ];
+const ALLOWED_SOUNDBOARD_TYPES = ['audio/mpeg', 'audio/ogg', 'audio/wav', 'audio/webm', 'audio/flac'];
+const ALLOWED_SOUNDBOARD_EXTENSIONS = ['.mp3', '.ogg', '.wav', '.webm', '.flac'];
 
 const FORBIDDEN_EXTENSIONS = ['.exe', '.bat', '.sh', '.ps1', '.cmd', '.scr', '.vbs', '.msi', '.dmg', '.app'];
 
@@ -142,6 +144,25 @@ export const uploadSticker = (req: any, res: any, next: any) => {
   upload(req, res, (err: any) => {
     if (err) return next(err);
     validateUploadedFile(ALLOWED_IMAGE_TYPES, ALLOWED_IMAGE_EXTENSIONS)(req, res, next);
+  });
+};
+
+export const uploadSoundboardSound = (req: any, res: any, next: any) => {
+  const upload = multer({
+    storage,
+    limits: { fileSize: 1048576 },
+    fileFilter: (_req, file, cb) => {
+      if (!ALLOWED_SOUNDBOARD_TYPES.includes(file.mimetype)) {
+        cb(new Error('INVALID_FILE_TYPE'));
+        return;
+      }
+      cb(null, true);
+    },
+  }).single('sound');
+
+  upload(req, res, (err: any) => {
+    if (err) return next(err);
+    validateUploadedFile(ALLOWED_SOUNDBOARD_TYPES, ALLOWED_SOUNDBOARD_EXTENSIONS)(req, res, next);
   });
 };
 

@@ -56,6 +56,50 @@ function getFriendIds(edges: Array<{ user_id: string; target_id: string; status:
     .map((edge) => edge.user_id === userId ? edge.target_id : edge.user_id);
 }
 
+function deleteUploadIfExists(relativePath: string | null | undefined): void {
+  if (!relativePath) return;
+  const normalized = relativePath.replace(/^\/uploads\//, '');
+  const uploadRoot = path.resolve(uploadDir);
+  const absolute = path.resolve(uploadRoot, normalized);
+  if (absolute.startsWith(uploadRoot) && fs.existsSync(absolute)) {
+    fs.unlinkSync(absolute);
+  }
+}
+
+function emitUserUpdate(user: {
+  id: string;
+  username: string;
+  discriminator: string;
+  global_name: string | null;
+  avatar: string | null;
+  banner: string | null;
+  bio: string | null;
+  status: string;
+  custom_status_text: string | null;
+  custom_status_emoji: string | null;
+  banner_color?: string | null;
+  accent_color?: string | null;
+  pronouns?: string | null;
+}): void {
+  const io = getIO();
+  if (!io) return;
+  io.emit(GatewayEvents.USER_UPDATE, {
+    id: user.id,
+    username: user.username,
+    discriminator: user.discriminator,
+    global_name: user.global_name,
+    avatar: user.avatar,
+    banner: user.banner,
+    bio: user.bio,
+    status: user.status,
+    custom_status_text: user.custom_status_text,
+    custom_status_emoji: user.custom_status_emoji,
+    banner_color: user.banner_color,
+    accent_color: user.accent_color,
+    pronouns: user.pronouns,
+  });
+}
+
 export async function getMe(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const userId = getAuthenticatedUserId(req);
@@ -117,24 +161,11 @@ export async function updateMe(req: Request, res: Response, next: NextFunction):
       data: updateData,
     });
 
-    // Emit USER_UPDATE for profile changes
+    emitUserUpdate(user);
+
+    // Emit PRESENCE_UPDATE for status changes
     const io = getIO();
     if (io) {
-      const safeForEmit = {
-        id: user.id,
-        username: user.username,
-        discriminator: user.discriminator,
-        global_name: user.global_name,
-        avatar: user.avatar,
-        banner: user.banner,
-        bio: user.bio,
-        status: user.status,
-        custom_status_text: user.custom_status_text,
-        custom_status_emoji: user.custom_status_emoji,
-      };
-      io.emit(GatewayEvents.USER_UPDATE, safeForEmit);
-
-      // Emit PRESENCE_UPDATE for status changes
       if (data.status !== undefined || data.custom_status_text !== undefined || data.custom_status_emoji !== undefined) {
         io.emit(GatewayEvents.PRESENCE_UPDATE, {
           user_id: user.id,
@@ -154,6 +185,19 @@ export async function updateMe(req: Request, res: Response, next: NextFunction):
 
 export async function updateAvatar(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
+    if (req.method === 'DELETE') {
+      const currentUser = await prisma.user.findUnique({ where: { id: req.user!.userId } });
+      if (!currentUser) throw new AppError(404, 'USER_NOT_FOUND', 'User not found');
+      deleteUploadIfExists(currentUser.avatar);
+      const user = await prisma.user.update({
+        where: { id: req.user!.userId },
+        data: { avatar: null, avatar_hash: null, avatar_animated: false, avatar_updated_at: new Date() },
+      });
+      emitUserUpdate(user);
+      res.json({ avatar: null });
+      return;
+    }
+
     if (!req.file) throw new AppError(400, 'NO_FILE', 'No file uploaded');
 
     const avatarDir = path.join(uploadDir, 'avatars');
@@ -176,6 +220,7 @@ export async function updateAvatar(req: Request, res: Response, next: NextFuncti
       data: { avatar: avatarUrl, avatar_hash: hash, avatar_animated: isAnimated, avatar_updated_at: new Date() },
     });
 
+    emitUserUpdate(user);
     res.json({ avatar: user.avatar });
   } catch (err) {
     next(err);
@@ -184,6 +229,19 @@ export async function updateAvatar(req: Request, res: Response, next: NextFuncti
 
 export async function updateBanner(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
+    if (req.method === 'DELETE') {
+      const currentUser = await prisma.user.findUnique({ where: { id: req.user!.userId } });
+      if (!currentUser) throw new AppError(404, 'USER_NOT_FOUND', 'User not found');
+      deleteUploadIfExists(currentUser.banner);
+      const user = await prisma.user.update({
+        where: { id: req.user!.userId },
+        data: { banner: null, banner_hash: null, banner_animated: false, banner_updated_at: new Date() },
+      });
+      emitUserUpdate(user);
+      res.json({ banner: null });
+      return;
+    }
+
     if (!req.file) throw new AppError(400, 'NO_FILE', 'No file uploaded');
 
     const bannerDir = path.join(uploadDir, 'banners');
@@ -201,6 +259,7 @@ export async function updateBanner(req: Request, res: Response, next: NextFuncti
       data: { banner: bannerUrl, banner_updated_at: new Date() },
     });
 
+    emitUserUpdate(user);
     res.json({ banner: user.banner });
   } catch (err) {
     next(err);
