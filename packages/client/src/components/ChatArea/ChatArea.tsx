@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, KeyboardEvent, MouseEvent, ChangeEvent, useMemo } from 'react';
-import { Hash, Pin, Users, Search, PlusCircle, Smile, X, Reply, MoreHorizontal, Trash2, MessageCircle, UserPlus, Zap, Info, Volume2, Mic, MicOff, Headphones, PhoneOff, Video, Monitor } from 'lucide-react';
+import { Hash, Pin, Users, Search, PlusCircle, Smile, X, Reply, MoreHorizontal, Trash2, MessageCircle, UserPlus, Zap, Info, Volume2, Mic, MicOff, Headphones, PhoneOff, Video, Monitor, BarChart2, Music } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { format } from 'date-fns';
 import MarkdownIt from 'markdown-it';
@@ -15,7 +15,11 @@ import { MessageContextMenu } from '../context-menus/MessageContextMenu';
 import { Tooltip } from '../Tooltip/Tooltip';
 import { VoiceVideo } from '../VoiceVideo/VoiceVideo';
 import { ThreadsPanel } from './ThreadsPanel';
+import { ThreadView } from '../ThreadView/ThreadView';
 import { StageChannelView } from '../StageChannelView/StageChannelView';
+import { MessageComponents } from '../MessageComponents/MessageComponents';
+import { PollMessage } from '../PollMessage/PollMessage';
+import { SoundboardPicker } from '../SoundboardPicker/SoundboardPicker';
 import { emitTyping } from '../../hooks/useGateway';
 import { api } from '../../services/api';
 import { announceMessage, announceTyping, announceChannelChange } from '../../utils/ariaAnnounce';
@@ -98,6 +102,7 @@ export function ChatArea() {
   const [msgCtxMenu, setMsgCtxMenu] = useState<{ msg: any; x: number; y: number } | null>(null);
   const [sidePanel, setSidePanel] = useState<'pins' | 'search' | 'threads' | null>(null);
   const [selectedThread, setSelectedThread] = useState<any>(null);
+  const [showSoundboard, setShowSoundboard] = useState(false);
   const [pinnedMessages, setPinnedMessages] = useState<any[]>([]);
   const [pinsLoading, setPinsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -533,6 +538,9 @@ export function ChatArea() {
             </>
           )}
           {!isThread && !isDirectMessage && (channel?.type === 0 || channel?.type === 5) && (
+            {/* PollCreator button removed - component not implemented */}
+          )}
+          {!isThread && !isDirectMessage && (channel?.type === 0 || channel?.type === 5) && (
             <Tooltip content="Fils" position="bottom" delay={300}>
               <button onClick={() => setSidePanel((current) => current === 'threads' ? null : 'threads')}>
                 <MessageCircle size={20} />
@@ -550,6 +558,11 @@ export function ChatArea() {
           <Tooltip content={t('common.search')} position="bottom" delay={300}>
             <button onClick={() => setSidePanel((current) => current === 'search' ? null : 'search')}><Search size={20} /></button>
           </Tooltip>
+          {!isDirectMessage && guild && (
+            <Tooltip content="Soundboard" position="bottom" delay={300}>
+              <button onClick={() => setShowSoundboard(true)}><Music size={20} /></button>
+            </Tooltip>
+          )}
         </div>
       </div>
       <div className={styles.body}>
@@ -607,6 +620,9 @@ export function ChatArea() {
                           aria-label={`Ouvrir le profil de ${displayName}`}
                         >
                           {displayName}
+                          {headerMessage.author.bot && <span className={styles.badgeBot}>BOT</span>}
+                          {guild && guild.owner_id === headerMessage.author.id && <span className={styles.badgeOwner}>PROPRIÉTAIRE</span>}
+                          {guild && !headerMessage.author.bot && guild.owner_id !== headerMessage.author.id && hasPermission(headerMessage.author.id, guild, BigInt(0x00000008)) && <span className={styles.badgeMod}>MODÉRATEUR</span>}
                         </button>
                         <span className={styles.messageTimestamp}>
                           {format(new Date(headerMessage.created_at), 'dd/MM/yyyy HH:mm')}
@@ -870,6 +886,22 @@ export function ChatArea() {
           onStartThread={guild && channel?.type === 0 ? handleStartThreadFromMessage : undefined}
         />
       )}
+
+      {showPollCreator && selectedChannelId && (
+        <PollCreator
+          channelId={selectedChannelId}
+          onClose={() => setShowPollCreator(false)}
+          onPollCreated={() => {}}
+        />
+      )}
+
+      {showSoundboard && guild?.id && selectedChannelId && (
+        <SoundboardPicker
+          guildId={guild.id}
+          channelId={selectedChannelId}
+          onClose={() => setShowSoundboard(false)}
+        />
+      )}
     </div>
   );
 }
@@ -1092,6 +1124,7 @@ function DMProfilePanel({ user, channel, onOpenProfile }: { user: any; channel: 
 
 function MessageContent({ msg, editingId, editValue, setEditValue, onEditSubmit }: any) {
   const { t } = useTranslation();
+  const currentUser = useAuthStore((s) => s.user);
   if (editingId === msg.id) {
     return (
       <textarea
@@ -1153,12 +1186,18 @@ function MessageContent({ msg, editingId, editValue, setEditValue, onEditSubmit 
         className={`${styles.messageContent} ${msg.pending ? styles.messagePending : ''}`}
         dangerouslySetInnerHTML={{ __html: forwardedHeader + crosspostHeader + snapshotsHtml + contentHtml + editedHtml + failedHtml }}
       />
+      {msg.poll && (
+        <PollMessage
+          poll={msg.poll}
+          messageId={msg.id}
+          channelId={msg.channel_id}
+          isAuthor={msg.author_id === currentUser?.id}
+        />
+      )}
       {msg.components && <MessageComponents components={msg.components} />}
     </div>
   );
 }
-
-import { MessageComponents } from '../MessageComponents/MessageComponents';
 
 function Attachment({ attachment, compact }: { attachment: any; compact?: boolean }) {
   const isImage = attachment.mime_type?.startsWith('image/');
@@ -1331,6 +1370,20 @@ function getMemberColor(userId: string, guild: any): string {
     if (role?.color) return role.color;
   }
   return 'var(--text-primary)';
+}
+
+function hasPermission(userId: string, guild: any, permission: bigint): boolean {
+  if (!guild) return false;
+  if (guild.owner_id === userId) return true;
+  const member = guild.members?.find((item: any) => item.user.id === userId);
+  if (!member?.roles?.length) return false;
+  for (const roleId of member.roles) {
+    const role = guild.roles?.find((item: any) => item.id === roleId);
+    if (role?.permissions && (BigInt(role.permissions) & permission) !== BigInt(0)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function getMessageDisplayName(userId: string, author: any, guild: any): string {

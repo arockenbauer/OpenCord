@@ -503,61 +503,134 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--spacing-2);
+  position: relative;
 }
 
 .popoutRole {
   display: inline-flex;
   align-items: center;
+  gap: 6px;
   min-height: 24px;
-  padding: 0 var(--spacing-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xs);
+  max-width: 100%;
+  padding: 4px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  background: var(--bg-secondary);
   color: var(--text-secondary);
   font-size: var(--font-size-xs);
+  line-height: 1;
 }
 
-.popoutRoleManager {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-1);
-}
-
-.popoutRoleToggle {
-  width: 100%;
-  min-height: 34px;
-  display: grid;
-  grid-template-columns: 12px minmax(0, 1fr) 20px;
-  align-items: center;
-  gap: var(--spacing-2);
-  padding: var(--spacing-2);
-  border-radius: var(--radius-md);
-  color: var(--text-secondary);
-  background: transparent;
-  text-align: left;
-}
-
-.popoutRoleToggle:hover:not(:disabled) {
+.popoutRole:hover:not(span) {
   background: var(--bg-modifier-hover);
   color: var(--text-primary);
 }
 
-.popoutRoleToggle:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
+.popoutRole:disabled {
+  opacity: 0.65;
+  cursor: wait;
 }
 
-.popoutRoleToggleActive {
+.popoutNoRoles {
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.popoutRoleRemove {
+  color: var(--text-muted);
+  margin-left: 2px;
+}
+
+.popoutRole:hover .popoutRoleRemove {
   color: var(--text-primary);
-  background: var(--bg-modifier-selected);
 }
 
 .popoutRoleDot {
   width: 10px;
   height: 10px;
   border-radius: var(--radius-full);
+  flex: 0 0 10px;
 }
 
-.popoutRoleToggleName {
+.popoutRoleAddWrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.popoutRoleAdd {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 4px;
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.popoutRoleAdd:hover {
+  background: var(--bg-modifier-hover);
+  color: var(--text-primary);
+}
+
+.popoutRolePicker {
+  position: absolute;
+  right: 0;
+  top: 30px;
+  z-index: 1300;
+  width: 250px;
+  max-height: 320px;
+  padding: 8px;
+  border-radius: 6px;
+  background: #111214;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: var(--shadow-high);
+}
+
+.popoutRoleSearch {
+  width: 100%;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 4px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  margin-bottom: 8px;
+}
+
+.popoutRolePickerList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 252px;
+  overflow-y: auto;
+}
+
+.popoutRolePickerItem {
+  width: 100%;
+  min-height: 32px;
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  color: var(--text-secondary);
+  text-align: left;
+}
+
+.popoutRolePickerItem:hover:not(:disabled) {
+  background: var(--bg-modifier-hover);
+  color: var(--text-primary);
+}
+
+.popoutRolePickerItem:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.popoutRolePickerName {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -565,17 +638,27 @@
   font-size: var(--font-size-sm);
 }
 
-.popoutRoleToggleIcon {
+.popoutRoleCheck {
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
   display: inline-flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: center;
   color: var(--text-muted);
 }
 
-.popoutRoleHint {
-  margin-top: var(--spacing-2);
+.popoutRoleCheckActive {
+  border-color: var(--bg-accent);
+  background: var(--bg-accent);
+  color: white;
+}
+
+.popoutRolePickerEmpty {
+  padding: 10px 8px;
   color: var(--text-muted);
   font-size: var(--font-size-xs);
-  line-height: var(--line-height-normal);
 }
 
 .popoutList {

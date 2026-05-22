@@ -251,6 +251,8 @@ function UserProfilePopout() {
   const [actionError, setActionError] = useState('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [roleActionId, setRoleActionId] = useState<string | null>(null);
+  const [rolePickerOpen, setRolePickerOpen] = useState(false);
+  const [roleSearch, setRoleSearch] = useState('');
 
   useEffect(() => {
     if (!profilePopover) return;
@@ -328,6 +330,9 @@ function UserProfilePopout() {
       ...role,
       manageable: canManageGuildRoles && Boolean(currentUser) && (selectedGuildOwnerId === currentUser?.id || currentHighestRole > role.position),
     })) || [];
+  const filteredPickerRoles = manageableRoles.filter((role: any) =>
+    role.name.toLowerCase().includes(roleSearch.trim().toLowerCase()),
+  );
 
   const close = () => setProfilePopover(null);
 
@@ -437,6 +442,7 @@ function UserProfilePopout() {
       : [...guildMember.roles, role.id];
     setRoleActionId(role.id);
     setActionError('');
+    setRolePickerOpen(false);
 
     try {
       if (hasRole) {
@@ -560,48 +566,82 @@ function UserProfilePopout() {
               </div>
             )}
 
-            {roles.length > 0 && (
+            {profile.guild_member && (
               <div className={styles.popoutSection}>
-                <div className={styles.popoutSectionTitle}>Rôles sur ce serveur</div>
+                <div className={styles.popoutSectionTitle}>Rôles</div>
                 <div className={styles.popoutRoleList}>
-                  {roles.map((role: any) => (
-                    <span key={role.id} className={styles.popoutRole} style={role.color ? { borderColor: role.color, color: role.color } : undefined}>
-                      {role.name}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {selectedGuild && profile.guild_member && manageableRoles.length > 0 && (
-              <div className={styles.popoutSection}>
-                <div className={styles.popoutSectionTitle}>Gérer les rôles</div>
-                <div className={styles.popoutRoleManager} data-testid="profile-role-manager">
-                  {manageableRoles.map((role: any) => {
-                    const assigned = profileRoleIds.has(role.id);
-                    return (
+                  {roles.length === 0 && <span className={styles.popoutNoRoles}>Aucun rôle</span>}
+                  {roles.map((role: any) => {
+                    const roleConfig = manageableRoles.find((item: any) => item.id === role.id);
+                    const removable = Boolean(roleConfig?.manageable);
+                    return removable ? (
                       <button
                         key={role.id}
                         type="button"
-                        className={`${styles.popoutRoleToggle} ${assigned ? styles.popoutRoleToggleActive : ''}`}
-                        onClick={() => void handleRoleToggle(role)}
-                        disabled={!role.manageable || roleActionId !== null}
-                        title={!canManageGuildRoles ? 'Permission MANAGE_ROLES requise' : !role.manageable ? 'Rôle trop haut dans la hiérarchie' : undefined}
+                        className={styles.popoutRole}
+                        onClick={() => void handleRoleToggle(roleConfig)}
+                        disabled={roleActionId !== null}
+                        title={`Retirer ${role.name}`}
                       >
                         <span className={styles.popoutRoleDot} style={{ background: role.color || 'var(--text-muted)' }} />
-                        <span className={styles.popoutRoleToggleName}>{role.name}</span>
-                        <span className={styles.popoutRoleToggleIcon}>
-                          {roleActionId === role.id ? '...' : assigned ? <Check size={14} /> : <Plus size={14} />}
-                        </span>
+                        <span>{role.name}</span>
+                        <X size={12} className={styles.popoutRoleRemove} />
                       </button>
+                    ) : (
+                      <span key={role.id} className={styles.popoutRole}>
+                        <span className={styles.popoutRoleDot} style={{ background: role.color || 'var(--text-muted)' }} />
+                        <span>{role.name}</span>
+                      </span>
                     );
                   })}
+                  {canManageGuildRoles && manageableRoles.length > 0 && (
+                    <div className={styles.popoutRoleAddWrap} data-user-popout="true">
+                      <button
+                        type="button"
+                        className={styles.popoutRoleAdd}
+                        onClick={() => setRolePickerOpen((open) => !open)}
+                        aria-label="Ajouter ou retirer des rôles"
+                        data-testid="profile-role-manager"
+                      >
+                        <Plus size={14} />
+                      </button>
+                      {rolePickerOpen && (
+                        <div className={styles.popoutRolePicker}>
+                          <input
+                            className={styles.popoutRoleSearch}
+                            value={roleSearch}
+                            onChange={(event) => setRoleSearch(event.target.value)}
+                            placeholder="Rechercher des rôles"
+                            autoFocus
+                          />
+                          <div className={styles.popoutRolePickerList}>
+                            {filteredPickerRoles.length === 0 ? (
+                              <div className={styles.popoutRolePickerEmpty}>Aucun rôle trouvé.</div>
+                            ) : filteredPickerRoles.map((role: any) => {
+                              const assigned = profileRoleIds.has(role.id);
+                              return (
+                                <button
+                                  key={role.id}
+                                  type="button"
+                                  className={styles.popoutRolePickerItem}
+                                  onClick={() => void handleRoleToggle(role)}
+                                  disabled={!role.manageable || roleActionId !== null}
+                                  title={!role.manageable ? 'Rôle trop haut dans la hiérarchie' : undefined}
+                                >
+                                  <span className={styles.popoutRoleDot} style={{ background: role.color || 'var(--text-muted)' }} />
+                                  <span className={styles.popoutRolePickerName}>{role.name}</span>
+                                  <span className={`${styles.popoutRoleCheck} ${assigned ? styles.popoutRoleCheckActive : ''}`}>
+                                    {assigned && <Check size={13} />}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-                {!canManageGuildRoles && (
-                  <div className={styles.popoutRoleHint}>
-                    Vous pouvez voir les rôles, mais leur modification nécessite la permission et une hiérarchie supérieure.
-                  </div>
-                )}
               </div>
             )}
 

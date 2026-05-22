@@ -63,6 +63,7 @@
 
 .memberInfo { flex: 1; overflow: hidden; }
 .memberName { font-size: var(--font-size-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.memberStatus { font-size: 11px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .memberActivity { font-size: var(--font-size-xs); color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .richPresence { margin-top: 2px; }

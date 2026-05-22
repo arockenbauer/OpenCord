@@ -377,6 +377,45 @@
   cursor: pointer;
 }
 .messageAuthor:hover { text-decoration: underline; }
+
+.badgeBot {
+  display: inline-flex;
+  align-items: center;
+  background: var(--bg-accent);
+  color: white;
+  font-size: 10px;
+  font-weight: var(--font-weight-bold);
+  padding: 1px 4px;
+  border-radius: 3px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+.badgeOwner {
+  display: inline-flex;
+  align-items: center;
+  background: var(--warning);
+  color: white;
+  font-size: 10px;
+  font-weight: var(--font-weight-bold);
+  padding: 1px 4px;
+  border-radius: 3px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+.badgeMod {
+  display: inline-flex;
+  align-items: center;
+  background: var(--text-link);
+  color: white;
+  font-size: 10px;
+  font-weight: var(--font-weight-bold);
+  padding: 1px 4px;
+  border-radius: 3px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
 .messageTimestamp { font-size: var(--font-size-xs); color: var(--text-muted); }
 .messageContent { font-size: var(--font-size-md); line-height: var(--line-height-normal); word-wrap: break-word; }
 .messageContent p { margin: 0; }

@@ -52,6 +52,7 @@ import * as voiceController from './controllers/voice.controller.js';
 import { authenticate } from './middleware/auth.middleware.js';
 import { startBackupCron } from './services/backup.service.js';
 import { runSnapshotCron } from './controllers/analytics.controller.js';
+import pollRoutes from './routes/poll.routes.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -182,6 +183,7 @@ app.use('/api/admin/discover', adminDiscoveryRouter);
 app.use('/api/guilds/:guildId', guildBoostRouter);
 app.use('/api/guilds/:guildId', guildDiscoveryRouter);
 app.use('/api/proxy', proxyRoutes);
+app.use('/api', pollRoutes);
 app.use('/api', monitoringRoutes);
 app.get('/api/sticker-packs', authenticate, getStickerPacks);
 

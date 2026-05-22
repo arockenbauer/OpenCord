@@ -22,15 +22,16 @@ export async function requireMembership(guildId: string, userId: string) {
 export async function getMemberPermissions(guildId: string, userId: string): Promise<bigint> {
   const guild = await prisma.guild.findUnique({ where: { id: guildId } });
   if (!guild) throw new AppError(404, 'GUILD_NOT_FOUND', 'Server not found');
+  // Owner always has all permissions (even if timed out, like Discord)
   if (guild.owner_id === userId) return BigInt('0xFFFFFFFFFFFFFFFF');
 
   const everyoneRole = await prisma.role.findFirst({ where: { guild_id: guildId, name: '@everyone' } });
   const everyonePerms = everyoneRole ? everyoneRole.permissions : BigInt(0);
 
-  // Check if member is pending (membership screening)
+  // Check if member is pending (membership screening) or timed out
   const member = await prisma.guildMember.findUnique({
     where: { guild_id_user_id: { guild_id: guildId, user_id: userId } },
-    select: { pending: true },
+    select: { pending: true, communication_disabled_until: true },
   });
 
   // If pending, only return @everyone permissions (no write, no DM)
@@ -38,6 +39,9 @@ export async function getMemberPermissions(guildId: string, userId: string): Pro
     return everyonePerms;
   }
 
+  // Check if member is timed out (Discord behavior)
+  const isTimedOut = member?.communication_disabled_until && new Date(member.communication_disabled_until) > new Date();
+  
   const memberRoles = await prisma.guildMemberRole.findMany({
     where: { guild_id: guildId, user_id: userId },
     include: { role: true },
@@ -47,7 +51,23 @@ export async function getMemberPermissions(guildId: string, userId: string): Pro
   for (const mr of memberRoles) {
     perms |= mr.role.permissions;
   }
-  if ((perms & BigInt(0x8)) !== BigInt(0)) return BigInt('0xFFFFFFFFFFFFFFFF');
+  
+  // If has ADMINISTRATOR permission, return ALL_PERMISSIONS (unless timed out, handled below)
+  if ((perms & BigInt(0x8)) !== BigInt(0)) {
+    // Even admins are subject to timeouts (except owner, handled above)
+    if (isTimedOut) {
+      // Discord behavior: timed out members lose all permissions except VIEW_CHANNEL and READ_MESSAGE_HISTORY
+      return BigInt(0x400) | BigInt(0x10000); // VIEW_CHANNEL | READ_MESSAGE_HISTORY
+    }
+    return BigInt('0xFFFFFFFFFFFFFFFF');
+  }
+  
+  // If timed out, restrict permissions (Discord behavior)
+  if (isTimedOut) {
+    // Only keep VIEW_CHANNEL and READ_MESSAGE_HISTORY
+    perms &= (BigInt(0x400) | BigInt(0x10000)); // VIEW_CHANNEL | READ_MESSAGE_HISTORY
+  }
+  
   return perms;
 }
 

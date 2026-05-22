@@ -152,13 +152,14 @@ function MemberItem({ member, guild, offline, onClick, onContextMenu }: { member
     <div className={styles.roleColorBar} style={{ background: topRole.color }} />
   ) : null;
 
-  const statusText = {
+  const statusTextMap: Record<string, string> = {
     online: 'En ligne',
     idle: 'Absent',
     dnd: 'Ne pas déranger',
     offline: 'Hors ligne',
     invisible: 'Invisible',
-  }[member.user.status || 'offline'];
+  };
+  const statusText = statusTextMap[member.user.status || 'offline'] || statusTextMap.offline;
 
   return (
     <div
@@ -181,6 +182,9 @@ function MemberItem({ member, guild, offline, onClick, onContextMenu }: { member
         <div className={styles.memberName} style={topRole?.color ? { color: topRole.color } : undefined}>
           {displayName}
         </div>
+        {!offline && (
+          <div className={styles.memberStatus}>{statusText}</div>
+        )}
         {member.user.custom_status_text || member.user.custom_status_emoji ? (
           <div className={styles.memberActivity}>
             {member.user.custom_status_emoji && <span>{member.user.custom_status_emoji} </span>}

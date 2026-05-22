@@ -99,9 +99,39 @@
 }
 
 .dmEmpty {
-  padding: 0 var(--spacing-4);
+  padding: 16px var(--spacing-4);
   color: var(--text-muted);
   font-size: var(--font-size-sm);
+  text-align: center;
+  font-style: italic;
+}
+
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+  text-align: center;
+  gap: 8px;
+}
+
+.emptyStateIcon {
+  opacity: 0.5;
+  margin-bottom: 8px;
+}
+
+.emptyStateTitle {
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-secondary);
+  font-size: var(--font-size-md);
+}
+
+.emptyStateDescription {
+  font-size: var(--font-size-xs);
+  line-height: 1.4;
 }
 
 @keyframes categoryCollapse {
@@ -146,11 +176,11 @@
   cursor: pointer;
   color: var(--text-muted);
   font-size: var(--font-size-sm);
-  transition: background 100ms, color 100ms;
+  transition: background 100ms, color 100ms, transform 100ms;
 }
 
-.channel:hover { background: var(--bg-modifier-hover); color: var(--text-secondary); }
-.channel.active { background: var(--bg-modifier-selected); color: var(--text-primary); font-weight: var(--font-weight-medium); }
+.channel:hover { background: var(--bg-modifier-hover); color: var(--text-secondary); transform: translateX(2px); }
+.channel.active { background: var(--bg-modifier-selected); color: var(--text-primary); font-weight: var(--font-weight-medium); transform: translateX(0); }
 .channel.unread { color: var(--text-primary); font-weight: var(--font-weight-semibold); }
 
 .channelName {
@@ -276,6 +306,63 @@
 .userActions .actionActive {
   background: var(--danger);
   color: white;
+}
+
+.userStatusDot {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-full);
+  border: 3px solid var(--bg-tertiary);
+  cursor: pointer;
+  transition: transform 150ms;
+}
+
+.userStatusDot:hover {
+  transform: scale(1.1);
+}
+
+.statusPicker {
+  position: absolute;
+  bottom: 56px;
+  left: 8px;
+  background: var(--bg-floating);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 4px;
+  min-width: 160px;
+  box-shadow: var(--shadow-high);
+  z-index: 100;
+}
+
+.statusOption {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  text-align: left;
+}
+
+.statusOption:hover {
+  background: var(--bg-modifier-hover);
+}
+
+.statusOptionActive {
+  background: var(--bg-modifier-selected);
+}
+
+.statusOptionDot {
+  display: flex;
+  align-items: center;
 }
 
 .dmHeader {

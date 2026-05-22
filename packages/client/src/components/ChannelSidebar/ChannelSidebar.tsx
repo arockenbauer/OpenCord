@@ -1,5 +1,5 @@
 import { MouseEvent, useState, useRef, useEffect } from 'react';
-import { Hash, Volume2, Megaphone, ChevronDown, ChevronRight, Plus, Settings, Mic, MicOff, Headphones, MessageCircle, UserPlus, LogOut, Trash2, Edit3, Trash, Copy, Link, PhoneOff, X, Lock } from 'lucide-react';
+import { Hash, Volume2, Megaphone, ChevronDown, ChevronRight, Plus, Settings, Mic, MicOff, Headphones, MessageCircle, UserPlus, LogOut, Trash2, Edit3, Trash, Copy, Link, PhoneOff, X, Lock, Circle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useGuildStore } from '../../stores/guildStore';
 import { useAuthStore } from '../../stores/authStore';
@@ -560,18 +560,67 @@ function UserPanel({ user, onSettings, onOpenProfile }: { user: any; onSettings:
   const toggleSelfMute = useVoiceStore((s) => s.toggleSelfMute);
   const toggleSelfDeaf = useVoiceStore((s) => s.toggleSelfDeaf);
   const leaveVoiceChannel = useVoiceStore((s) => s.leaveVoiceChannel);
+  const [showStatusPicker, setShowStatusPicker] = useState(false);
+  const statusPickerRef = useRef<HTMLDivElement>(null);
+
+  const statuses = [
+    { id: 'online', label: 'En ligne', color: 'var(--status-online)', icon: <Circle size={10} fill="currentColor" /> },
+    { id: 'idle', label: 'Absent', color: 'var(--status-idle)', icon: <Circle size={10} fill="currentColor" /> },
+    { id: 'dnd', label: 'Ne pas déranger', color: 'var(--status-dnd)', icon: <Circle size={10} fill="currentColor" /> },
+    { id: 'invisible', label: 'Invisible', color: 'var(--status-offline)', icon: <Circle size={10} fill="currentColor" /> },
+  ];
+
+  const currentStatus = user?.status || 'online';
+
+  useEffect(() => {
+    if (!showStatusPicker) return;
+    const close = (e: MouseEvent) => {
+      if (statusPickerRef.current && !statusPickerRef.current.contains(e.target as Node)) {
+        setShowStatusPicker(false);
+      }
+    };
+    document.addEventListener('mousedown', close as any);
+    return () => document.removeEventListener('mousedown', close as any);
+  }, [showStatusPicker]);
+
+  const updateStatus = async (status: string) => {
+    try {
+      await api('/api/users/me/status', {
+        method: 'PATCH',
+        body: JSON.stringify({ status }),
+      });
+      setShowStatusPicker(false);
+    } catch {
+      // ignore
+    }
+  };
 
   return (
     <div className={styles.userPanel}>
       <button className={styles.userIdentity} onClick={onOpenProfile} data-user-popout-trigger="true" data-testid="own-profile-trigger">
         <div className={styles.userAvatar}>
           {user.avatar ? <img src={user.avatar} alt="" /> : user.username.slice(0, 1).toUpperCase()}
+          <div className={styles.userStatusDot} style={{ background: `var(--status-${currentStatus})` }} onClick={(e) => { e.stopPropagation(); setShowStatusPicker(!showStatusPicker); }} />
         </div>
         <div className={styles.userInfo}>
           <div className={styles.userName}>{user.global_name || user.username}</div>
           <div className={styles.userTag}>#{user.discriminator}</div>
         </div>
       </button>
+      {showStatusPicker && (
+        <div className={styles.statusPicker} ref={statusPickerRef}>
+          {statuses.map((status) => (
+            <button
+              key={status.id}
+              className={`${styles.statusOption} ${currentStatus === status.id ? styles.statusOptionActive : ''}`}
+              onClick={() => updateStatus(status.id)}
+            >
+              <span className={styles.statusOptionDot} style={{ background: status.color }}>{status.icon}</span>
+              <span>{status.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
       <div className={styles.userActions}>
         <Tooltip content={selfMute ? 'Réactiver le micro' : 'Couper le micro'} position="top" delay={300}>
           <button onClick={toggleSelfMute} className={selfMute ? styles.actionActive : undefined} aria-pressed={selfMute} data-testid="voice-mute-toggle">

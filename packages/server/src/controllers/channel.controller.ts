@@ -98,6 +98,26 @@ export async function updateChannel(req: Request, res: Response, next: NextFunct
       data: allowedFields,
     });
 
+    // If this is a category channel and permissions were updated, sync child channels
+    if (channel.guild_id && channel.type === 4) { // 4 = category type
+      // Get all child channels that are synced with this category
+      const childChannels = await prisma.channel.findMany({
+        where: { guild_id: channel.guild_id, parent_id: channel.id },
+      });
+      
+      const { syncChannelWithParent } = await import('../services/permission.service.js');
+      for (const child of childChannels) {
+        // Check if child is synced (has same overwrites as parent)
+        const isSynced = await (await import('../services/permission.service.js')).isChannelSynced(child.id, channel.id);
+        if (isSynced) {
+          await syncChannelWithParent(child.id, channel.id);
+          // Emit channel update for synced child
+          const io = getIO();
+          if (io) io.to(`guild:${channel.guild_id}`).emit(GatewayEvents.CHANNEL_UPDATE, { channel: child });
+        }
+      }
+    }
+
     if (channel.guild_id) {
       const io = getIO();
       if (io) io.to(`guild:${channel.guild_id}`).emit(GatewayEvents.CHANNEL_UPDATE, { channel: updated });
@@ -175,6 +195,17 @@ export async function updatePermissionOverwrite(req: Request, res: Response, nex
       where: { id: existing.id },
       data,
     });
+    
+    // If this channel has a parent category, check if it's still synced
+    if (channel.parent_id) {
+      const { isChannelSynced } = await import('../services/permission.service.js');
+      const stillSynced = await isChannelSynced(channel.id, channel.parent_id);
+      if (!stillSynced) {
+        // Channel is now desynced from parent category
+        console.log(`Channel ${channel.id} is now desynced from parent category ${channel.parent_id}`);
+      }
+    }
+    
     await writeAuditLog(channel.guild_id, req.user!.userId, AUDIT_LOG_ACTIONS.CHANNEL_OVERWRITE_UPDATE, updated.id, 'PERMISSION_OVERWRITE', [
       { key: 'allow', old_value: existing.allow.toString(), new_value: updated.allow.toString() },
       { key: 'deny', old_value: existing.deny.toString(), new_value: updated.deny.toString() },
