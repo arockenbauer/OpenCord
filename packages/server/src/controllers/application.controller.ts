@@ -217,7 +217,7 @@ export async function postAuthorize(req: Request, res: Response, next: NextFunct
 
     await requireMembership(guild_id, req.user!.userId);
     const perms = await getMemberPermissions(guild_id, req.user!.userId);
-    checkPermission(perms, BigInt(0x20));
+    await checkPermission(perms, BigInt(0x20), req.params.guildId, req.user!.userId);
 
     const permValue = typeof permissions === 'string' || typeof permissions === 'number'
       ? BigInt(permissions)

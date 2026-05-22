@@ -29,7 +29,7 @@ export async function getRoles(req: Request, res: Response, next: NextFunction):
 export async function createRole(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, PERMISSION_BITS.MANAGE_ROLES);
+    await checkPermission(perms, PERMISSION_BITS.MANAGE_ROLES, req.params.guildId, req.user!.userId);
 
     const maxPos = await prisma.role.aggregate({ where: { guild_id: req.params.guildId }, _max: { position: true } });
 
@@ -66,7 +66,7 @@ export async function createRole(req: Request, res: Response, next: NextFunction
 export async function updateRole(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, PERMISSION_BITS.MANAGE_ROLES);
+    await checkPermission(perms, PERMISSION_BITS.MANAGE_ROLES, req.params.guildId, req.user!.userId);
     const actorHighestRole = await getHighestRolePosition(req.params.guildId, req.user!.userId);
     const targetRole = await prisma.role.findFirst({ where: { id: req.params.roleId, guild_id: req.params.guildId } });
     if (!targetRole) throw new AppError(404, 'ROLE_NOT_FOUND', 'Role not found');
@@ -112,7 +112,7 @@ export async function updateRole(req: Request, res: Response, next: NextFunction
 export async function deleteRole(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, PERMISSION_BITS.MANAGE_ROLES);
+    await checkPermission(perms, PERMISSION_BITS.MANAGE_ROLES, req.params.guildId, req.user!.userId);
     const actorHighestRole = await getHighestRolePosition(req.params.guildId, req.user!.userId);
 
     const role = await prisma.role.findUnique({ where: { id: req.params.roleId } });
@@ -138,7 +138,7 @@ export async function deleteRole(req: Request, res: Response, next: NextFunction
 export async function updateRolePositions(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, PERMISSION_BITS.MANAGE_ROLES);
+    await checkPermission(perms, PERMISSION_BITS.MANAGE_ROLES, req.params.guildId, req.user!.userId);
     const actorHighestRole = await getHighestRolePosition(req.params.guildId, req.user!.userId);
 
     const positions: { id: string; position: number }[] = req.body;
@@ -184,7 +184,7 @@ export async function updateRolePositions(req: Request, res: Response, next: Nex
 export async function updateRoleIcon(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, PERMISSION_BITS.MANAGE_ROLES);
+    await checkPermission(perms, PERMISSION_BITS.MANAGE_ROLES, req.params.guildId, req.user!.userId);
 
     const role = await prisma.role.findFirst({ where: { id: req.params.roleId, guild_id: req.params.guildId } });
     if (!role) throw new AppError(404, 'ROLE_NOT_FOUND', 'Role not found');
@@ -226,7 +226,7 @@ export async function getRoleConnections(req: Request, res: Response, next: Next
 export async function updateRoleConnections(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, PERMISSION_BITS.MANAGE_ROLES);
+    await checkPermission(perms, PERMISSION_BITS.MANAGE_ROLES, req.params.guildId, req.user!.userId);
 
     const role = await prisma.role.findFirst({ where: { id: req.params.roleId, guild_id: req.params.guildId } });
     if (!role) throw new AppError(404, 'ROLE_NOT_FOUND', 'Role not found');

@@ -342,7 +342,7 @@ export async function getGuildPlugins(req: Request, res: Response, next: NextFun
     await ensureOfficialPlugins();
     await requireMembership(req.params.guildId, req.user!.userId);
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x20));
+    await checkPermission(perms, BigInt(0x20), req.params.guildId, req.user!.userId);
 
     const [plugins, settings] = await Promise.all([
       prisma.plugin.findMany({
@@ -364,7 +364,7 @@ export async function updateGuildPlugin(req: Request, res: Response, next: NextF
     await ensureOfficialPlugins();
     await requireMembership(req.params.guildId, req.user!.userId);
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x20));
+    await checkPermission(perms, BigInt(0x20), req.params.guildId, req.user!.userId);
 
     const plugin = await prisma.plugin.findUnique({ where: { slug: req.params.slug } });
     if (!plugin || (plugin.type !== 'SERVER' && plugin.type !== 'BOTH')) {

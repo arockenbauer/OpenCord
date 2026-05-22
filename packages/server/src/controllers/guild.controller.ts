@@ -71,9 +71,39 @@ export async function getMemberPermissions(guildId: string, userId: string): Pro
   return perms;
 }
 
-export function checkPermission(perms: bigint, bit: bigint): void {
+// Permissions that require 2FA when guild has 2FA enabled
+const SENSITIVE_PERMISSIONS = [
+  BigInt(0x8),    // ADMINISTRATOR
+  BigInt(0x10),   // MANAGE_CHANNELS
+  BigInt(0x20),   // MANAGE_GUILD
+  BigInt(0x10000000), // MANAGE_ROLES
+  BigInt(0x40000000), // MANAGE_EMOJIS_AND_STICKERS
+  BigInt(0x20000000), // MANAGE_WEBHOOKS
+];
+
+export async function checkPermission(perms: bigint, bit: bigint, guildId?: string, userId?: string): Promise<void> {
   if ((perms & BigInt(0x8)) !== BigInt(0)) return;
   if ((perms & bit) === BigInt(0)) throw new AppError(403, 'MISSING_PERMISSIONS', 'Missing required permissions');
+  
+  // Check 2FA requirement for sensitive permissions (Discord behavior)
+  if (guildId && userId && SENSITIVE_PERMISSIONS.some(p => (bit & p) === p)) {
+    const guild = await prisma.guild.findUnique({ 
+      where: { id: guildId }, 
+      select: { features: true } 
+    });
+    
+    // Check if guild has 2FA requirement enabled (feature "2FA_REQUIRED" or similar)
+    if (guild?.features?.includes('2FA_REQUIRED')) {
+      const user = await prisma.user.findUnique({ 
+        where: { id: userId }, 
+        select: { two_factor_enabled: true } 
+      });
+      
+      if (!user?.two_factor_enabled) {
+        throw new AppError(403, '2FA_REQUIRED', 'Two-factor authentication is required for this action');
+      }
+    }
+  }
 }
 
 export async function getHighestRolePosition(guildId: string, userId: string): Promise<number> {
@@ -325,7 +355,7 @@ export async function getGuild(req: Request, res: Response, next: NextFunction):
 export async function updateGuild(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x20));
+    await checkPermission(perms, BigInt(0x20), req.params.guildId, req.user!.userId);
 
     const guild = await prisma.guild.update({ where: { id: req.params.guildId }, data: req.body });
 
@@ -388,7 +418,7 @@ export async function deleteGuild(req: Request, res: Response, next: NextFunctio
 export async function uploadGuildIcon(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x20));
+    await checkPermission(perms, BigInt(0x20), req.params.guildId, req.user!.userId);
 
     if (!req.file) throw new AppError(400, 'NO_FILE', 'No file uploaded');
 
@@ -426,7 +456,7 @@ export async function uploadGuildIcon(req: Request, res: Response, next: NextFun
 export async function uploadGuildBanner(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x20));
+    await checkPermission(perms, BigInt(0x20), req.params.guildId, req.user!.userId);
 
     if (!req.file) throw new AppError(400, 'NO_FILE', 'No file uploaded');
 
@@ -544,15 +574,15 @@ export async function updateMember(req: Request, res: Response, next: NextFuncti
 
     if (req.body.nickname !== undefined) {
       if (req.params.userId === req.user!.userId) {
-        checkPermission(perms, BigInt(0x4000000));
+        await checkPermission(perms, BigInt(0x4000000), req.params.guildId, req.user!.userId);
       } else {
-        checkPermission(perms, BigInt(0x8000000));
+        await checkPermission(perms, BigInt(0x8000000), req.params.guildId, req.user!.userId);
       }
       data.nickname = req.body.nickname || null;
     }
 
     if (req.body.communication_disabled_until !== undefined) {
-      checkPermission(perms, BigInt(0x10000000000));
+      await checkPermission(perms, BigInt(0x10000000000), req.params.guildId, req.user!.userId);
       if (req.params.userId !== req.user!.userId && actorHighestRole <= targetHighestRole) {
         throw new AppError(403, 'ROLE_HIERARCHY', 'Cannot timeout a member with an equal or higher role');
       }
@@ -630,7 +660,7 @@ export async function updateMember(req: Request, res: Response, next: NextFuncti
 export async function kickMember(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x2));
+    await checkPermission(perms, BigInt(0x2), req.params.guildId, req.user!.userId);
     const actorHighestRole = await getHighestRolePosition(req.params.guildId, req.user!.userId);
     const targetHighestRole = await getHighestRolePosition(req.params.guildId, req.params.userId);
     if (actorHighestRole <= targetHighestRole) {
@@ -796,7 +826,7 @@ export async function leaveGuild(req: Request, res: Response, next: NextFunction
 export async function getBans(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x4));
+    await checkPermission(perms, BigInt(0x4), req.params.guildId, req.user!.userId);
 
     const bans = await prisma.ban.findMany({
       where: { guild_id: req.params.guildId },
@@ -811,7 +841,7 @@ export async function getBans(req: Request, res: Response, next: NextFunction): 
 export async function getBan(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x4));
+    await checkPermission(perms, BigInt(0x4), req.params.guildId, req.user!.userId);
 
     const ban = await prisma.ban.findUnique({
       where: { guild_id_user_id: { guild_id: req.params.guildId, user_id: req.params.userId } },
@@ -827,7 +857,7 @@ export async function getBan(req: Request, res: Response, next: NextFunction): P
 export async function createBan(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x4));
+    await checkPermission(perms, BigInt(0x4), req.params.guildId, req.user!.userId);
     const actorHighestRole = await getHighestRolePosition(req.params.guildId, req.user!.userId);
     const targetHighestRole = await getHighestRolePosition(req.params.guildId, req.params.userId);
     if (actorHighestRole <= targetHighestRole) {
@@ -877,7 +907,7 @@ export async function createBan(req: Request, res: Response, next: NextFunction)
 export async function removeBan(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x4));
+    await checkPermission(perms, BigInt(0x4), req.params.guildId, req.user!.userId);
 
     await prisma.ban.deleteMany({ where: { guild_id: req.params.guildId, user_id: req.params.userId } });
 
@@ -931,7 +961,7 @@ export async function transferOwnership(req: Request, res: Response, next: NextF
 export async function getAuditLogs(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x80));
+    await checkPermission(perms, BigInt(0x80), req.params.guildId, req.user!.userId);
 
     const limit = Math.min(Number(req.query.limit) || 50, 100);
     const before = req.query.before as string | undefined;
@@ -1003,7 +1033,7 @@ export async function getAuditLogs(req: Request, res: Response, next: NextFuncti
 export async function getVanityUrl(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x20));
+    await checkPermission(perms, BigInt(0x20), req.params.guildId, req.user!.userId);
 
     const guild = await prisma.guild.findUnique({ where: { id: req.params.guildId } });
     if (!guild) throw new AppError(404, 'GUILD_NOT_FOUND', 'Server not found');
@@ -1017,7 +1047,7 @@ export async function getVanityUrl(req: Request, res: Response, next: NextFuncti
 export async function updateVanityUrl(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x20));
+    await checkPermission(perms, BigInt(0x20), req.params.guildId, req.user!.userId);
 
     const guild = await prisma.guild.findUnique({ where: { id: req.params.guildId } });
     if (!guild) throw new AppError(404, 'GUILD_NOT_FOUND', 'Server not found');
@@ -1096,7 +1126,7 @@ export async function getWidget(req: Request, res: Response, next: NextFunction)
 export async function updateWidget(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x20));
+    await checkPermission(perms, BigInt(0x20), req.params.guildId, req.user!.userId);
 
     const widget = await prisma.guildWidget.upsert({
       where: { guild_id: req.params.guildId },
@@ -1123,7 +1153,7 @@ export async function getMemberCount(guildId: string): Promise<number> {
 export async function pruneCount(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x2)); // KICK_MEMBERS
+    await checkPermission(perms, BigInt(0x2), req.params.guildId, req.user!.userId); // KICK_MEMBERS
 
     const days = Math.min(Math.max(Number(req.query.days) || 7, 1), 30);
     const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
@@ -1155,7 +1185,7 @@ export async function pruneCount(req: Request, res: Response, next: NextFunction
 export async function pruneMembers(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x2)); // KICK_MEMBERS
+    await checkPermission(perms, BigInt(0x2), req.params.guildId, req.user!.userId); // KICK_MEMBERS
 
     const days = Math.min(Math.max(Number(req.body.days) || 7, 1), 30);
     const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
@@ -1223,7 +1253,7 @@ export async function getGuildTemplates(req: Request, res: Response, next: NextF
 export async function createGuildTemplate(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x20)); // MANAGE_GUILD
+    await checkPermission(perms, BigInt(0x20), req.params.guildId, req.user!.userId); // MANAGE_GUILD
 
     // Max 1 template per server (spec 30)
     const existingCount = await prisma.guildTemplate.count({ where: { guild_id: req.params.guildId } });
@@ -1283,7 +1313,7 @@ export async function createGuildTemplate(req: Request, res: Response, next: Nex
 export async function syncGuildTemplate(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x20));
+    await checkPermission(perms, BigInt(0x20), req.params.guildId, req.user!.userId);
 
     const template = await prisma.guildTemplate.findFirst({
       where: { code: req.params.code, guild_id: req.params.guildId },
@@ -1333,7 +1363,7 @@ export async function syncGuildTemplate(req: Request, res: Response, next: NextF
 export async function updateGuildTemplate(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x20));
+    await checkPermission(perms, BigInt(0x20), req.params.guildId, req.user!.userId);
 
     const template = await prisma.guildTemplate.findFirst({
       where: { code: req.params.code, guild_id: req.params.guildId },
@@ -1360,7 +1390,7 @@ export async function updateGuildTemplate(req: Request, res: Response, next: Nex
 export async function deleteGuildTemplate(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x20));
+    await checkPermission(perms, BigInt(0x20), req.params.guildId, req.user!.userId);
 
     const template = await prisma.guildTemplate.findFirst({
       where: { code: req.params.code, guild_id: req.params.guildId },
@@ -1559,7 +1589,7 @@ export async function getWelcomeScreen(req: Request, res: Response, next: NextFu
 export async function updateWelcomeScreen(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x20)); // MANAGE_GUILD
+    await checkPermission(perms, BigInt(0x20), req.params.guildId, req.user!.userId); // MANAGE_GUILD
 
     const { enabled, description, welcome_channels } = req.body;
 
@@ -1659,7 +1689,7 @@ export async function updateMemberVerification(req: Request, res: Response, next
   try {
     const guildId = req.params.guildId;
     const perms = await getMemberPermissions(guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x20)); // MANAGE_GUILD
+    await checkPermission(perms, BigInt(0x20), req.params.guildId, req.user!.userId); // MANAGE_GUILD
 
     const { enabled, description, form_fields } = req.body;
 
@@ -1774,8 +1804,8 @@ export async function updateGuildOnboarding(req: Request, res: Response, next: N
   try {
     const guildId = req.params.guildId;
     const perms = await getMemberPermissions(guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x20)); // MANAGE_GUILD
-    checkPermission(perms, BigInt(0x1000000000)); // MANAGE_ROLES
+    await checkPermission(perms, BigInt(0x20), req.params.guildId, req.user!.userId); // MANAGE_GUILD
+    await checkPermission(perms, BigInt(0x1000000000), req.params.guildId, req.user!.userId); // MANAGE_ROLES
 
     const { enabled, mode, prompts, default_channel_ids } = req.body;
 

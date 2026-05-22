@@ -14,7 +14,7 @@ export async function getWebhooks(req: Request, res: Response, next: NextFunctio
     if (!channel || !channel.guild_id) throw new AppError(404, 'NOT_FOUND', 'Channel not found');
 
     const perms = await getMemberPermissions(channel.guild_id, req.user!.userId);
-    checkPermission(perms, BigInt(0x20000000));
+    await checkPermission(perms, BigInt(0x20000000), channel.guild_id, req.user!.userId);
 
     const webhooks = await prisma.webhook.findMany({
       where: { channel_id: req.params.channelId },
@@ -32,7 +32,7 @@ export async function createWebhook(req: Request, res: Response, next: NextFunct
     if (!channel || !channel.guild_id) throw new AppError(404, 'NOT_FOUND', 'Channel not found');
 
     const perms = await getMemberPermissions(channel.guild_id, req.user!.userId);
-    checkPermission(perms, BigInt(0x20000000));
+    await checkPermission(perms, BigInt(0x20000000), channel.guild_id, req.user!.userId);
 
     const token = crypto.randomBytes(32).toString('hex');
     const webhook = await prisma.webhook.create({
@@ -73,7 +73,7 @@ export async function deleteWebhook(req: Request, res: Response, next: NextFunct
 
     const perms = await getMemberPermissions(webhook.guild_id, req.user!.userId);
     if (webhook.creator_id !== req.user!.userId) {
-      checkPermission(perms, BigInt(0x20000000));
+      await checkPermission(perms, BigInt(0x20000000), channel?.guild_id || webhook?.guild_id || req.params.guildId, req.user!.userId);
     }
 
     await prisma.webhook.delete({ where: { id: req.params.webhookId } });
@@ -102,7 +102,7 @@ export async function getGuildWebhooks(req: Request, res: Response, next: NextFu
     if (!guild) throw new AppError(404, 'NOT_FOUND', 'Guild not found');
 
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x20000000));
+    await checkPermission(perms, BigInt(0x20000000), channel?.guild_id || webhook?.guild_id || req.params.guildId, req.user!.userId);
 
     const webhooks = await prisma.webhook.findMany({
       where: { guild_id: req.params.guildId },
@@ -123,7 +123,7 @@ export async function getWebhook(req: Request, res: Response, next: NextFunction
     if (!webhook) throw new AppError(404, 'NOT_FOUND', 'Webhook not found');
 
     const perms = await getMemberPermissions(webhook.guild_id, req.user!.userId);
-    checkPermission(perms, BigInt(0x20000000));
+    await checkPermission(perms, BigInt(0x20000000), channel?.guild_id || webhook?.guild_id || req.params.guildId, req.user!.userId);
 
     res.json({
       id: webhook.id,
@@ -151,7 +151,7 @@ export async function updateWebhook(req: Request, res: Response, next: NextFunct
 
     const perms = await getMemberPermissions(webhook.guild_id, req.user!.userId);
     if (webhook.creator_id !== req.user!.userId) {
-      checkPermission(perms, BigInt(0x20000000));
+      await checkPermission(perms, BigInt(0x20000000), channel?.guild_id || webhook?.guild_id || req.params.guildId, req.user!.userId);
     }
 
     const { name, avatar, channel_id } = req.body;

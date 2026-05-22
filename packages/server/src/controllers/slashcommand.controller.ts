@@ -9,7 +9,7 @@ import { GatewayEvents } from '@opencord/shared';
 export async function getSlashCommands(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x20)); // MANAGE_GUILD
+    await checkPermission(perms, BigInt(0x20), req.params.guildId, req.user!.userId); // MANAGE_GUILD
 
     const commands = await prisma.applicationCommand.findMany({
       where: { guild_id: req.params.guildId },
@@ -26,7 +26,7 @@ export async function getSlashCommands(req: Request, res: Response, next: NextFu
 export async function createSlashCommand(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x20)); // MANAGE_GUILD
+    await checkPermission(perms, BigInt(0x20), req.params.guildId, req.user!.userId); // MANAGE_GUILD
 
     const count = await prisma.applicationCommand.count({
       where: { guild_id: req.params.guildId },
@@ -63,7 +63,7 @@ export async function createSlashCommand(req: Request, res: Response, next: Next
 export async function updateSlashCommand(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x20)); // MANAGE_GUILD
+    await checkPermission(perms, BigInt(0x20), req.params.guildId, req.user!.userId); // MANAGE_GUILD
 
     const command = await prisma.applicationCommand.findUnique({
       where: { id: req.params.commandId },
@@ -104,7 +104,7 @@ export async function updateSlashCommand(req: Request, res: Response, next: Next
 export async function deleteSlashCommand(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x20)); // MANAGE_GUILD
+    await checkPermission(perms, BigInt(0x20), req.params.guildId, req.user!.userId); // MANAGE_GUILD
 
     const command = await prisma.applicationCommand.findUnique({
       where: { id: req.params.commandId },

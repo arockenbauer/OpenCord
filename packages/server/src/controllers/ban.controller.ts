@@ -9,7 +9,7 @@ import { GatewayEvents } from '@opencord/shared';
 export async function banUser(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x4));
+    await checkPermission(perms, BigInt(0x4), req.params.guildId, req.user!.userId);
 
     const actorHighestRole = await getHighestRolePosition(req.params.guildId, req.user!.userId);
     const targetHighestRole = await getHighestRolePosition(req.params.guildId, req.params.userId);
@@ -72,7 +72,7 @@ export async function banUser(req: Request, res: Response, next: NextFunction): 
 export async function unbanUser(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x4));
+    await checkPermission(perms, BigInt(0x4), req.params.guildId, req.user!.userId);
 
     const ban = await prisma.ban.findUnique({
       where: { guild_id_user_id: { guild_id: req.params.guildId, user_id: req.params.userId } },
@@ -103,7 +103,7 @@ export async function unbanUser(req: Request, res: Response, next: NextFunction)
 export async function getBans(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x4));
+    await checkPermission(perms, BigInt(0x4), req.params.guildId, req.user!.userId);
 
     const limit = Math.min(Number(req.query.limit) || 1000, 1000);
     const where: any = { guild_id: req.params.guildId };
@@ -138,7 +138,7 @@ export async function getBans(req: Request, res: Response, next: NextFunction): 
 export async function getBan(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x4));
+    await checkPermission(perms, BigInt(0x4), req.params.guildId, req.user!.userId);
 
     const ban = await prisma.ban.findUnique({
       where: { guild_id_user_id: { guild_id: req.params.guildId, user_id: req.params.userId } },
@@ -161,7 +161,7 @@ export async function getBan(req: Request, res: Response, next: NextFunction): P
 export async function kickUser(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x2));
+    await checkPermission(perms, BigInt(0x2), req.params.guildId, req.user!.userId);
 
     const actorHighestRole = await getHighestRolePosition(req.params.guildId, req.user!.userId);
     const targetHighestRole = await getHighestRolePosition(req.params.guildId, req.params.userId);
@@ -204,7 +204,7 @@ export async function kickUser(req: Request, res: Response, next: NextFunction):
 export async function warnUser(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x4));
+    await checkPermission(perms, BigInt(0x4), req.params.guildId, req.user!.userId);
 
     const targetMember = await prisma.guildMember.findUnique({
       where: { guild_id_user_id: { guild_id: req.params.guildId, user_id: req.params.userId } },

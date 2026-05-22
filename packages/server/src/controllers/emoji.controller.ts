@@ -26,7 +26,7 @@ export async function getEmojis(req: Request, res: Response, next: NextFunction)
 export async function createEmoji(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x40000000));
+    await checkPermission(perms, BigInt(0x40000000), req.params.guildId, req.user!.userId);
 
     if (!req.file) throw new AppError(400, 'NO_FILE', 'No file uploaded');
 
@@ -117,7 +117,7 @@ export async function getEmoji(req: Request, res: Response, next: NextFunction):
 export async function updateEmoji(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x40000000));
+    await checkPermission(perms, BigInt(0x40000000), req.params.guildId, req.user!.userId);
 
     const emoji = await prisma.emoji.update({
       where: { id: req.params.emojiId },
@@ -143,7 +143,7 @@ export async function updateEmoji(req: Request, res: Response, next: NextFunctio
 export async function deleteEmoji(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x40000000));
+    await checkPermission(perms, BigInt(0x40000000), req.params.guildId, req.user!.userId);
 
     const emoji = await prisma.emoji.findFirst({
       where: { id: req.params.emojiId, guild_id: req.params.guildId },
@@ -199,7 +199,7 @@ export async function getStickers(req: Request, res: Response, next: NextFunctio
 export async function createSticker(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x40000000));
+    await checkPermission(perms, BigInt(0x40000000), req.params.guildId, req.user!.userId);
 
     if (!req.file) throw new AppError(400, 'NO_FILE', 'No file uploaded');
 
@@ -272,7 +272,7 @@ export async function createSticker(req: Request, res: Response, next: NextFunct
 export async function deleteSticker(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x40000000));
+    await checkPermission(perms, BigInt(0x40000000), req.params.guildId, req.user!.userId);
 
     const sticker = await prisma.sticker.findFirst({
       where: { id: req.params.stickerId, guild_id: req.params.guildId },
@@ -326,7 +326,7 @@ export async function getSticker(req: Request, res: Response, next: NextFunction
 export async function updateSticker(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x40000000));
+    await checkPermission(perms, BigInt(0x40000000), req.params.guildId, req.user!.userId);
 
     const sticker = await prisma.sticker.findFirst({ where: { id: req.params.stickerId, guild_id: req.params.guildId } });
     if (!sticker) throw new AppError(404, 'NOT_FOUND', 'Sticker not found');

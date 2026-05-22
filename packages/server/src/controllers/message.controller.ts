@@ -67,7 +67,7 @@ export async function createMessage(req: Request, res: Response, next: NextFunct
   try {
     const channelId = req.params.channelId;
     const perms = await getChannelPermissions(channelId, req.user!.userId);
-    checkPermission(perms, BigInt(0x800));
+    await checkPermission(perms, BigInt(0x800), req.params.guildId || channel?.guild_id, req.user!.userId);
 
     const channel = await prisma.channel.findUnique({ where: { id: channelId } });
     if (!channel) throw new AppError(404, 'CHANNEL_NOT_FOUND', 'Channel not found');
@@ -110,8 +110,8 @@ export async function createMessage(req: Request, res: Response, next: NextFunct
     }
 
     const files = (req as any).files as Express.Multer.File[] | undefined;
-    if (body.tts) checkPermission(perms, BigInt(0x1000));
-    if (files && files.length > 0) checkPermission(perms, BigInt(0x8000));
+    if (body.tts) await checkPermission(perms, BigInt(0x1000), req.params.guildId || channel?.guild_id, req.user!.userId);
+    if (files && files.length > 0) await checkPermission(perms, BigInt(0x8000), req.params.guildId || channel?.guild_id, req.user!.userId);
     if (!body.content && !body.sticker_ids?.length && (!files || files.length === 0)) {
       throw new AppError(400, 'EMPTY_MESSAGE', 'Message must have content, stickers, or files');
     }
@@ -177,7 +177,7 @@ export async function createMessage(req: Request, res: Response, next: NextFunct
     }
 
     const mentionEveryone = body.content ? /@(everyone|here)/.test(body.content) : false;
-    if (mentionEveryone) checkPermission(perms, BigInt(0x20000));
+    if (mentionEveryone) await checkPermission(perms, BigInt(0x20000), req.params.guildId || channel?.guild_id, req.user!.userId);
     const messageType = body.message_reference ? 19 : 0;
 
     const messageId = generateSnowflake();
@@ -275,8 +275,8 @@ export async function getMessages(req: Request, res: Response, next: NextFunctio
   try {
     const channelId = req.params.channelId;
     const perms = await getChannelPermissions(channelId, req.user!.userId);
-    checkPermission(perms, BigInt(0x400));
-    checkPermission(perms, BigInt(0x10000));
+    await checkPermission(perms, BigInt(0x400), req.params.guildId || channel?.guild_id, req.user!.userId);
+    await checkPermission(perms, BigInt(0x10000), req.params.guildId || channel?.guild_id, req.user!.userId);
 
     const limit = Math.min(Number(req.query.limit) || 50, 100);
     const before = req.query.before as string | undefined;
@@ -325,7 +325,7 @@ export async function getMessages(req: Request, res: Response, next: NextFunctio
 export async function getMessage(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getChannelPermissions(req.params.channelId, req.user!.userId);
-    checkPermission(perms, BigInt(0x400));
+    await checkPermission(perms, BigInt(0x400), req.params.guildId || channel?.guild_id, req.user!.userId);
     const message = await prisma.message.findUnique({
       where: { id: req.params.messageId },
       include: buildMessageInclude(),
@@ -612,8 +612,8 @@ export async function unpinMessage(req: Request, res: Response, next: NextFuncti
 export async function getPins(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getChannelPermissions(req.params.channelId, req.user!.userId);
-    checkPermission(perms, BigInt(0x400));
-    checkPermission(perms, BigInt(0x10000));
+    await checkPermission(perms, BigInt(0x400), req.params.guildId || channel?.guild_id, req.user!.userId);
+    await checkPermission(perms, BigInt(0x10000), req.params.guildId || channel?.guild_id, req.user!.userId);
     const pins = await prisma.pin.findMany({
       where: { channel_id: req.params.channelId },
       orderBy: { pinned_at: 'desc' },
@@ -634,8 +634,8 @@ export async function getPins(req: Request, res: Response, next: NextFunction): 
 export async function searchMessages(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getChannelPermissions(req.params.channelId, req.user!.userId);
-    checkPermission(perms, BigInt(0x400));
-    checkPermission(perms, BigInt(0x10000));
+    await checkPermission(perms, BigInt(0x400), req.params.guildId || channel?.guild_id, req.user!.userId);
+    await checkPermission(perms, BigInt(0x10000), req.params.guildId || channel?.guild_id, req.user!.userId);
     const channelId = req.params.channelId;
     const q = req.query.q as string;
     const limit = Math.min(Number(req.query.limit) || 25, 25);
@@ -660,7 +660,7 @@ export async function searchMessages(req: Request, res: Response, next: NextFunc
 export async function ackMessage(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getChannelPermissions(req.params.channelId, req.user!.userId);
-    checkPermission(perms, BigInt(0x400));
+    await checkPermission(perms, BigInt(0x400), req.params.guildId || channel?.guild_id, req.user!.userId);
     await prisma.readState.upsert({
       where: { user_id_channel_id: { user_id: req.user!.userId, channel_id: req.params.channelId } },
       create: { user_id: req.user!.userId, channel_id: req.params.channelId, last_read_message_id: req.params.messageId, mention_count: 0 },
@@ -686,7 +686,7 @@ export async function getPoll(req: Request, res: Response, next: NextFunction): 
     const sourceMessage = await prisma.message.findUnique({ where: { id: poll.message_id }, select: { channel_id: true } });
     if (!sourceMessage) throw new AppError(404, 'MESSAGE_NOT_FOUND', 'Poll source message not found');
     const perms = await getChannelPermissions(sourceMessage.channel_id, req.user!.userId);
-    checkPermission(perms, BigInt(0x400));
+    await checkPermission(perms, BigInt(0x400), req.params.guildId || channel?.guild_id, req.user!.userId);
 
     const answers = poll.answers.map((a) => {
       const options = JSON.parse(poll.options) as string[];
@@ -708,8 +708,8 @@ export async function answerPoll(req: Request, res: Response, next: NextFunction
     const sourceMessage = await prisma.message.findUnique({ where: { id: poll.message_id }, select: { channel_id: true } });
     if (!sourceMessage) throw new AppError(404, 'MESSAGE_NOT_FOUND', 'Poll source message not found');
     const perms = await getChannelPermissions(sourceMessage.channel_id, req.user!.userId);
-    checkPermission(perms, BigInt(0x400));
-    checkPermission(perms, BigInt(0x800));
+    await checkPermission(perms, BigInt(0x400), req.params.guildId || channel?.guild_id, req.user!.userId);
+    await checkPermission(perms, BigInt(0x800), req.params.guildId || channel?.guild_id, req.user!.userId);
     if (poll.ended_at && poll.ended_at < new Date()) throw new AppError(400, 'POLL_ENDED', 'Poll has ended');
 
     const existing = await prisma.pollAnswer.findUnique({
@@ -739,7 +739,7 @@ export async function getPollAnswers(req: Request, res: Response, next: NextFunc
     const sourceMessage = await prisma.message.findUnique({ where: { id: poll.message_id }, select: { channel_id: true } });
     if (!sourceMessage) throw new AppError(404, 'MESSAGE_NOT_FOUND', 'Poll source message not found');
     const perms = await getChannelPermissions(sourceMessage.channel_id, req.user!.userId);
-    checkPermission(perms, BigInt(0x400));
+    await checkPermission(perms, BigInt(0x400), req.params.guildId || channel?.guild_id, req.user!.userId);
 
     const answers = await prisma.pollAnswer.findMany({
       where: { poll_id: req.params.pollId },
@@ -780,7 +780,7 @@ export async function endPoll(req: Request, res: Response, next: NextFunction): 
 export async function getReactionUsers(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getChannelPermissions(req.params.channelId, req.user!.userId);
-    checkPermission(perms, BigInt(0x400)); // VIEW_CHANNEL
+    await checkPermission(perms, BigInt(0x400), req.params.guildId || channel?.guild_id, req.user!.userId); // VIEW_CHANNEL
 
     const emoji = decodeURIComponent(req.params.emoji);
     const emojiId = emoji.includes(':') ? emoji.split(':')[2]?.replace('>', '') || null : null;
@@ -862,7 +862,7 @@ export async function crosspostMessage(req: Request, res: Response, next: NextFu
     if (channel.type !== 5) throw new AppError(400, 'INVALID_CHANNEL_TYPE', 'Only announcement channels support crossposting');
 
     const perms = await getChannelPermissions(req.params.channelId, req.user!.userId);
-    checkPermission(perms, BigInt(0x800)); // SEND_MESSAGES
+    await checkPermission(perms, BigInt(0x800), req.params.guildId || channel?.guild_id, req.user!.userId); // SEND_MESSAGES
 
     const message = await prisma.message.findUnique({
       where: { id: req.params.messageId },
@@ -897,7 +897,7 @@ export async function reportMessage(req: Request, res: Response, next: NextFunct
     const channelId = req.params.channelId;
     const messageId = req.params.messageId;
     const perms = await getChannelPermissions(channelId, req.user!.userId);
-    checkPermission(perms, BigInt(0x400));
+    await checkPermission(perms, BigInt(0x400), req.params.guildId || channel?.guild_id, req.user!.userId);
 
     const message = await prisma.message.findUnique({
       where: { id: messageId },

@@ -395,7 +395,7 @@ export async function joinGuildFromDiscovery(req: Request, res: Response, next: 
 export async function updateGuildDiscovery(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x20)); // MANAGE_GUILD
+    await checkPermission(perms, BigInt(0x20), req.params.guildId, req.user!.userId); // MANAGE_GUILD
 
     const { discoverable, discovery_description, primary_category_id, tags } = req.body;
     const data: any = {};
@@ -472,7 +472,7 @@ export async function updateGuildDiscovery(req: Request, res: Response, next: Ne
 export async function uploadDiscoverySplash(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x20)); // MANAGE_GUILD
+    await checkPermission(perms, BigInt(0x20), req.params.guildId, req.user!.userId); // MANAGE_GUILD
 
     if (!req.file) {
       throw new AppError(400, 'NO_FILE', 'No file uploaded');

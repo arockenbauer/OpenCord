@@ -24,6 +24,7 @@ interface MessageContextMenuProps {
   position: { x: number; y: number };
   onClose: () => void;
   onReply: () => void;
+  onForward?: () => void;
   onAddReaction?: () => void;
   onEdit?: (messageId: string, content: string) => void;
   onStartThread?: (message: Message) => void;
@@ -124,6 +125,12 @@ export function MessageContextMenu({ message, channelId, guildId, position, onCl
         <Reply size={16} />
         Répondre
       </button>
+      {!isPending && onForward && (
+        <button className={styles.item} onClick={() => { onForward(); onClose(); }}>
+          <MessageCircle size={16} />
+          Transférer
+        </button>
+      )}
       {!isPending && onAddReaction && (
         <button className={styles.item} onClick={() => { onAddReaction(); onClose(); }}>
           <Smile size={16} />

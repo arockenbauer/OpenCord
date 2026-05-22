@@ -382,6 +382,7 @@ model Role {
   guild_id              String
   name                  String
   color                 String?
+  colors                String?                         @default("{}") // JSON: {primary_color, secondary_color, tertiary_color}
   hoist                 Boolean                          @default(false)
   position              Int                              @default(0)
   permissions           BigInt                           @default(0)
@@ -389,6 +390,8 @@ model Role {
   icon                  String?
   unicode_emoji         String?
   managed               Boolean                          @default(false)
+  tags                  String?                         @default("{}") // JSON: {bot_id, integration_id, premium_subscriber, guild_connections}
+  flags                 Int                              @default(0) // Role flags (1 << 0 = in_prompt)
   created_at            DateTime                         @default(now())
   command_permissions   ApplicationCommandPermission[]   @relation("CommandPermissionRole")
   members               GuildMemberRole[]

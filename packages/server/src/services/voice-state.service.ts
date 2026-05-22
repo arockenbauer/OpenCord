@@ -82,8 +82,8 @@ export async function updateOwnVoiceState(guildId: string, userId: string, patch
     if (!channel) throw new AppError(404, 'VOICE_CHANNEL_NOT_FOUND', 'Voice channel not found');
 
     const perms = await getChannelPermissions(channel.id, userId);
-    checkPermission(perms, PERMISSION_BITS.VIEW_CHANNEL);
-    checkPermission(perms, PERMISSION_BITS.CONNECT);
+    await checkPermission(perms, PERMISSION_BITS.VIEW_CHANNEL, guildId, userId);
+    await checkPermission(perms, PERMISSION_BITS.CONNECT, guildId, userId);
 
     if (channel.user_limit > 0) {
       const connectedCount = await prisma.voiceState.count({
@@ -137,9 +137,9 @@ export async function updateModeratedVoiceState(guildId: string, actorId: string
   const actorPerms = await getMemberPermissions(guildId, actorId);
 
   const requestedChannelId = readChannelId(patch);
-  if (requestedChannelId !== undefined) checkPermission(actorPerms, PERMISSION_BITS.MOVE_MEMBERS);
-  if (patch.mute !== undefined) checkPermission(actorPerms, PERMISSION_BITS.MUTE_MEMBERS);
-  if (patch.deaf !== undefined) checkPermission(actorPerms, PERMISSION_BITS.DEAFEN_MEMBERS);
+  if (requestedChannelId !== undefined) await checkPermission(actorPerms, PERMISSION_BITS.MOVE_MEMBERS, guildId, actorId);
+  if (patch.mute !== undefined) await checkPermission(actorPerms, PERMISSION_BITS.MUTE_MEMBERS, guildId, actorId);
+  if (patch.deaf !== undefined) await checkPermission(actorPerms, PERMISSION_BITS.DEAFEN_MEMBERS, guildId, actorId);
 
   const existing = await prisma.voiceState.findUnique({
     where: { guild_id_user_id: { guild_id: guildId, user_id: targetUserId } },

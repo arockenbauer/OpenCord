@@ -19,7 +19,11 @@ import { ThreadView } from '../ThreadView/ThreadView';
 import { StageChannelView } from '../StageChannelView/StageChannelView';
 import { MessageComponents } from '../MessageComponents/MessageComponents';
 import { PollMessage } from '../PollMessage/PollMessage';
+import { PollCreator } from '../PollCreator/PollCreator';
 import { SoundboardPicker } from '../SoundboardPicker/SoundboardPicker';
+import { MessageForwarder } from '../MessageForwarder/MessageForwarder';
+import { ForumPostCreator } from '../ForumPostCreator/ForumPostCreator';
+import { AdvancedSearch } from '../AdvancedSearch/AdvancedSearch';
 import { emitTyping } from '../../hooks/useGateway';
 import { api } from '../../services/api';
 import { announceMessage, announceTyping, announceChannelChange } from '../../utils/ariaAnnounce';
@@ -102,7 +106,10 @@ export function ChatArea() {
   const [msgCtxMenu, setMsgCtxMenu] = useState<{ msg: any; x: number; y: number } | null>(null);
   const [sidePanel, setSidePanel] = useState<'pins' | 'search' | 'threads' | null>(null);
   const [selectedThread, setSelectedThread] = useState<any>(null);
+  const [showPollCreator, setShowPollCreator] = useState(false);
   const [showSoundboard, setShowSoundboard] = useState(false);
+  const [forwardMessage, setForwardMessage] = useState<any>(null);
+  const [showForumPostCreator, setShowForumPostCreator] = useState(false);
   const [pinnedMessages, setPinnedMessages] = useState<any[]>([]);
   const [pinsLoading, setPinsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -300,16 +307,9 @@ export function ChatArea() {
     selectChannel(thread.id);
   };
 
-  const handleCreateForumPost = async () => {
+  const handleCreateForumPost = () => {
     if (!selectedChannelId || !guild || channel?.type !== 15) return;
-    const name = window.prompt('Titre du post', 'Nouveau post')?.trim();
-    if (!name) return;
-    const thread = await api<any>(`/api/channels/${selectedChannelId}/thread`, {
-      method: 'POST',
-      body: JSON.stringify({ name }),
-    });
-    addChannel(guild.id, thread);
-    selectChannel(thread.id);
+    setShowForumPostCreator(true);
   };
 
   const handleArchiveThread = async () => {
@@ -538,7 +538,7 @@ export function ChatArea() {
             </>
           )}
           {!isThread && !isDirectMessage && (channel?.type === 0 || channel?.type === 5) && (
-            {/* PollCreator button removed - component not implemented */}
+            null
           )}
           {!isThread && !isDirectMessage && (channel?.type === 0 || channel?.type === 5) && (
             <Tooltip content="Fils" position="bottom" delay={300}>
@@ -561,6 +561,11 @@ export function ChatArea() {
           {!isDirectMessage && guild && (
             <Tooltip content="Soundboard" position="bottom" delay={300}>
               <button onClick={() => setShowSoundboard(true)}><Music size={20} /></button>
+            </Tooltip>
+          )}
+          {!isDirectMessage && (
+            <Tooltip content="Créer un sondage" position="bottom" delay={300}>
+              <button onClick={() => setShowPollCreator(true)}><BarChart2 size={20} /></button>
             </Tooltip>
           )}
         </div>
@@ -621,8 +626,6 @@ export function ChatArea() {
                         >
                           {displayName}
                           {headerMessage.author.bot && <span className={styles.badgeBot}>BOT</span>}
-                          {guild && guild.owner_id === headerMessage.author.id && <span className={styles.badgeOwner}>PROPRIÉTAIRE</span>}
-                          {guild && !headerMessage.author.bot && guild.owner_id !== headerMessage.author.id && hasPermission(headerMessage.author.id, guild, BigInt(0x00000008)) && <span className={styles.badgeMod}>MODÉRATEUR</span>}
                         </button>
                         <span className={styles.messageTimestamp}>
                           {format(new Date(headerMessage.created_at), 'dd/MM/yyyy HH:mm')}
@@ -830,37 +833,17 @@ export function ChatArea() {
                   }}
                 />
               ) : (
-                <>
-                  <div className={styles.searchForm}>
-                    <input
-                      className={styles.searchInput}
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') void handleSearch(); }}
-                      placeholder={guild ? 'Rechercher dans ce serveur…' : 'Rechercher dans cette conversation…'}
-                    />
-                    <button className={styles.searchButton} onClick={() => void handleSearch()} disabled={searchLoading || !searchQuery.trim()}>
-                      {searchLoading ? '…' : 'Chercher'}
-                    </button>
-                  </div>
-                  {searchSummary && <div className={styles.searchSummary}>{searchSummary}</div>}
-                  {searchResults.length === 0 ? (
-                    <div className={styles.sidePanelEmpty}>
-                      {searchQuery.trim() ? 'Aucun résultat.' : 'Lancez une recherche pour afficher les messages correspondants.'}
-                    </div>
-                  ) : (
-                    searchResults.map((result) => (
-                      <button key={`${result.channel_id}:${result.id}`} className={styles.sidePanelCard} onClick={() => openSearchResult(result)}>
-                        <div className={styles.sidePanelMeta}>
-                          <strong>{result.author?.global_name || result.author?.username}</strong>
-                          <span>{guild ? `#${result._channelName}` : result._channelName}</span>
-                        </div>
-                        <div className={styles.sidePanelContent}>{result.content || 'Pièce jointe / contenu enrichi'}</div>
-                        <div className={styles.sidePanelDate}>{format(new Date(result.created_at), 'dd/MM/yyyy HH:mm')}</div>
-                      </button>
-                    ))
-                  )}
-                </>
+                <AdvancedSearch
+                  guildId={guild?.id}
+                  channelId={selectedChannelId!}
+                  onClose={() => setSidePanel(null)}
+                  onResults={(results, summary) => {
+                    setSearchResults(results);
+                    setSearchSummary(summary);
+                  }}
+                  channels={guild?.channels || []}
+                  members={guild?.members || []}
+                />
               )}
             </div>
           </aside>
@@ -881,6 +864,7 @@ export function ChatArea() {
           position={{ x: msgCtxMenu.x, y: msgCtxMenu.y }}
           onClose={() => setMsgCtxMenu(null)}
           onReply={() => setReplyTo(msgCtxMenu.msg)}
+          onForward={() => setForwardMessage(msgCtxMenu.msg)}
           onAddReaction={() => { setShowEmojiPicker(true); setMsgCtxMenu(null); }}
           onEdit={(id, content) => { setEditingId(id); setEditValue(content); setMsgCtxMenu(null); }}
           onStartThread={guild && channel?.type === 0 ? handleStartThreadFromMessage : undefined}
@@ -892,6 +876,27 @@ export function ChatArea() {
           channelId={selectedChannelId}
           onClose={() => setShowPollCreator(false)}
           onPollCreated={() => {}}
+        />
+      )}
+
+      {forwardMessage && (
+        <MessageForwarder
+          message={forwardMessage}
+          onClose={() => setForwardMessage(null)}
+          onForwarded={() => setForwardMessage(null)}
+        />
+      )}
+
+      {showForumPostCreator && guild?.id && selectedChannelId && (
+        <ForumPostCreator
+          channelId={selectedChannelId}
+          guildId={guild.id}
+          onClose={() => setShowForumPostCreator(false)}
+          onPostCreated={(thread) => {
+            addChannel(guild.id, thread);
+            selectChannel(thread.id);
+            setShowForumPostCreator(false);
+          }}
         />
       )}
 

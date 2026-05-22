@@ -40,7 +40,7 @@ export async function getScheduledEvents(req: Request, res: Response, next: Next
 export async function createScheduledEvent(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, (req as any).user!.userId);
-    checkPermission(perms, BigInt(MANAGE_EVENTS));
+    await checkPermission(perms, BigInt(MANAGE_EVENTS), req.params.guildId, req.user!.userId);
 
     const { name, description, scheduled_start_time, scheduled_end_time, entity_type, entity_metadata, privacy_level, channel_id } = req.body;
 
@@ -148,7 +148,7 @@ export async function updateScheduledEvent(req: Request, res: Response, next: Ne
     const isCreator = event.creator_id === userId;
     if (!isCreator) {
       const perms = await getMemberPermissions(req.params.guildId, userId);
-      checkPermission(perms, BigInt(MANAGE_EVENTS));
+      await checkPermission(perms, BigInt(MANAGE_EVENTS), req.params.guildId, req.user!.userId);
     }
 
     const { name, description, scheduled_start_time, scheduled_end_time, entity_type, entity_metadata, status, privacy_level, channel_id } = req.body;
@@ -199,7 +199,7 @@ export async function updateScheduledEvent(req: Request, res: Response, next: Ne
 export async function deleteScheduledEvent(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, (req as any).user!.userId);
-    checkPermission(perms, BigInt(MANAGE_EVENTS));
+    await checkPermission(perms, BigInt(MANAGE_EVENTS), req.params.guildId, req.user!.userId);
 
     const event = await prisma.guildScheduledEvent.findUnique({ where: { id: req.params.eventId } });
     if (!event) throw new AppError(404, 'NOT_FOUND', 'Event not found');
@@ -230,7 +230,7 @@ export async function deleteScheduledEvent(req: Request, res: Response, next: Ne
 export async function uploadEventImage(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, (req as any).user!.userId);
-    checkPermission(perms, BigInt(MANAGE_EVENTS));
+    await checkPermission(perms, BigInt(MANAGE_EVENTS), req.params.guildId, req.user!.userId);
 
     const event = await prisma.guildScheduledEvent.findUnique({ where: { id: req.params.eventId } });
     if (!event) throw new AppError(404, 'NOT_FOUND', 'Event not found');

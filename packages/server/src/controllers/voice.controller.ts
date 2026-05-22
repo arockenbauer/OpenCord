@@ -170,7 +170,7 @@ export async function getSoundboardSounds(req: Request, res: Response, next: Nex
 export async function createSoundboardSound(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, PERMISSION_BITS.MANAGE_EMOJIS_AND_STICKERS);
+    await checkPermission(perms, PERMISSION_BITS.MANAGE_EMOJIS_AND_STICKERS, req.params.guildId || channel?.guild_id, req.user!.userId);
     if (!req.file) throw new AppError(400, 'NO_FILE', 'No sound file uploaded');
 
     const id = generateSnowflake();
@@ -198,7 +198,7 @@ export async function createSoundboardSound(req: Request, res: Response, next: N
 export async function updateSoundboardSound(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, PERMISSION_BITS.MANAGE_EMOJIS_AND_STICKERS);
+    await checkPermission(perms, PERMISSION_BITS.MANAGE_EMOJIS_AND_STICKERS, req.params.guildId || channel?.guild_id, req.user!.userId);
     const rows = await prisma.$queryRaw<SoundboardSoundRow[]>`SELECT * FROM SoundboardSound WHERE id = ${req.params.soundId} AND guild_id = ${req.params.guildId} LIMIT 1`;
     const existing = rows[0];
     if (!existing) throw new AppError(404, 'SOUND_NOT_FOUND', 'Sound not found');
@@ -221,7 +221,7 @@ export async function updateSoundboardSound(req: Request, res: Response, next: N
 export async function deleteSoundboardSound(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, PERMISSION_BITS.MANAGE_EMOJIS_AND_STICKERS);
+    await checkPermission(perms, PERMISSION_BITS.MANAGE_EMOJIS_AND_STICKERS, req.params.guildId || channel?.guild_id, req.user!.userId);
     const rows = await prisma.$queryRaw<SoundboardSoundRow[]>`SELECT * FROM SoundboardSound WHERE id = ${req.params.soundId} AND guild_id = ${req.params.guildId} LIMIT 1`;
     const existing = rows[0];
     if (!existing) throw new AppError(404, 'SOUND_NOT_FOUND', 'Sound not found');
@@ -255,7 +255,7 @@ export async function playSoundboardSound(req: Request, res: Response, next: Nex
     }
 
     const perms = await getChannelPermissions(channelId, req.user!.userId);
-    checkPermission(perms, PERMISSION_BITS.CONNECT);
+    await checkPermission(perms, PERMISSION_BITS.CONNECT, channel?.guild_id, req.user!.userId);
 
     getIO()?.to(`guild:${req.params.guildId}`).emit(GatewayEvents.SOUNDBOARD_SOUND_PLAY, {
       guild_id: req.params.guildId,

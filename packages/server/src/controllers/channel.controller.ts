@@ -25,7 +25,7 @@ async function emitChannelUpdate(channelId: string): Promise<void> {
 export async function createChannel(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, PERMISSION_BITS.MANAGE_CHANNELS);
+    await checkPermission(perms, PERMISSION_BITS.MANAGE_CHANNELS, req.params.guildId, req.user!.userId);
 
     const channel = await prisma.channel.create({
       data: {
@@ -68,7 +68,7 @@ export async function getChannel(req: Request, res: Response, next: NextFunction
     if (channel.guild_id) {
       await requireMembership(channel.guild_id, req.user!.userId);
       const perms = await getChannelPermissions(channel.id, req.user!.userId);
-      checkPermission(perms, PERMISSION_BITS.VIEW_CHANNEL);
+      await checkPermission(perms, PERMISSION_BITS.VIEW_CHANNEL, channel.guild_id, req.user!.userId);
     }
 
     res.json(channel);
@@ -84,7 +84,7 @@ export async function updateChannel(req: Request, res: Response, next: NextFunct
 
     if (channel.guild_id) {
       const perms = await getMemberPermissions(channel.guild_id, req.user!.userId);
-      checkPermission(perms, PERMISSION_BITS.MANAGE_CHANNELS);
+      await checkPermission(perms, PERMISSION_BITS.MANAGE_CHANNELS, channel.guild_id, req.user!.userId);
     }
 
     const allowedFields: Record<string, any> = {};
@@ -147,7 +147,7 @@ export async function deleteChannel(req: Request, res: Response, next: NextFunct
 
     if (channel.guild_id) {
       const perms = await getMemberPermissions(channel.guild_id, req.user!.userId);
-      checkPermission(perms, PERMISSION_BITS.MANAGE_CHANNELS);
+      await checkPermission(perms, PERMISSION_BITS.MANAGE_CHANNELS, channel.guild_id, req.user!.userId);
     }
 
     // Clean up related records for DM channels
@@ -180,7 +180,7 @@ export async function updatePermissionOverwrite(req: Request, res: Response, nex
     if (!channel || !channel.guild_id) throw new AppError(404, 'CHANNEL_NOT_FOUND', 'Channel not found');
 
     const perms = await getMemberPermissions(channel.guild_id, req.user!.userId);
-    checkPermission(perms, PERMISSION_BITS.MANAGE_ROLES);
+    await checkPermission(perms, PERMISSION_BITS.MANAGE_ROLES, channel.guild_id, req.user!.userId);
 
     const existing = await prisma.permissionOverwrite.findFirst({
       where: { id: req.params.overwriteId, channel_id: req.params.channelId },
@@ -224,7 +224,7 @@ export async function deletePermissionOverwrite(req: Request, res: Response, nex
     if (!channel || !channel.guild_id) throw new AppError(404, 'CHANNEL_NOT_FOUND', 'Channel not found');
 
     const perms = await getMemberPermissions(channel.guild_id, req.user!.userId);
-    checkPermission(perms, PERMISSION_BITS.MANAGE_ROLES);
+    await checkPermission(perms, PERMISSION_BITS.MANAGE_ROLES, channel.guild_id, req.user!.userId);
 
     const deleted = await prisma.permissionOverwrite.deleteMany({
       where: { id: req.params.overwriteId, channel_id: req.params.channelId },
@@ -247,7 +247,7 @@ export async function createPermissionOverwrite(req: Request, res: Response, nex
     if (!channel || !channel.guild_id) throw new AppError(404, 'CHANNEL_NOT_FOUND', 'Channel not found');
 
     const perms = await getMemberPermissions(channel.guild_id, req.user!.userId);
-    checkPermission(perms, PERMISSION_BITS.MANAGE_ROLES);
+    await checkPermission(perms, PERMISSION_BITS.MANAGE_ROLES, channel.guild_id, req.user!.userId);
 
     const targetId = req.body.target_id;
     const targetType = req.body.type || 'role';
@@ -334,7 +334,7 @@ export async function followChannel(req: Request, res: Response, next: NextFunct
 
     // Check MANAGE_WEBHOOKS in target guild
     const targetPerms = await getMemberPermissions(targetChannel.guild_id, req.user!.userId);
-    checkPermission(targetPerms, BigInt(0x20000000)); // MANAGE_WEBHOOKS
+    await checkPermission(targetPerms, BigInt(0x20000000), targetChannel.guild_id, req.user!.userId); // MANAGE_WEBHOOKS
 
     // Check limit: max 10 follows per target channel
     const existingFollows = await prisma.channelFollower.count({ where: { target_channel_id: webhook_channel_id } });
@@ -422,7 +422,7 @@ export async function markChannelRead(req: Request, res: Response, next: NextFun
 export async function reorderChannels(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x10));
+    await checkPermission(perms, BigInt(0x10), req.params.guildId, req.user!.userId);
 
     const updates = req.body as Array<{ id: string; position: number; parent_id?: string | null }>;
     if (!Array.isArray(updates)) throw new AppError(400, 'INVALID_BODY', 'Expected an array of channel updates');

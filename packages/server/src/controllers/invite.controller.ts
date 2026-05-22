@@ -20,7 +20,7 @@ async function generateUniqueInviteCode(): Promise<string> {
 export async function createInvite(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x1));
+    await checkPermission(perms, BigInt(0x1), req.params.guildId, req.user!.userId);
 
     const guild = await prisma.guild.findUnique({ where: { id: req.params.guildId } });
     if (guild?.invites_disabled) throw new AppError(403, 'INVITES_DISABLED', 'Invites are disabled for this server');
@@ -262,7 +262,7 @@ export async function useInvite(req: Request, res: Response, next: NextFunction)
 export async function getGuildInvites(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x20));
+    await checkPermission(perms, BigInt(0x20), req.params.guildId, req.user!.userId);
 
     const invites = await prisma.invite.findMany({
       where: { guild_id: req.params.guildId },
@@ -281,7 +281,7 @@ export async function getGuildInvites(req: Request, res: Response, next: NextFun
 export async function getChannelInvites(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x10)); // MANAGE_CHANNELS
+    await checkPermission(perms, BigInt(0x10), req.params.guildId, req.user!.userId); // MANAGE_CHANNELS
 
     const invites = await prisma.invite.findMany({
       where: { channel_id: req.params.channelId, guild_id: req.params.guildId },
@@ -304,7 +304,7 @@ export async function deleteInvite(req: Request, res: Response, next: NextFuncti
 
     const perms = await getMemberPermissions(invite.guild_id, req.user!.userId);
     if (invite.inviter_id !== req.user!.userId) {
-      checkPermission(perms, BigInt(0x20));
+      await checkPermission(perms, BigInt(0x20), req.params.guildId, req.user!.userId);
     }
 
     await prisma.invite.delete({ where: { code: req.params.code } });
@@ -329,7 +329,7 @@ export async function deleteInvite(req: Request, res: Response, next: NextFuncti
 export async function getVanityURL(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x20));
+    await checkPermission(perms, BigInt(0x20), req.params.guildId, req.user!.userId);
 
     const guild = await prisma.guild.findUnique({
       where: { id: req.params.guildId },
@@ -356,7 +356,7 @@ export async function getVanityURL(req: Request, res: Response, next: NextFuncti
 export async function updateVanityURL(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x20));
+    await checkPermission(perms, BigInt(0x20), req.params.guildId, req.user!.userId);
 
     const guild = await prisma.guild.findUnique({
       where: { id: req.params.guildId },

@@ -26,7 +26,7 @@ function serializeRule(rule: any) {
 export async function getRules(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, MANAGE_GUILD);
+    await checkPermission(perms, MANAGE_GUILD, req.params.guildId, req.user!.userId);
     const rules = await prisma.autoModRule.findMany({
       where: { guild_id: req.params.guildId },
       orderBy: { created_at: 'asc' },
@@ -40,7 +40,7 @@ export async function getRules(req: Request, res: Response, next: NextFunction):
 export async function createRule(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, MANAGE_GUILD);
+    await checkPermission(perms, MANAGE_GUILD, req.params.guildId, req.user!.userId);
     const count = await prisma.autoModRule.count({ where: { guild_id: req.params.guildId } });
     if (count >= 6) throw new AppError(400, 'MAX_RULES', 'Maximum of 6 AutoMod rules per server');
     const rule = await prisma.autoModRule.create({
@@ -67,7 +67,7 @@ export async function createRule(req: Request, res: Response, next: NextFunction
 export async function updateRule(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, MANAGE_GUILD);
+    await checkPermission(perms, MANAGE_GUILD, req.params.guildId, req.user!.userId);
     const data: Record<string, any> = {};
     if (req.body.name !== undefined) data.name = req.body.name;
     if (req.body.enabled !== undefined) data.enabled = req.body.enabled;
@@ -85,7 +85,7 @@ export async function updateRule(req: Request, res: Response, next: NextFunction
 export async function deleteRule(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, MANAGE_GUILD);
+    await checkPermission(perms, MANAGE_GUILD, req.params.guildId, req.user!.userId);
     await prisma.autoModRule.delete({ where: { id: req.params.ruleId } });
     res.status(204).send();
   } catch (err) {
@@ -96,7 +96,7 @@ export async function deleteRule(req: Request, res: Response, next: NextFunction
 export async function getAutoModExecutions(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, MANAGE_GUILD);
+    await checkPermission(perms, MANAGE_GUILD, req.params.guildId, req.user!.userId);
 
     const limit = Math.min(Number(req.query.limit) || 50, 100);
     const executions = await prisma.autoModExecution.findMany({
