@@ -43,7 +43,7 @@ test.describe('Profile, roles, permissions and voice regression flow', () => {
 
     const unique = Date.now();
     await page.getByTestId('user-settings-button').click();
-    await page.getByRole('button', { name: 'Profil' }).click();
+    await page.getByRole('button', { name: 'Mon profil' }).click();
     await page.getByTestId('profile-global-name').fill(`Smoke Admin ${unique}`);
     await page.getByTestId('profile-pronouns').fill('il/lui');
     await page.getByTestId('profile-bio').fill(`Profil e2e ${unique}`);

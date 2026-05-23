@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Tag, Send } from 'lucide-react';
 import { api } from '../../services/api';
 import styles from './ForumPostCreator.module.css';

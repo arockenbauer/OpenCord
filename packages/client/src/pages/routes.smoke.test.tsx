@@ -28,7 +28,7 @@ vi.mock('../services/api', () => ({
         return { subscription: null };
       }
 
-      if (url === '/api/invites/smoke-invite') {
+      if (url.startsWith('/api/invites/smoke-invite')) {
         return {
           guild: { name: 'Smoke Guild' },
           channel: { name: 'general' },
@@ -144,7 +144,7 @@ describe('top-level route smoke', () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByText('Invitation serveur')).toBeInTheDocument();
+    expect(await screen.findByText('Vous avez été invité à rejoindre un serveur')).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText('Smoke Guild')).toBeInTheDocument());
     expect(screen.getByTestId('invite-accept-submit')).toBeInTheDocument();
   });

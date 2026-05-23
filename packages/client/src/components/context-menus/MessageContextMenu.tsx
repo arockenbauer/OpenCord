@@ -50,7 +50,7 @@ function hasPermission(guildId: string | undefined, userId: string, bit: bigint)
   return false;
 }
 
-export function MessageContextMenu({ message, channelId, guildId, position, onClose, onReply, onAddReaction, onEdit, onStartThread }: MessageContextMenuProps) {
+export function MessageContextMenu({ message, channelId, guildId, position, onClose, onReply, onForward, onAddReaction, onEdit, onStartThread }: MessageContextMenuProps) {
   const currentUser = useAuthStore((s) => s.user);
   const deleteMessage = useMessageStore((s) => s.deleteMessage);
   const updateMessage = useMessageStore((s) => s.updateMessage);

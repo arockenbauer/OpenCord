@@ -205,7 +205,7 @@ export const api = Object.assign(apiFn, {
     getInvites: <T>(channelId: string) => typedGet<T>(`/channels/${channelId}/invites`),
     createInvite: <T>(channelId: string, data: unknown) => typedPost<T>(`/channels/${channelId}/invites`, data),
     getPins: <T>(channelId: string) => typedGet<T>(`/channels/${channelId}/messages/pins`),
-    searchMessages: <T>(channelId: string, params: { q: string; limit?: number; offset?: number }) => {
+    searchMessages: <T>(channelId: string, params: Record<string, string | number>) => {
       const query = '?' + new URLSearchParams(Object.entries(params).reduce((acc, [key, value]) => {
         if (value !== undefined && value !== null) acc[key] = String(value);
         return acc;

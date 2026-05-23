@@ -24,6 +24,15 @@ interface VoiceState {
   error: string | null;
   speakingUserIds: Set<string>;
   remoteProducers: Map<string, { userId: string; kind: string; producerId: string }>;
+  // Nouvelles options
+  inputDeviceId: string | null;
+  outputDeviceId: string | null;
+  noiseSuppression: boolean;
+  echoCancellation: boolean;
+  autoGainControl: boolean;
+  voiceActivityDetection: boolean;
+  pushToTalk: boolean;
+  selectedRegion: string | null;
   joinVoiceChannel: (guildId: string, channelId: string) => void;
   leaveVoiceChannel: () => void;
   setSelfMute: (muted: boolean) => void;
@@ -34,6 +43,14 @@ interface VoiceState {
   toggleSelfVideo: () => void;
   setSelfScreen: (enabled: boolean) => void;
   toggleSelfScreen: () => void;
+  setInputDevice: (deviceId: string) => void;
+  setOutputDevice: (deviceId: string) => void;
+  toggleNoiseSuppression: () => void;
+  toggleEchoCancellation: () => void;
+  toggleAutoGainControl: () => void;
+  toggleVoiceActivityDetection: () => void;
+  togglePushToTalk: () => void;
+  setRegion: (region: string | null) => void;
   handleVoiceServerUpdate: (payload: any) => Promise<void>;
   addProducer: (producer: ProducerInfo) => Promise<void>;
   closeProducer: (producerId: string) => void;
@@ -248,6 +265,14 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
   error: null,
   speakingUserIds: new Set(),
   remoteProducers: new Map(),
+  inputDeviceId: null,
+  outputDeviceId: null,
+  noiseSuppression: false,
+  echoCancellation: false,
+  autoGainControl: false,
+  voiceActivityDetection: false,
+  pushToTalk: false,
+  selectedRegion: null,
 
   joinVoiceChannel: (guildId, channelId) => {
     const socket = getSocket();
@@ -395,6 +420,44 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     else next.delete(userId);
     return { speakingUserIds: next };
   }),
+
+  // Nouvelles actions pour les fonctionnalités vocales
+  setInputDevice: (deviceId) => set({ inputDeviceId: deviceId }),
+  setOutputDevice: (deviceId) => set({ outputDeviceId: deviceId }),
+
+  toggleNoiseSuppression: () => set((state) => {
+    const next = !state.noiseSuppression;
+    if (localStream) {
+      localStream.getAudioTracks().forEach(track => {
+        track.applyConstraints({ noiseSuppression: next });
+      });
+    }
+    return { noiseSuppression: next };
+  }),
+
+  toggleEchoCancellation: () => set((state) => {
+    const next = !state.echoCancellation;
+    if (localStream) {
+      localStream.getAudioTracks().forEach(track => {
+        track.applyConstraints({ echoCancellation: next });
+      });
+    }
+    return { echoCancellation: next };
+  }),
+
+  toggleAutoGainControl: () => set((state) => {
+    const next = !state.autoGainControl;
+    if (localStream) {
+      localStream.getAudioTracks().forEach(track => {
+        track.applyConstraints({ autoGainControl: next });
+      });
+    }
+    return { autoGainControl: next };
+  }),
+
+  toggleVoiceActivityDetection: () => set((state) => ({ voiceActivityDetection: !state.voiceActivityDetection })),
+  togglePushToTalk: () => set((state) => ({ pushToTalk: !state.pushToTalk })),
+  setRegion: (region) => set({ selectedRegion: region }),
 
   reset: () => {
     closeMedia();

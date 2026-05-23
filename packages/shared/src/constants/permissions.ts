@@ -1,60 +1,70 @@
 export const PERMISSION_BITS = {
-  CREATE_INSTANT_INVITE: 0x1n,
-  KICK_MEMBERS: 0x2n,
-  BAN_MEMBERS: 0x4n,
-  ADMINISTRATOR: 0x8n,
-  MANAGE_CHANNELS: 0x10n,
-  MANAGE_GUILD: 0x20n,
-  ADD_REACTIONS: 0x40n,
-  VIEW_AUDIT_LOG: 0x80n,
-  VIEW_CHANNEL: 0x400n,
-  SEND_MESSAGES: 0x800n,
-  SEND_TTS_MESSAGES: 0x1000n,
-  MANAGE_MESSAGES: 0x2000n,
-  EMBED_LINKS: 0x4000n,
-  ATTACH_FILES: 0x8000n,
-  READ_MESSAGE_HISTORY: 0x10000n,
-  MENTION_EVERYONE: 0x20000n,
-  USE_EXTERNAL_EMOJIS: 0x40000n,
-  // Voice permissions
-  CONNECT: 0x100000n,
-  SPEAK: 0x200000n,
-  MUTE_MEMBERS: 0x400000n,
-  DEAFEN_MEMBERS: 0x800000n,
-  MOVE_MEMBERS: 0x1000000n,
-  // Added missing Discord permissions
-  PRIORITY_SPEAKER: 0x100n, // 1 << 8
-  STREAM: 0x200n, // 1 << 9
-  USE_VAD: 0x2000000n, // 1 << 25
-  REQUEST_TO_SPEAK: 0x100000000n, // 1 << 32
-  VIEW_GUILD_INSIGHTS: 0x80000n, // 1 << 19
-  USE_EMBEDDED_ACTIVITIES: 0x8000000000n, // 1 << 39
-  VIEW_CREATOR_MONETIZATION_ANALYTICS: 0x20000000000n, // 1 << 41
-  USE_SOUNDBOARD: 0x40000000000n, // 1 << 42
-  CREATE_GUILD_EXPRESSIONS: 0x80000000000n, // 1 << 43
-  CREATE_EVENTS: 0x100000000000n, // 1 << 44
-  USE_EXTERNAL_SOUNDS: 0x200000000000n, // 1 << 45
-  SEND_VOICE_MESSAGES: 0x400000000000n, // 1 << 46
+  // General permissions (bits 0-7)
+  CREATE_INSTANT_INVITE: 0x1n,        // 1 << 0
+  KICK_MEMBERS: 0x2n,                // 1 << 1
+  BAN_MEMBERS: 0x4n,                 // 1 << 2
+  ADMINISTRATOR: 0x8n,               // 1 << 3
+  MANAGE_CHANNELS: 0x10n,            // 1 << 4
+  MANAGE_GUILD: 0x20n,              // 1 << 5
+  ADD_REACTIONS: 0x40n,              // 1 << 6
+  VIEW_AUDIT_LOG: 0x80n,             // 1 << 7
+
+  // General permissions (bits 8-12)
+  PRIORITY_SPEAKER: 0x100n,          // 1 << 8
+  STREAM: 0x200n,                    // 1 << 9
+  VIEW_CHANNEL: 0x400n,              // 1 << 10
+  SEND_MESSAGES: 0x800n,            // 1 << 11
+  SEND_TTS_MESSAGES: 0x1000n,       // 1 << 12
+
+  // Text permissions (bits 13-19)
+  MANAGE_MESSAGES: 0x2000n,         // 1 << 13
+  EMBED_LINKS: 0x4000n,             // 1 << 14
+  ATTACH_FILES: 0x8000n,            // 1 << 15
+  READ_MESSAGE_HISTORY: 0x10000n,    // 1 << 16
+  MENTION_EVERYONE: 0x20000n,       // 1 << 17
+  USE_EXTERNAL_EMOJIS: 0x40000n,    // 1 << 18
+  VIEW_GUILD_INSIGHTS: 0x80000n,    // 1 << 19
+
+  // Voice permissions (bits 20-25)
+  CONNECT: 0x100000n,               // 1 << 20
+  SPEAK: 0x200000n,                 // 1 << 21
+  MUTE_MEMBERS: 0x400000n,          // 1 << 22
+  DEAFEN_MEMBERS: 0x800000n,        // 1 << 23
+  MOVE_MEMBERS: 0x1000000n,         // 1 << 24
+  USE_VAD: 0x2000000n,              // 1 << 25
+
+  // General permissions (bits 26-28)
+  CHANGE_NICKNAME: 0x4000000n,      // 1 << 26
+  MANAGE_NICKNAMES: 0x8000000n,     // 1 << 27
+  MANAGE_ROLES: 0x10000000n,         // 1 << 28
+  MANAGE_WEBHOOKS: 0x20000000n,     // 1 << 29
+  MANAGE_EMOJIS_AND_STICKERS: 0x40000000n, // 1 << 30
+
+  // General permissions (bits 31-32)
+  USE_APPLICATION_COMMANDS: 0x80000000n,    // 1 << 31
+  REQUEST_TO_SPEAK: 0x100000000n,           // 1 << 32
+
+  // Thread permissions (bits 34-36)
+  MANAGE_THREADS: 0x400000000n,             // 1 << 34
+  CREATE_PUBLIC_THREADS: 0x800000000n,      // 1 << 35
+  CREATE_PRIVATE_THREADS: 0x1000000000n,    // 1 << 36
+  USE_EXTERNAL_STICKERS: 0x2000000000n,     // 1 << 37
+  SEND_MESSAGES_IN_THREADS: 0x4000000000n,  // 1 << 38
+
+  // Advanced permissions (bits 39-52)
+  USE_EMBEDDED_ACTIVITIES: 0x8000000000n,   // 1 << 39
+  MODERATE_MEMBERS: 0x10000000000n,         // 1 << 40
+  VIEW_CREATOR_ANALYTICS: 0x20000000000n,   // 1 << 41
+  USE_SOUNDBOARD: 0x40000000000n,           // 1 << 42
+  CREATE_GUILD_EXPRESSIONS: 0x80000000000n,  // 1 << 43
+  CREATE_EVENTS: 0x100000000000n,           // 1 << 44
+  USE_EXTERNAL_SOUNDS: 0x200000000000n,     // 1 << 45
+  SEND_VOICE_MESSAGES: 0x400000000000n,     // 1 << 46
   SET_VOICE_CHANNEL_STATUS: 0x1000000000000n, // 1 << 48
-  SEND_POLLS: 0x2000000000000n, // 1 << 49
-  USE_EXTERNAL_APPS: 0x4000000000000n, // 1 << 50
-  PIN_MESSAGES: 0x8000000000000n, // 1 << 51
-  BYPASS_SLOWMODE: 0x10000000000000n, // 1 << 52
-  // Existing permissions
-  CHANGE_NICKNAME: 0x4000000n,
-  MANAGE_NICKNAMES: 0x8000000n,
-  MANAGE_ROLES: 0x10000000n,
-  MANAGE_WEBHOOKS: 0x20000000n,
-  MANAGE_EMOJIS_AND_STICKERS: 0x40000000n,
-  USE_APPLICATION_COMMANDS: 0x80000000n,
-  MANAGE_THREADS: 0x400000000n,
-  CREATE_PUBLIC_THREADS: 0x800000000n,
-  CREATE_PRIVATE_THREADS: 0x1000000000n,
-  USE_EXTERNAL_STICKERS: 0x2000000000n,
-  SEND_MESSAGES_IN_THREADS: 0x4000000000n,
-  MANAGE_EVENTS: 0x8000000000n,
-  MODERATE_MEMBERS: 0x10000000000n,
-  VIEW_GUILD_ANALYTICS: 0x10000000000n, // 1 << 40
+  SEND_POLLS: 0x2000000000000n,             // 1 << 49
+  USE_EXTERNAL_APPS: 0x4000000000000n,      // 1 << 50
+  PIN_MESSAGES: 0x8000000000000n,           // 1 << 51
+  BYPASS_SLOWMODE: 0x10000000000000n,       // 1 << 52
 } as const;
 
 export const DEFAULT_EVERYONE_PERMISSIONS =
@@ -91,7 +101,7 @@ export function computeBasePermissions(
   return perms;
 }
 
-// Permissions implicitement refusées quand VIEW_CHANNEL est refusé (text channels)
+// Permissions implicitly denied when VIEW_CHANNEL is denied (text channels)
 export const IMPLICIT_DENY_VIEW_CHANNEL = 
   PERMISSION_BITS.SEND_MESSAGES |
   PERMISSION_BITS.ADD_REACTIONS |
@@ -107,7 +117,7 @@ export const IMPLICIT_DENY_VIEW_CHANNEL =
   PERMISSION_BITS.SEND_POLLS |
   PERMISSION_BITS.PIN_MESSAGES;
 
-// Permissions implicitement refusées quand SEND_MESSAGES est refusé (text channels)
+// Permissions implicitly denied when SEND_MESSAGES is denied (text channels)
 export const IMPLICIT_DENY_SEND_MESSAGES = 
   PERMISSION_BITS.MENTION_EVERYONE |
   PERMISSION_BITS.SEND_TTS_MESSAGES |
@@ -116,7 +126,7 @@ export const IMPLICIT_DENY_SEND_MESSAGES =
   PERMISSION_BITS.USE_EXTERNAL_EMOJIS |
   PERMISSION_BITS.SEND_POLLS;
 
-// Permissions implicitement refusées quand CONNECT est refusé (voice channels)
+// Permissions implicitly denied when CONNECT is denied (voice channels)
 export const IMPLICIT_DENY_CONNECT = 
   PERMISSION_BITS.SPEAK |
   PERMISSION_BITS.MUTE_MEMBERS |
@@ -129,11 +139,11 @@ export const IMPLICIT_DENY_CONNECT =
   PERMISSION_BITS.USE_SOUNDBOARD |
   PERMISSION_BITS.SEND_VOICE_MESSAGES;
 
-// Permissions qu'un membre timeout garde (Discord behavior)
+// Permissions that a member timeout keeps (Discord behavior)
 export const TIMEOUT_PRESERVED_PERMISSIONS = 
   PERMISSION_BITS.VIEW_CHANNEL |
   PERMISSION_BITS.READ_MESSAGE_HISTORY |
-  PERMISSION_BITS.CONNECT; // Pour pouvoir rejoindre mais pas parler
+  PERMISSION_BITS.CONNECT; // To be able to join but not speak
 
 export function computeChannelPermissions(
   basePermissions: bigint,

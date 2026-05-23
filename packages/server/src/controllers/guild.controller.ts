@@ -600,7 +600,7 @@ export async function updateMember(req: Request, res: Response, next: NextFuncti
     });
 
     if (req.body.roles !== undefined) {
-      checkPermission(perms, BigInt(0x10000000));
+      await checkPermission(perms, BigInt(0x10000000), req.params.guildId, req.user!.userId);
 
       await prisma.guildMemberRole.deleteMany({
         where: { guild_id: req.params.guildId, user_id: req.params.userId },
@@ -694,7 +694,7 @@ export async function kickMember(req: Request, res: Response, next: NextFunction
 export async function assignRoleToMember(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x10000000));
+    await checkPermission(perms, BigInt(0x10000000), req.params.guildId, req.user!.userId);
     const actorHighestRole = await getHighestRolePosition(req.params.guildId, req.user!.userId);
     const targetHighestRole = await getHighestRolePosition(req.params.guildId, req.params.userId);
     if (actorHighestRole <= targetHighestRole) {
@@ -748,7 +748,7 @@ export async function assignRoleToMember(req: Request, res: Response, next: Next
 export async function removeRoleFromMember(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const perms = await getMemberPermissions(req.params.guildId, req.user!.userId);
-    checkPermission(perms, BigInt(0x10000000));
+    await checkPermission(perms, BigInt(0x10000000), req.params.guildId, req.user!.userId);
     const actorHighestRole = await getHighestRolePosition(req.params.guildId, req.user!.userId);
     const targetHighestRole = await getHighestRolePosition(req.params.guildId, req.params.userId);
     if (actorHighestRole <= targetHighestRole) {

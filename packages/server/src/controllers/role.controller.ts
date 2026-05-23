@@ -143,7 +143,6 @@ export async function updateRolePositions(req: Request, res: Response, next: Nex
 
     const positions: { id: string; position: number }[] = req.body;
     
-    // Vérifier que @everyone n'est pas dans la liste et reste en position 0
     const everyoneRole = await prisma.role.findFirst({ 
       where: { guild_id: req.params.guildId, name: '@everyone' } 
     });
@@ -155,18 +154,15 @@ export async function updateRolePositions(req: Request, res: Response, next: Nex
       if (role.name === '@everyone') {
         throw new AppError(400, 'CANNOT_EDIT', 'Cannot move @everyone role');
       }
-      // Vérifier que le rôle cible est inférieur à notre rôle le plus haut
       if (actorHighestRole <= role.position) {
         throw new AppError(403, 'ROLE_HIERARCHY', 'Cannot move a role equal or higher than your top role');
       }
-      // Vérifier que la nouvelle position demandée est inférieure à notre rôle le plus haut
       if (actorHighestRole <= p.position) {
         throw new AppError(403, 'ROLE_HIERARCHY', 'Cannot move a role to a position equal or higher than your top role');
       }
       await prisma.role.update({ where: { id: p.id }, data: { position: p.position } });
     }
 
-    // Récupérer tous les rôles triés par position
     const roles = await prisma.role.findMany({ 
       where: { guild_id: req.params.guildId }, 
       orderBy: { position: 'asc' } 

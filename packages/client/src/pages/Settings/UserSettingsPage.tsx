@@ -7,9 +7,10 @@ import { useAuthStore } from '../../stores/authStore';
 import { useUIStore } from '../../stores/uiStore';
 import { api } from '../../services/api';
 import { applyClientPluginPreferences, buildDefaultPluginSettings, parsePluginSchema } from '../../utils/plugins';
+import { VoiceSettings } from '../../components/VoiceSettings/VoiceSettings';
 import styles from './UserSettingsPage.module.css';
 
-type Section = 'account' | 'profile' | 'privacy' | 'appearance' | 'language' | 'two_factor' | 'sessions' | 'notifications' | 'keybinds' | 'streamer' | 'data' | 'connections' | 'applications' | 'plugins' | 'activities' | 'my-boosts';
+type Section = 'account' | 'profile' | 'privacy' | 'appearance' | 'language' | 'two_factor' | 'sessions' | 'notifications' | 'keybinds' | 'streamer' | 'data' | 'connections' | 'applications' | 'plugins' | 'activities' | 'voice' | 'my-boosts';
 
 interface UnsavedDialog {
   pendingSection: Section;
@@ -112,6 +113,7 @@ export function UserSettingsPage() {
             <button className={`${styles.menuItem} ${section === 'applications' ? styles.active : ''}`} onClick={() => handleNavigate('applications')}>Applications</button>
             <button className={`${styles.menuItem} ${section === 'plugins' ? styles.active : ''}`} onClick={() => handleNavigate('plugins')}>Plugins</button>
             <button className={`${styles.menuItem} ${section === 'activities' ? styles.active : ''}`} onClick={() => handleNavigate('activities')}>Activités</button>
+            <button className={`${styles.menuItem} ${section === 'voice' ? styles.active : ''}`} onClick={() => handleNavigate('voice')}>Paramètres vocaux</button>
             <button className={`${styles.menuItem} ${section === 'my-boosts' ? styles.active : ''}`} onClick={() => handleNavigate('my-boosts')}>Mes Boosts</button>
             <button className={`${styles.menuItem} ${styles.danger}`} onClick={logout}>{t('auth.logout')}</button>
           </div>
@@ -134,6 +136,7 @@ export function UserSettingsPage() {
             {section === 'applications' && <ApplicationsSection />}
             {section === 'plugins' && <PluginsSection />}
             {section === 'activities' && <ActivitiesSection user={user} updateUser={updateUser} />}
+            {section === 'voice' && <VoiceSettings />}
             {section === 'my-boosts' && <MyBoostsSection />}
           </div>
           <div className={styles.closeWrapper} onClick={() => setShowUserSettings(false)}>

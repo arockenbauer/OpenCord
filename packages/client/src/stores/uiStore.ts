@@ -8,7 +8,7 @@ interface ProfilePopoverState {
   height: number;
 }
 
-export type ServerSettingsTab = 'overview' | 'members' | 'roles' | 'channels' | 'emojis' | 'invites' | 'integrations' | 'plugins' | 'moderation' | 'automod' | 'audit-log' | 'danger' | 'boost';
+export type ServerSettingsTab = 'overview' | 'members' | 'roles' | 'channels' | 'emojis' | 'invites' | 'integrations' | 'webhooks' | 'plugins' | 'moderation' | 'automod' | 'audit-log' | 'danger' | 'boost';
 
 interface UIState {
   showMemberList: boolean;

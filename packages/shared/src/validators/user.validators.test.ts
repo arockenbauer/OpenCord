@@ -16,7 +16,7 @@ describe('User validators', () => {
         custom_status_expires_at: '2026-01-01T00:00:00.000Z',
         default_message_notifications: 1,
         explicit_content_filter: 2,
-        allow_dms_from: 2,
+        allow_dms_from: 'friends',
         discriminator: '1234',
         global_name: 'Johnny',
         ignored: true,
