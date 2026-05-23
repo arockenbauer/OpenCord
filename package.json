@@ -10,6 +10,7 @@
   ],
   "scripts": {
     "dev": "node scripts/dev.js",
+    "dev:e2e": "node scripts/dev-e2e.js",
     "build": "node scripts/build.js",
     "prod": "node packages/server/dist/index.js",
     "install:all": "node scripts/install.js",

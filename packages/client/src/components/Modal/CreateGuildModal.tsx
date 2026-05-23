@@ -100,10 +100,11 @@ export function CreateGuildModal() {
               onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
               placeholder="Mon Serveur"
               autoFocus
+              data-testid="create-guild-name"
             />
           </div>
 
-          <button className={modalStyles.buttonPrimary} onClick={handleSubmit} disabled={loading || !name.trim()}>
+          <button className={modalStyles.buttonPrimary} onClick={handleSubmit} disabled={loading || !name.trim()} data-testid="create-guild-submit">
             {loading ? t('common.loading') : t('guild.create')}
           </button>
         </>

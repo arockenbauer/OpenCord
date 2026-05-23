@@ -1,61 +1,63 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { GatewayEvents } from '@opencord/shared';
 
 const mocks = vi.hoisted(() => ({
-  getSocket: vi.fn(() => ({
-    emit: vi.fn(),
-    on: vi.fn(),
-    off: vi.fn(),
-  })),
+  emit: vi.fn(),
 }));
 
-vi.mock('../services/socket', () => ({ getSocket: mocks.getSocket }));
+vi.mock('../services/socket', () => ({
+  getSocket: () => ({ emit: mocks.emit }),
+}));
+
+vi.mock('mediasoup-client', () => ({
+  Device: class {},
+}));
 
 import { useVoiceStore } from './voiceStore';
 
 describe('voiceStore', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-    useVoiceStore.setState({
-      guildId: null,
-      channelId: null,
-      callStatus: 'idle',
-      selfMute: false,
-      selfDeaf: false,
-      selfVideo: false,
-      isConnecting: false,
-      error: null,
+    mocks.emit.mockReset();
+    useVoiceStore.getState().reset();
+  });
+
+  it('joins voice by updating local state and emitting a gateway voice state update', () => {
+    useVoiceStore.getState().joinVoiceChannel('guild-1', 'channel-1');
+
+    expect(useVoiceStore.getState().guildId).toBe('guild-1');
+    expect(useVoiceStore.getState().channelId).toBe('channel-1');
+    expect(useVoiceStore.getState().isConnecting).toBe(true);
+    expect(mocks.emit).toHaveBeenCalledWith(GatewayEvents.VOICE_STATE_UPDATE, {
+      guild_id: 'guild-1',
+      channel_id: 'channel-1',
+      self_mute: false,
+      self_deaf: false,
     });
   });
 
-  it('joins voice channel', () => {
-    useVoiceStore.getState().joinVoiceChannel('guild-1', 'channel-1');
-    expect(useVoiceStore.getState().guildId).toBe('guild-1');
-    expect(useVoiceStore.getState().channelId).toBe('channel-1');
-    expect(useVoiceStore.getState().callStatus).toBe('connected');
+  it('emits mute and deafen changes for the active voice channel', () => {
+    useVoiceStore.setState({ guildId: 'guild-1', channelId: 'channel-1', selfMute: false, selfDeaf: false });
+
+    useVoiceStore.getState().toggleSelfMute();
+    useVoiceStore.getState().toggleSelfDeaf();
+
+    expect(useVoiceStore.getState().selfMute).toBe(true);
+    expect(useVoiceStore.getState().selfDeaf).toBe(true);
+    expect(mocks.emit).toHaveBeenCalledWith(GatewayEvents.VOICE_STATE_UPDATE, {
+      guild_id: 'guild-1',
+      channel_id: 'channel-1',
+      self_mute: true,
+      self_deaf: false,
+    });
   });
 
-  it('leaves voice channel', () => {
-    useVoiceStore.getState().joinVoiceChannel('guild-1', 'channel-1');
+  it('leaves voice by clearing local connection state', () => {
+    useVoiceStore.setState({ guildId: 'guild-1', channelId: 'channel-1', selfMute: true, selfDeaf: true });
+
     useVoiceStore.getState().leaveVoiceChannel();
+
+    expect(mocks.emit).toHaveBeenCalledWith(GatewayEvents.VOICE_STATE_UPDATE, { guild_id: 'guild-1', channel_id: null });
     expect(useVoiceStore.getState().guildId).toBeNull();
     expect(useVoiceStore.getState().channelId).toBeNull();
-    expect(useVoiceStore.getState().callStatus).toBe('idle');
-  });
-
-  it('toggles mute', () => {
-    useVoiceStore.getState().toggleSelfMute();
-    expect(useVoiceStore.getState().selfMute).toBe(true);
-    useVoiceStore.getState().toggleSelfMute();
-    expect(useVoiceStore.getState().selfMute).toBe(false);
-  });
-
-  it('toggles deafen', () => {
-    useVoiceStore.getState().toggleSelfDeaf();
-    expect(useVoiceStore.getState().selfDeaf).toBe(true);
-  });
-
-  it('sets error state', () => {
-    useVoiceStore.getState().setError('Connection failed');
-    expect(useVoiceStore.getState().error).toBe('Connection failed');
   });
 });

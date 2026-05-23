@@ -23,6 +23,10 @@ export function getIO(): SocketServer | null {
   return io;
 }
 
+export function setIO(nextIO: SocketServer | null): void {
+  io = nextIO;
+}
+
 const LAZY_MEMBER_THRESHOLD = 100;
 const PRESENCE_BATCH_INTERVAL = 5000;
 const OFFLINE_DELAY = 30000;
@@ -638,6 +642,8 @@ export function setupGateway(httpServer: HttpServer): SocketServer {
 
   return io;
 }
+
+export const initSocketIO = setupGateway;
 
 async function getAccessibleChannels(userId: string, guildId: string): Promise<Array<{ id: string }>> {
   // Load necessary helpers dynamically to avoid circular imports at module init

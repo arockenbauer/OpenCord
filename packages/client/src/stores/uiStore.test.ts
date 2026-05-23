@@ -1,41 +1,51 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { useUIStore } from './uiStore';
 
 describe('uiStore', () => {
   beforeEach(() => {
     useUIStore.setState({
-      theme: 'dark',
-      sidebarCollapsed: false,
-      activeModal: null,
-      modals: {},
+      showMemberList: true,
+      showUserSettings: false,
+      showServerSettings: false,
+      showCreateGuild: false,
+      showInviteModal: false,
+      showAdminPanel: false,
+      activeServerSettingsTab: 'overview',
+      serverSettingsContent: null,
+      profilePopover: null,
+      modalData: null,
+      contextMenu: null,
     });
   });
 
-  it('toggles theme', () => {
-    useUIStore.getState().toggleTheme();
-    expect(useUIStore.getState().theme).toBe('light');
-    useUIStore.getState().toggleTheme();
-    expect(useUIStore.getState().theme).toBe('dark');
+  it('toggles the member list and opens user settings', () => {
+    useUIStore.getState().toggleMemberList();
+    useUIStore.getState().setShowUserSettings(true);
+
+    expect(useUIStore.getState().showMemberList).toBe(false);
+    expect(useUIStore.getState().showUserSettings).toBe(true);
   });
 
-  it('toggles sidebar', () => {
-    useUIStore.getState().toggleSidebar();
-    expect(useUIStore.getState().sidebarCollapsed).toBe(true);
+  it('tracks server settings tab and modal data', () => {
+    useUIStore.getState().setShowServerSettings(true);
+    useUIStore.getState().setActiveServerSettingsTab('roles');
+    useUIStore.getState().setModalData({ guildId: 'guild-1' });
+
+    expect(useUIStore.getState().showServerSettings).toBe(true);
+    expect(useUIStore.getState().activeServerSettingsTab).toBe('roles');
+    expect(useUIStore.getState().modalData).toEqual({ guildId: 'guild-1' });
   });
 
-  it('opens modal', () => {
-    useUIStore.getState().openModal('create-guild');
-    expect(useUIStore.getState().activeModal).toBe('create-guild');
-  });
+  it('stores and clears contextual UI overlays', () => {
+    useUIStore.getState().setProfilePopover({ userId: 'user-1', x: 1, y: 2, width: 3, height: 4 });
+    useUIStore.getState().setContextMenu({ x: 10, y: 20, items: [{ label: 'Open' }] });
 
-  it('closes modal', () => {
-    useUIStore.getState().openModal('create-guild');
-    useUIStore.getState().closeModal();
-    expect(useUIStore.getState().activeModal).toBeNull();
-  });
+    expect(useUIStore.getState().profilePopover?.userId).toBe('user-1');
+    expect(useUIStore.getState().contextMenu?.items[0].label).toBe('Open');
 
-  it('sets custom property', () => {
-    useUIStore.getState().setProperty('customSetting', true);
-    expect(useUIStore.getState().customSetting).toBe(true);
+    useUIStore.getState().setProfilePopover(null);
+    useUIStore.getState().setContextMenu(null);
+    expect(useUIStore.getState().profilePopover).toBeNull();
+    expect(useUIStore.getState().contextMenu).toBeNull();
   });
 });

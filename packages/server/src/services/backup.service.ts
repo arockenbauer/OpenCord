@@ -6,16 +6,16 @@ import { createAdminAuditLog } from '../utils/audit-log.js';
 import { getIO } from '../gateway/index.js';
 import { GatewayEvents } from '@opencord/shared';
 
-function getDbPath(): string {
+export function getDbPath(): string {
   const url = process.env.DATABASE_URL || 'file:./prisma/opencord.db';
   return path.resolve(url.replace('file:', '').replace(/\?.*$/, ''));
 }
 
-function getBackupDir(): string {
+export function getBackupDir(): string {
   return path.resolve(process.env.BACKUP_DIR || './backups');
 }
 
-function isBackupEnabled(): boolean {
+export function isBackupEnabled(): boolean {
   if (process.env.BACKUP_ENABLED !== undefined) return process.env.BACKUP_ENABLED === 'true';
   return true;
 }
@@ -24,7 +24,7 @@ function getBackupCron(): string {
   return process.env.BACKUP_CRON || '0 3 * * *';
 }
 
-function getRetentionDays(): number {
+export function getRetentionDays(): number {
   return Number(process.env.BACKUP_RETENTION_DAYS) || 30;
 }
 
@@ -33,7 +33,7 @@ function getIncludeUploads(): boolean {
   return true;
 }
 
-function getMaxSizeGB(): number {
+export function getMaxSizeGB(): number {
   return Number(process.env.BACKUP_MAX_SIZE_GB) || 10;
 }
 
@@ -41,7 +41,7 @@ function getUploadDir(): string {
   return path.resolve(process.env.UPLOAD_DIR || './uploads');
 }
 
-function formatBytes(bytes: number): string {
+export function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
   const k = 1024;
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];

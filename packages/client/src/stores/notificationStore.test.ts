@@ -1,59 +1,43 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
-
-const mocks = vi.hoisted(() => ({
-  api: vi.fn(),
-}));
-
-vi.mock('../services/api', () => ({ api: mocks.api }));
-
+import { beforeEach, describe, expect, it } from 'vitest';
 import { useNotificationStore } from './notificationStore';
 
 describe('notificationStore', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-    useNotificationStore.setState({
-      notifications: [],
-      unreadCount: 0,
-    });
+    useNotificationStore.setState({ notifications: [], unreadCount: 0 });
   });
 
-  it('fetches notifications', async () => {
-    mocks.api.mockResolvedValue([
-      { id: 'notif-1', type: 'friend_request', read: false },
+  it('sets notifications and derives unread count from read state', () => {
+    useNotificationStore.getState().setNotifications([
+      { id: 'notif-1', read: false },
+      { id: 'notif-2', read: true },
+      { id: 'notif-3', read: false },
     ]);
-    await useNotificationStore.getState().fetchNotifications();
-    expect(useNotificationStore.getState().notifications).toHaveLength(1);
-  });
 
-  it('marks notification as read', () => {
-    useNotificationStore.setState({
-      notifications: [
-        { id: 'notif-1', type: 'friend_request', read: false },
-      ],
-    });
-    useNotificationStore.getState().markAsRead('notif-1');
-    expect(useNotificationStore.getState().notifications[0].read).toBe(true);
-  });
-
-  it('clears all notifications', () => {
-    useNotificationStore.setState({
-      notifications: [
-        { id: 'notif-1', type: 'friend_request' },
-      ],
-    });
-    useNotificationStore.getState().clearAll();
-    expect(useNotificationStore.getState().notifications).toHaveLength(0);
-  });
-
-  it('calculates unread count', () => {
-    useNotificationStore.setState({
-      notifications: [
-        { id: 'notif-1', read: false },
-        { id: 'notif-2', read: true },
-        { id: 'notif-3', read: false },
-      ],
-    });
-    useNotificationStore.getState().updateUnreadCount();
+    expect(useNotificationStore.getState().notifications).toHaveLength(3);
     expect(useNotificationStore.getState().unreadCount).toBe(2);
+  });
+
+  it('upserts incoming notifications and recalculates unread count', () => {
+    useNotificationStore.getState().addNotification({ id: 'notif-1', title: 'Old', read: false });
+    useNotificationStore.getState().addNotification({ id: 'notif-1', title: 'Updated', read: true });
+
+    expect(useNotificationStore.getState().notifications).toEqual([
+      { id: 'notif-1', title: 'Updated', read: true },
+    ]);
+    expect(useNotificationStore.getState().unreadCount).toBe(0);
+  });
+
+  it('marks one or all notifications as read', () => {
+    useNotificationStore.getState().setNotifications([
+      { id: 'notif-1', read: false },
+      { id: 'notif-2', read: false },
+    ]);
+
+    useNotificationStore.getState().markRead('notif-1');
+    expect(useNotificationStore.getState().unreadCount).toBe(1);
+
+    useNotificationStore.getState().markAllRead();
+    expect(useNotificationStore.getState().notifications.every((item) => item.read)).toBe(true);
+    expect(useNotificationStore.getState().unreadCount).toBe(0);
   });
 });

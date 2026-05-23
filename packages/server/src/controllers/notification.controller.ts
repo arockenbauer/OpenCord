@@ -155,6 +155,11 @@ export async function getChannelNotificationSettings(req: Request, res: Response
 export async function updateChannelNotificationSettings(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const where = { user_id: req.user!.userId, channel_id: req.params.channelId };
+    const channel = await prisma.channel.findUnique({ where: { id: req.params.channelId } });
+    if (!channel) {
+      throw new AppError(404, 'CHANNEL_NOT_FOUND', 'Channel not found');
+    }
+
     let setting = await prisma.notificationSettings.findFirst({ where });
     if (!setting) {
       setting = await prisma.notificationSettings.create({
@@ -194,6 +199,11 @@ export async function getGuildNotificationSettings(req: Request, res: Response, 
 export async function updateGuildNotificationSettings(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const where = { user_id: req.user!.userId, guild_id: req.params.guildId };
+    const guild = await prisma.guild.findUnique({ where: { id: req.params.guildId } });
+    if (!guild) {
+      throw new AppError(404, 'GUILD_NOT_FOUND', 'Server not found');
+    }
+
     let setting = await prisma.notificationSettings.findFirst({ where });
     if (!setting) {
       setting = await prisma.notificationSettings.create({

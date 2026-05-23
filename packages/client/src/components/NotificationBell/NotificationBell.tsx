@@ -132,6 +132,7 @@ export function NotificationBell() {
         title={t('notifications.title')}
         aria-label={t('notifications.title')}
         aria-expanded={open}
+        data-testid="notification-bell"
       >
         <Inbox size={18} strokeWidth={2.35} aria-hidden="true" />
         {unreadCount > 0 && (
@@ -143,6 +144,7 @@ export function NotificationBell() {
 
       {open && (
         <div
+          data-testid="notification-panel"
           style={{
             position: 'absolute',
             top: 56,

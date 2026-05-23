@@ -2,16 +2,20 @@ import { describe, expect, it, beforeAll, afterAll, beforeEach } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../index.js';
 import { prisma } from '../utils/prisma.js';
+import { clearTestData, rebuildTestDatabase } from '../test/test-db.js';
+
+const testEmail = 'auth-user@opencord.test';
 
 describe('auth.routes integration', () => {
   let app: any;
 
-  beforeAll(() => {
+  beforeAll(async () => {
+    await rebuildTestDatabase();
     app = createApp();
   });
 
   beforeEach(async () => {
-    await prisma.user.deleteMany({ where: { email: { contains: 'test' } } });
+    await clearTestData();
   });
 
   afterAll(async () => {
@@ -23,7 +27,7 @@ describe('auth.routes integration', () => {
       const res = await request(app)
         .post('/api/auth/register')
         .send({
-          email: '[EMAIL]',
+          email: testEmail,
           username: 'testuser',
           password: 'Passw0rd!123',
           date_of_birth: '2000-01-01',
@@ -31,7 +35,7 @@ describe('auth.routes integration', () => {
 
       expect(res.status).toBe(201);
       expect(res.body).toHaveProperty('user');
-      expect(res.body.user.email).toBe('[EMAIL]');
+      expect(res.body.user.email).toBe(testEmail);
     });
 
     it('rejects invalid email', async () => {
@@ -51,7 +55,7 @@ describe('auth.routes integration', () => {
       await request(app)
         .post('/api/auth/register')
         .send({
-          email: '[EMAIL]',
+          email: testEmail,
           username: 'testuser',
           password: 'Passw0rd!123',
           date_of_birth: '2000-01-01',
@@ -60,7 +64,7 @@ describe('auth.routes integration', () => {
       const res = await request(app)
         .post('/api/auth/register')
         .send({
-          email: '[EMAIL]',
+          email: testEmail,
           username: 'testuser2',
           password: 'Passw0rd!123',
           date_of_birth: '2000-01-01',
@@ -75,7 +79,7 @@ describe('auth.routes integration', () => {
       await request(app)
         .post('/api/auth/register')
         .send({
-          email: '[EMAIL]',
+          email: testEmail,
           username: 'testuser',
           password: 'Passw0rd!123',
           date_of_birth: '2000-01-01',
@@ -86,20 +90,22 @@ describe('auth.routes integration', () => {
       const res = await request(app)
         .post('/api/auth/login')
         .send({
-          email: '[EMAIL]',
+          email: testEmail,
           password: 'Passw0rd!123',
         });
 
       expect(res.status).toBe(200);
-      expect(res.body).toHaveProperty('accessToken');
+      expect(res.body.user.email).toBe(testEmail);
+      expect(res.headers['set-cookie']?.some((cookie: string) => cookie.startsWith('access_token='))).toBe(true);
+      expect(res.headers['set-cookie']?.some((cookie: string) => cookie.startsWith('refresh_token='))).toBe(true);
     });
 
     it('rejects invalid password', async () => {
       const res = await request(app)
         .post('/api/auth/login')
         .send({
-          email: '[EMAIL]',
-          password: 'wrong',
+          email: testEmail,
+          password: 'WrongPassw0rd!123',
         });
 
       expect(res.status).toBe(401);

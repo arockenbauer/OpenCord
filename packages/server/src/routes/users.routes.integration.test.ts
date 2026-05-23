@@ -1,33 +1,39 @@
 import { describe, expect, it, beforeAll, afterAll, beforeEach } from 'vitest';
 import request from 'supertest';
+import type { SuperAgentTest } from 'supertest';
 import { createApp } from '../index.js';
 import { prisma } from '../utils/prisma.js';
+import { clearTestData, rebuildTestDatabase } from '../test/test-db.js';
+
+const testEmail = 'profile-user@opencord.test';
 
 describe('users.routes integration', () => {
   let app: any;
-  let accessToken: string;
+  let agent: SuperAgentTest;
 
-  beforeAll(() => {
+  beforeAll(async () => {
+    await rebuildTestDatabase();
     app = createApp();
   });
 
   beforeEach(async () => {
-    await prisma.user.deleteMany({ where: { email: { contains: 'test' } } });
+    await clearTestData();
+    agent = request.agent(app);
 
-    const reg = await request(app)
+    await agent
       .post('/api/auth/register')
       .send({
-        email: '[EMAIL]',
+        email: testEmail,
         username: 'testuser',
         password: 'Passw0rd!123',
         date_of_birth: '2000-01-01',
       });
 
-    const login = await request(app)
+    const login = await agent
       .post('/api/auth/login')
-      .send({ email: '[EMAIL]', password: 'Passw0rd!123' });
+      .send({ email: testEmail, password: 'Passw0rd!123' });
 
-    accessToken = login.body.accessToken;
+    expect(login.status).toBe(200);
   });
 
   afterAll(async () => {
@@ -36,12 +42,10 @@ describe('users.routes integration', () => {
 
   describe('GET /api/users/@me', () => {
     it('returns current user with valid token', async () => {
-      const res = await request(app)
-        .get('/api/users/@me')
-        .set('Authorization', `Bearer ${accessToken}`);
+      const res = await agent.get('/api/users/@me');
 
       expect(res.status).toBe(200);
-      expect(res.body.email).toBe('[EMAIL]');
+      expect(res.body.email).toBe(testEmail);
     });
 
     it('returns 401 without token', async () => {
@@ -52,9 +56,8 @@ describe('users.routes integration', () => {
 
   describe('PATCH /api/users/@me', () => {
     it('updates user profile', async () => {
-      const res = await request(app)
+      const res = await agent
         .patch('/api/users/@me')
-        .set('Authorization', `Bearer ${accessToken}`)
         .send({ global_name: 'New Name', bio: 'Hello world' });
 
       expect(res.status).toBe(200);
@@ -64,13 +67,9 @@ describe('users.routes integration', () => {
 
   describe('GET /api/users/:userId', () => {
     it('gets public user profile', async () => {
-      const me = await request(app)
-        .get('/api/users/@me')
-        .set('Authorization', `Bearer ${accessToken}`);
+      const me = await agent.get('/api/users/@me');
 
-      const res = await request(app)
-        .get(`/api/users/${me.body.id}`)
-        .set('Authorization', `Bearer ${accessToken}`);
+      const res = await agent.get(`/api/users/${me.body.id}`);
 
       expect(res.status).toBe(200);
       expect(res.body.id).toBe(me.body.id);

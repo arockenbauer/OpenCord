@@ -76,6 +76,10 @@ export function rateLimit(bucket: string, limit: number, windowMs: number, silen
   };
 }
 
+export function createRateLimitMiddleware(options: { bucket?: string; windowMs: number; max: number; silent?: boolean }) {
+  return rateLimit(options.bucket || 'test', options.max, options.windowMs, options.silent);
+}
+
 export function rateLimitWithKey(bucket: string, limit: number, windowMs: number, getKey: (req: Request) => string, silent = false) {
   if (!stores.has(bucket)) stores.set(bucket, new Map());
   const store = stores.get(bucket)!;

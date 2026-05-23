@@ -1,7 +1,6 @@
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { defineConfig, devices } from '@playwright/test';
-import { e2eServerEnv } from './test-env';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -51,10 +50,10 @@ if (process.env.PLAYWRIGHT_ENABLE_FIREFOX === 'true') {
 
 export default defineConfig({
   testDir: './tests',
-  fullyParallel: true,
+  fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  workers: 1,
   reporter: [['html'], ['list']],
   globalSetup: './global-setup.ts',
   use: {
@@ -69,13 +68,9 @@ export default defineConfig({
   },
   projects,
   webServer: {
-    command: `npm --prefix ${repositoryRoot} run dev`,
+    command: `cd ${repositoryRoot} && npm run dev:e2e`,
     url: 'http://127.0.0.1:5173',
     reuseExistingServer: false,
-    timeout: 30000,
-    env: {
-      ...process.env,
-      ...e2eServerEnv,
-    },
+    timeout: 120000,
   },
 });

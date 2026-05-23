@@ -13,6 +13,14 @@ import { logError } from '../utils/logger.js';
 
 const uploadDir = process.env.UPLOAD_DIR || './uploads';
 
+function serializeBigInts<T>(value: T): T {
+  return JSON.parse(
+    JSON.stringify(value, (_key, nestedValue) =>
+      typeof nestedValue === 'bigint' ? nestedValue.toString() : nestedValue
+    )
+  );
+}
+
 export async function requireMembership(guildId: string, userId: string) {
   const member = await prisma.guildMember.findUnique({ where: { guild_id_user_id: { guild_id: guildId, user_id: userId } } });
   if (!member) throw new AppError(403, 'NOT_MEMBER', 'You are not a member of this server');
@@ -314,13 +322,7 @@ export async function createGuild(req: Request, res: Response, next: NextFunctio
       }
     }
 
-    // Convert BigInts to strings for JSON serialization
-    const serializedGuild = JSON.parse(
-      JSON.stringify(fullGuild, (key, value) => 
-        typeof value === 'bigint' ? value.toString() : value
-      )
-    );
-    res.status(201).json(serializedGuild);
+    res.status(201).json(serializeBigInts(fullGuild));
   } catch (err) {
     const e = err as any;
     console.error('CREATE GUILD ERROR:', e.message, e.code, e.meta);
@@ -346,7 +348,7 @@ export async function getGuild(req: Request, res: Response, next: NextFunction):
     });
     if (!guild) throw new AppError(404, 'GUILD_NOT_FOUND', 'Server not found');
 
-    res.json({ ...guild, member_count: guild._count.members });
+    res.json(serializeBigInts({ ...guild, member_count: guild._count.members }));
   } catch (err) {
     next(err);
   }

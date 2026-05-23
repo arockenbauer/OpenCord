@@ -25,3 +25,7 @@ export function decrypt(encryptedText: string): string {
   decipher.setAuthTag(authTag);
   return decipher.update(encrypted, undefined, 'utf8') + decipher.final('utf8');
 }
+
+export function hashToken(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}

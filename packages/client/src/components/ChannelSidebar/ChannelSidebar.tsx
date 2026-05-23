@@ -30,7 +30,7 @@ export function ChannelSidebar() {
   const dmChannels = useGuildStore((s) => s.dmChannels);
   const selectedChannelId = useGuildStore((s) => s.selectedChannelId);
   const selectChannel = useGuildStore((s) => s.selectChannel);
-  const joinVoiceChannel = useVoiceStore((s) => s.joinVoiceChannel);
+  const joinVoiceChannel = useVoiceStore((s) => s.joinVoiceChannel || (() => {}));
   const voiceChannelId = useVoiceStore((s) => s.channelId);
   const voiceGuildId = useVoiceStore((s) => s.guildId);
   const user = useAuthStore((s) => s.user);

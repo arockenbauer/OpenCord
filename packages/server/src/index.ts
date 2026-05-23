@@ -620,4 +620,8 @@ if (!STARTUP_DISABLED) {
 }
 
 export default app;
+export function createApp(): express.Express {
+  return app;
+}
+
 export { httpServer, maintenanceMode };
