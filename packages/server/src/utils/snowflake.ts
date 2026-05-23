@@ -19,6 +19,7 @@ export function generateSnowflake(): string {
 }
 
 export function isValidSnowflake(id: string): boolean {
+  if (!id || id.trim() === '') return false;
   try {
     BigInt(id);
     return true;

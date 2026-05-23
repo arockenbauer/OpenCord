@@ -1,36 +1,44 @@
-import { expect, test, type Page } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 import { e2eAccounts } from '../test-env';
 
-async function login(page: Page): Promise<void> {
-  await page.goto('/login');
-  await page.getByTestId('login-email').fill(e2eAccounts.user.email);
-  await page.getByTestId('login-password').fill(e2eAccounts.user.password);
-  await page.getByTestId('login-submit').click();
-  await expect(page).toHaveURL(/\/channels\/@me/);
-  await expect(page.getByTestId('app-layout')).toBeVisible();
-}
+test.describe('Friends E2E', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/login');
+    await page.getByTestId('login-email').fill(e2eAccounts.user.email);
+    await page.getByTestId('login-password').fill(e2eAccounts.user.password);
+    await page.getByTestId('login-submit').click();
+    await expect(page).toHaveURL(/\/channels\/@me/);
 
-async function navigateSpa(page: Page, route: string): Promise<void> {
-  await page.evaluate((targetRoute) => {
-    window.history.pushState({}, '', targetRoute);
-    window.dispatchEvent(new PopStateEvent('popstate'));
-  }, route);
-}
+    await page.getByRole('link', { name: /Amis|Friends/i }).click();
+    await expect(page).toHaveURL(/\/channels\/@me/);
+  });
 
-test.describe('Friends flows', () => {
-  test('opens a DM from the friends page', async ({ page }) => {
-    await login(page);
-    await navigateSpa(page, '/friends');
+  test('should view friends list', async ({ page }) => {
+    await expect(page.locator('[data-testid="friends-list"]')).toBeVisible();
+  });
 
-    await expect(page).toHaveURL(/\/friends/);
-    await expect(page.getByTestId('friends-page')).toBeVisible();
-    await expect(page.locator('body')).toContainText(/smokeadmin/i);
-    await page.getByTestId('friends-search').fill('smokeadmin');
-    await expect(page.locator('[data-testid^="friend-row-"]').first()).toContainText(/smokeadmin/i);
+  test('should add a friend by username', async ({ page }) => {
+    await page.getByTestId('add-friend-button').click();
+    await page.getByTestId('friend-username-input').fill(e2eAccounts.friend.username);
+    await page.getByTestId('send-friend-request').click();
+    await expect(page.locator('body')).toContainText(/demande envoyée|request sent/i);
+  });
 
-    await page.locator('[data-testid^="friend-message-"]').first().click();
+  test('should view pending friend requests', async ({ page }) => {
+    await page.getByTestId('pending-requests-tab').click();
+    await expect(page.locator('[data-testid="pending-requests"]')).toBeVisible();
+  });
 
-    await expect(page).toHaveURL(/\/channels/);
-    await expect(page.locator('body')).toContainText(/smokeadmin/i);
+  test('should accept friend request', async ({ page }) => {
+    await page.getByTestId('pending-requests-tab').click();
+    await page.getByTestId('accept-friend-request').first().click();
+    await expect(page.locator('body')).toContainText(/ami ajouté|friend added/i);
+  });
+
+  test('should remove a friend', async ({ page }) => {
+    await page.getByTestId('friend-item').first().click();
+    await page.getByTestId('remove-friend').click();
+    await page.getByTestId('confirm-remove-friend').click();
+    await expect(page.locator('body')).toContainText(/ami supprimé|friend removed/i);
   });
 });

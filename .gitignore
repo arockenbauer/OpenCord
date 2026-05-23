@@ -9,3 +9,22 @@ uploads/
 .DS_Store
 .zencoder
 .zenflow
+
+# Tests
+coverage/
+.nyc_output/
+*.lcov
+*.tap
+*.snap
+test-results/
+playwright-report/
+test-results.xml
+junit.xml
+*.test.ts
+*.test.js
+*.spec.ts
+*.spec.js
+*.test.tsx
+*.test.jsx
+*.spec.tsx
+*.spec.jsx

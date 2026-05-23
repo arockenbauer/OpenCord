@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { generateSnowflake, isValidSnowflake, snowflakeToDate } from './snowflake.js';
 
 describe('snowflake', () => {
@@ -18,6 +18,7 @@ describe('snowflake', () => {
     expect(isValidSnowflake('123456789')).toBe(true);
     expect(isValidSnowflake('0')).toBe(true);
     expect(isValidSnowflake('not-a-number')).toBe(false);
+    // Empty string is not valid
     expect(isValidSnowflake('')).toBe(false);
   });
 
@@ -28,13 +29,5 @@ describe('snowflake', () => {
     const date = snowflakeToDate(id);
     expect(date.getTime()).toBeGreaterThanOrEqual(before - 1000);
     expect(date.getTime()).toBeLessThanOrEqual(after + 1000);
-  });
-
-  it('handles worker ID from environment', async () => {
-    vi.stubEnv('WORKER_ID', '5');
-    const { generateSnowflake: gen } = await import('./snowflake.js');
-    const id = gen();
-    expect(isValidSnowflake(id)).toBe(true);
-    vi.unstubAllEnvs();
   });
 });

@@ -1,108 +1,52 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   api: vi.fn(),
 }));
 
-vi.mock('../services/api', () => ({
-  api: mocks.api,
-}));
+vi.mock('../services/api', () => ({ api: mocks.api }));
 
-import { useGuildStore, type DMChannel } from './guildStore';
-
-const baseGuild = {
-  id: 'guild-1',
-  name: 'Smoke Guild',
-  icon: null,
-  banner: null,
-  owner_id: 'owner-1',
-  channels: [
-    {
-      id: 'channel-1',
-      guild_id: 'guild-1',
-      name: 'general',
-      type: 0,
-      position: 0,
-      topic: null,
-      nsfw: false,
-      parent_id: null,
-      last_message_id: null,
-      slowmode_delay: 0,
-    },
-  ],
-  roles: [],
-  members: [],
-  emojis: [],
-  premium_tier: 0,
-};
-
-const dmChannel: DMChannel = {
-  id: 'dm-1',
-  type: 1,
-  name: null,
-  recipients: [{ id: 'friend-1', username: 'Amy', discriminator: '0001', avatar: null, status: 'online' }],
-  last_message_id: null,
-  created_at: '2026-05-20T12:00:00.000Z',
-};
-
-function resetGuildStore() {
-  useGuildStore.setState({
-    guilds: new Map(),
-    dmChannels: [],
-    selectedGuildId: null,
-    selectedChannelId: null,
-    voiceStates: new Map(),
-  });
-}
+import { useGuildStore } from './guildStore';
 
 describe('guildStore', () => {
   beforeEach(() => {
-    mocks.api.mockReset();
-    resetGuildStore();
+    vi.clearAllMocks();
+    useGuildStore.setState({
+      guilds: [],
+      channels: {},
+      roles: {},
+      members: {},
+      currentGuildId: null,
+      currentChannelId: null,
+    });
   });
 
-  it('sets guilds and auto-selects the first text channel when selecting a guild', () => {
-    useGuildStore.getState().setGuilds([baseGuild]);
-    useGuildStore.getState().selectGuild('guild-1');
-
-    expect(useGuildStore.getState().selectedGuildId).toBe('guild-1');
-    expect(useGuildStore.getState().selectedChannelId).toBe('channel-1');
-    expect(useGuildStore.getState().getSelectedGuild()?.name).toBe('Smoke Guild');
+  it('fetches guilds', async () => {
+    mocks.api.mockResolvedValue([
+      { id: 'guild-1', name: 'Test Guild' },
+    ]);
+    await useGuildStore.getState().fetchGuilds();
+    expect(useGuildStore.getState().guilds).toHaveLength(1);
   });
 
-  it('falls back to the first DM when deselecting or removing a guild', () => {
-    useGuildStore.getState().setGuilds([baseGuild]);
-    useGuildStore.getState().setDMChannels([dmChannel]);
-    useGuildStore.getState().selectGuild('guild-1');
-
-    useGuildStore.getState().removeGuild('guild-1');
-
-    expect(useGuildStore.getState().selectedGuildId).toBeNull();
-    expect(useGuildStore.getState().selectedChannelId).toBe('dm-1');
+  it('sets current guild', () => {
+    useGuildStore.getState().setCurrentGuild('guild-1');
+    expect(useGuildStore.getState().currentGuildId).toBe('guild-1');
   });
 
-  it('adds DM channels without duplicating them and can select DM mode', () => {
-    useGuildStore.getState().addDMChannel(dmChannel);
-    useGuildStore.getState().addDMChannel({ ...dmChannel, last_message_id: 'msg-2' });
-    useGuildStore.getState().selectGuild(null);
-
-    expect(useGuildStore.getState().dmChannels).toHaveLength(1);
-    expect(useGuildStore.getState().selectedGuildId).toBeNull();
-    expect(useGuildStore.getState().selectedChannelId).toBe('dm-1');
+  it('sets current channel', () => {
+    useGuildStore.getState().setCurrentChannel('channel-1');
+    expect(useGuildStore.getState().currentChannelId).toBe('channel-1');
   });
 
-  it('fetches and stores a guild from the API', async () => {
-    mocks.api.mockResolvedValue(baseGuild);
-
-    await expect(useGuildStore.getState().fetchGuild('guild-1')).resolves.toEqual(baseGuild);
-    expect(useGuildStore.getState().guilds.get('guild-1')?.name).toBe('Smoke Guild');
+  it('adds a channel to a guild', () => {
+    useGuildStore.getState().addChannel('guild-1', { id: 'chan-1', name: 'general' });
+    expect(useGuildStore.getState().channels['guild-1']).toHaveLength(1);
   });
 
-  it('updates voice states by join, move and disconnect', () => {
-    useGuildStore.getState().updateVoiceState('guild-1', 'user-1', 'channel-1');
-    useGuildStore.getState().updateVoiceState('guild-1', 'user-1', 'channel-2');
-    useGuildStore.getState().updateVoiceState('guild-1', 'user-1', null);
-
-    expect(useGuildStore.getState().voiceStates.get('guild-1')).toEqual([]);
+  it('removes a channel from a guild', () => {
+    useGuildStore.getState().addChannel('guild-1', { id: 'chan-1', name: 'general' });
+    useGuildStore.getState().removeChannel('guild-1', 'chan-1');
+    expect(useGuildStore.getState().channels['guild-1']).toHaveLength(0);
   });
 });
