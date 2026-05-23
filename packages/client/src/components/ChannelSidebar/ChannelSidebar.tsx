@@ -1,11 +1,12 @@
 import { MouseEvent, useState, useRef, useEffect } from 'react';
-import { Hash, Volume2, Megaphone, ChevronDown, ChevronRight, Plus, Settings, Mic, MicOff, Headphones, MessageCircle, UserPlus, LogOut, Trash2, Edit3, Trash, Copy, Link, PhoneOff, X, Lock, Circle } from 'lucide-react';
+import { Hash, Volume2, Megaphone, ChevronDown, ChevronRight, Plus, Settings, Mic, MicOff, Headphones, MessageCircle, UserPlus, Users, LogOut, Trash2, Edit3, Trash, Copy, Link, PhoneOff, X, Lock, Circle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useGuildStore } from '../../stores/guildStore';
 import { useAuthStore } from '../../stores/authStore';
 import { useUIStore } from '../../stores/uiStore';
 import { useUnreadStore } from '../../stores/unreadStore';
 import { useVoiceStore } from '../../stores/voiceStore';
+import { GatewayEvents } from '@opencord/shared';
 import { CreateChannelModal } from '../modals/CreateChannelModal';
 import { Tooltip } from '../Tooltip/Tooltip';
 import { api } from '../../services/api';
@@ -202,6 +203,15 @@ export function ChannelSidebar() {
             </div>
           </div>
         )}
+        <div className={styles.homeNav}>
+          <button
+            className={`${styles.homeNavItem} ${selectedChannelId === null ? styles.homeNavItemActive : ''}`}
+            onClick={() => selectChannel(null)}
+          >
+            <Users size={20} />
+            <span>Amis</span>
+          </button>
+        </div>
         <div className={styles.channelList}>
           <div className={styles.sectionLabel}>{t('dm.title')}</div>
           {dmChannels.length === 0 && <div className={styles.dmEmpty}>{t('dm.empty')}</div>}
@@ -459,6 +469,7 @@ function ChannelItem({ channel, isActive, isVoiceConnected, onClick, onContextMe
   const hasUnread = unread?.hasUnread && !isActive;
   const mentionCount = unread?.mentionCount || 0;
   const voiceStates = useGuildStore((s) => s.voiceStates);
+  const speakingUserIds = useVoiceStore((s) => s.speakingUserIds);
   const members = useGuildStore((s) => s.getSelectedGuild()?.members) || [];
 
   // For voice channels, show avatars of connected currentUsers
@@ -539,8 +550,9 @@ function ChannelItem({ channel, isActive, isVoiceConnected, onClick, onContextMe
         <div className={styles.voiceUsers}>
           {avatars.map((u: any) => {
             const vs = connectedUsers.find((v: any) => v.user_id === u.id);
+            const isSpeaking = speakingUserIds.has(u.id);
             return (
-              <div key={u.id} className={styles.voiceUserAvatar} title={u.username}>
+              <div key={u.id} className={`${styles.voiceUserAvatar} ${isSpeaking ? styles.speaking : ''}`} title={u.username}>
                 {u.avatar ? <img src={u.avatar} alt="" /> : u.username.slice(0, 1).toUpperCase()}
                 {vs?.self_mute && <MicOff size={10} className={styles.voiceIconMute} />}
                 {vs?.self_deaf && <Headphones size={10} className={styles.voiceIconDeaf} />}
@@ -557,11 +569,14 @@ function UserPanel({ user, onSettings, onOpenProfile }: { user: any; onSettings:
   const channelId = useVoiceStore((s) => s.channelId);
   const selfMute = useVoiceStore((s) => s.selfMute);
   const selfDeaf = useVoiceStore((s) => s.selfDeaf);
+  const speakingUserIds = useVoiceStore((s) => s.speakingUserIds);
   const toggleSelfMute = useVoiceStore((s) => s.toggleSelfMute);
   const toggleSelfDeaf = useVoiceStore((s) => s.toggleSelfDeaf);
   const leaveVoiceChannel = useVoiceStore((s) => s.leaveVoiceChannel);
   const [showStatusPicker, setShowStatusPicker] = useState(false);
   const statusPickerRef = useRef<HTMLDivElement>(null);
+
+  const isSpeaking = channelId && speakingUserIds.has(user?.id || '');
 
   const statuses = [
     { id: 'online', label: 'En ligne', color: 'var(--status-online)', icon: <Circle size={10} fill="currentColor" /> },
@@ -598,7 +613,7 @@ function UserPanel({ user, onSettings, onOpenProfile }: { user: any; onSettings:
   return (
     <div className={styles.userPanel}>
       <button className={styles.userIdentity} onClick={onOpenProfile} data-user-popout-trigger="true" data-testid="own-profile-trigger">
-        <div className={styles.userAvatar}>
+        <div className={`${styles.userAvatar} ${isSpeaking ? styles.speaking : ''}`}>
           {user.avatar ? <img src={user.avatar} alt="" /> : user.username.slice(0, 1).toUpperCase()}
           <div className={styles.userStatusDot} style={{ background: `var(--status-${currentStatus})` }} onClick={(e) => { e.stopPropagation(); setShowStatusPicker(!showStatusPicker); }} />
         </div>

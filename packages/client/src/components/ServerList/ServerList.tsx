@@ -1,5 +1,5 @@
 import type { MouseEvent } from 'react';
-import { Home, Plus, LogOut, Settings, Trash2, UserPlus, ShieldAlert, Compass, Verified, ShieldCheck, ShieldQuestion, Zap } from 'lucide-react';
+import { Home, Plus, LogOut, Settings, Trash2, UserPlus, ShieldAlert, Compass } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useGuildStore } from '../../stores/guildStore';
 import { useAuthStore } from '../../stores/authStore';
@@ -123,30 +123,6 @@ export function ServerList() {
             {!isSelected && !mentionCount && hasUnread && <div className={`${styles.indicator} ${styles.unread}`} />}
 
             {guild.icon ? <img src={guild.icon} alt={`${guild.name}'s icon`} /> : guild.name.slice(0, 2).toUpperCase()}
-
-            {boostLevel > 0 && (
-              <div className={styles.boostBadge} title={`Niveau de boost ${boostLevel}`}>
-                <Zap size={10} fill="currentColor" />
-              </div>
-            )}
-
-            {verificationLevel >= 3 && (
-              <div className={styles.verifiedBadge} title="Serveur vérifié">
-                <Verified size={10} />
-              </div>
-            )}
-
-            {isOwner && (
-              <div className={styles.ownerBadge} title="Propriétaire">
-                <ShieldCheck size={10} />
-              </div>
-            )}
-
-            {!isOwner && hasAdmin && (
-              <div className={styles.adminBadge} title="Administrateur">
-                <ShieldQuestion size={10} />
-              </div>
-            )}
           </div>
         );
       })}

@@ -1,5 +1,5 @@
 import { useState, type MouseEvent } from 'react';
-import { UserPlus, MessageCircle, UserX, ShieldBan, Check, X } from 'lucide-react';
+import { Check, MessageCircle, Search, ShieldBan, UserPlus, UserX, Volume2, X } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { useGuildStore } from '../../stores/guildStore';
 import { useUIStore } from '../../stores/uiStore';
@@ -14,6 +14,41 @@ function getStatusClass(status: string, css: Record<string, string>) {
   if (status === 'idle') return css.statusIdle;
   if (status === 'dnd') return css.statusDnd;
   return css.statusOffline;
+}
+
+function matchesFriendSearch(relationship: any, query: string) {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) return true;
+  const user = relationship.user;
+  const displayName = user.global_name || user.username || '';
+  return displayName.toLowerCase().includes(normalized) || (user.username || '').toLowerCase().includes(normalized);
+}
+
+function isVoiceChannel(channel: any) {
+  return channel?.type === 2 || channel?.type === 13 || channel?.type === 14;
+}
+
+function getVoiceActivities(friends: any[], guilds: Map<string, any>, voiceStates: Map<string, any[]>) {
+  const friendIds = new Set(friends.map((relationship) => relationship.user.id));
+  const activities: Array<{ user: any; guild: any; channel: any }> = [];
+  const seen = new Set<string>();
+
+  for (const [guildId, states] of voiceStates) {
+    const guild = guilds.get(guildId);
+    if (!guild) continue;
+
+    for (const state of states || []) {
+      if (!state.channel_id || !friendIds.has(state.user_id) || seen.has(state.user_id)) continue;
+      const channel = guild.channels?.find((item: any) => item.id === state.channel_id);
+      if (!isVoiceChannel(channel)) continue;
+      const relationship = friends.find((item) => item.user.id === state.user_id);
+      if (!relationship) continue;
+      activities.push({ user: relationship.user, guild, channel });
+      seen.add(state.user_id);
+    }
+  }
+
+  return activities;
 }
 
 function UserAvatar({ user, size = 40 }: { user: any; size?: number }) {
@@ -35,9 +70,12 @@ function UserAvatar({ user, size = 40 }: { user: any; size?: number }) {
 
 export function FriendsView() {
   const [activeTab, setActiveTab] = useState<FriendsTab>('online');
+  const [search, setSearch] = useState('');
   const relationships = useAuthStore((s) => s.relationships);
   const upsertRelationship = useAuthStore((s) => s.upsertRelationship);
   const removeRelationshipByUserId = useAuthStore((s) => s.removeRelationshipByUserId);
+  const guilds = useGuildStore((s) => s.guilds);
+  const voiceStates = useGuildStore((s) => s.voiceStates);
   const addDMChannel = useGuildStore((s) => s.addDMChannel);
   const selectGuild = useGuildStore((s) => s.selectGuild);
   const selectChannel = useGuildStore((s) => s.selectChannel);
@@ -48,6 +86,12 @@ export function FriendsView() {
   const blocked = relationships.filter((r) => r.type === 2);
 
   const onlineFriends = friends.filter((r) => r.user.status && r.user.status !== 'offline');
+  const voiceActivities = getVoiceActivities(friends, guilds, voiceStates);
+  const filteredOnlineFriends = onlineFriends.filter((relationship) => matchesFriendSearch(relationship, search));
+  const filteredFriends = friends.filter((relationship) => matchesFriendSearch(relationship, search));
+  const filteredPendingIncoming = pendingIncoming.filter((relationship) => matchesFriendSearch(relationship, search));
+  const filteredPendingOutgoing = pendingOutgoing.filter((relationship) => matchesFriendSearch(relationship, search));
+  const filteredBlocked = blocked.filter((relationship) => matchesFriendSearch(relationship, search));
 
   const handleOpenDM = async (userId: string) => {
     try {
@@ -112,80 +156,92 @@ export function FriendsView() {
         </div>
       </div>
 
-      <div className={styles.body}>
-        {activeTab === 'add' && <AddFriendPanel />}
+      <div className={styles.content}>
+        <div className={styles.mainPane}>
+          {activeTab !== 'add' && (
+            <label className={styles.searchBox}>
+              <Search size={18} aria-hidden="true" />
+              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Rechercher" />
+            </label>
+          )}
 
-        {activeTab === 'online' && (
-          <FriendSection
-            title={`EN LIGNE — ${onlineFriends.length}`}
-            items={onlineFriends}
-            onOpenDM={handleOpenDM}
-            onRemove={handleRemove}
-          />
-        )}
+          <div className={styles.body}>
+            {activeTab === 'add' && <AddFriendPanel />}
 
-        {activeTab === 'all' && (
-          <FriendSection
-            title={`TOUS LES AMIS — ${friends.length}`}
-            items={friends}
-            onOpenDM={handleOpenDM}
-            onRemove={handleRemove}
-          />
-        )}
-
-        {activeTab === 'pending' && (
-          <div>
-            {pendingIncoming.length > 0 && (
+            {activeTab === 'online' && (
               <FriendSection
-                title={`EN ATTENTE — REÇUES (${pendingIncoming.length})`}
-                items={pendingIncoming}
-                onAccept={handleAccept}
+                title={`EN LIGNE — ${filteredOnlineFriends.length}`}
+                items={filteredOnlineFriends}
+                onOpenDM={handleOpenDM}
                 onRemove={handleRemove}
-                isPending
-                isIncoming
               />
             )}
-            {pendingOutgoing.length > 0 && (
+
+            {activeTab === 'all' && (
               <FriendSection
-                title={`EN ATTENTE — ENVOYÉES (${pendingOutgoing.length})`}
-                items={pendingOutgoing}
+                title={`TOUS LES AMIS — ${filteredFriends.length}`}
+                items={filteredFriends}
+                onOpenDM={handleOpenDM}
                 onRemove={handleRemove}
-                isPending
               />
             )}
-            {pendingIncoming.length === 0 && pendingOutgoing.length === 0 && (
-              <EmptyState message="Aucune demande en attente." />
-            )}
-          </div>
-        )}
 
-        {activeTab === 'blocked' && (
-          <div>
-            {blocked.length > 0 ? (
-              <>
-                <div className={styles.sectionTitle}>BLOQUÉS — {blocked.length}</div>
-                {blocked.map((r) => (
-                  <div key={r.user.id} className={styles.friendRow}>
-                    <div className={styles.avatarWrap}>
-                      <UserAvatar user={r.user} />
-                    </div>
-                    <div className={styles.friendInfo}>
-                      <div className={styles.friendName}>{r.user.global_name || r.user.username}</div>
-                      <div className={styles.friendMeta}>Bloqué</div>
-                    </div>
-                    <div className={styles.friendActions}>
-                      <button className={styles.actionBtn} onClick={() => handleUnblock(r.user.id)} title="Débloquer">
-                        <ShieldBan size={18} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </>
-            ) : (
-              <EmptyState message="Tu n'as bloqué personne." />
+            {activeTab === 'pending' && (
+              <div>
+                {filteredPendingIncoming.length > 0 && (
+                  <FriendSection
+                    title={`EN ATTENTE — REÇUES (${filteredPendingIncoming.length})`}
+                    items={filteredPendingIncoming}
+                    onAccept={handleAccept}
+                    onRemove={handleRemove}
+                    isPending
+                    isIncoming
+                  />
+                )}
+                {filteredPendingOutgoing.length > 0 && (
+                  <FriendSection
+                    title={`EN ATTENTE — ENVOYÉES (${filteredPendingOutgoing.length})`}
+                    items={filteredPendingOutgoing}
+                    onRemove={handleRemove}
+                    isPending
+                  />
+                )}
+                {filteredPendingIncoming.length === 0 && filteredPendingOutgoing.length === 0 && (
+                  <EmptyState message="Aucune demande en attente." />
+                )}
+              </div>
+            )}
+
+            {activeTab === 'blocked' && (
+              <div>
+                {filteredBlocked.length > 0 ? (
+                  <>
+                    <div className={styles.sectionTitle}>BLOQUÉS — {filteredBlocked.length}</div>
+                    {filteredBlocked.map((r) => (
+                      <div key={r.user.id} className={styles.friendRow}>
+                        <div className={styles.avatarWrap}>
+                          <UserAvatar user={r.user} />
+                        </div>
+                        <div className={styles.friendInfo}>
+                          <div className={styles.friendName}>{r.user.global_name || r.user.username}</div>
+                          <div className={styles.friendMeta}>Bloqué</div>
+                        </div>
+                        <div className={styles.friendActions}>
+                          <button className={styles.actionBtn} onClick={() => handleUnblock(r.user.id)} title="Débloquer">
+                            <ShieldBan size={18} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                ) : (
+                  <EmptyState message="Tu n'as bloqué personne." />
+                )}
+              </div>
             )}
           </div>
-        )}
+        </div>
+        <VoiceActivityPanel activities={voiceActivities} />
       </div>
     </div>
   );
@@ -239,6 +295,34 @@ function FriendSection({
         </div>
       ))}
     </div>
+  );
+}
+
+function VoiceActivityPanel({ activities }: { activities: Array<{ user: any; guild: any; channel: any }> }) {
+  return (
+    <aside className={styles.activityPane}>
+      <h2 className={styles.activityTitle}>En ligne</h2>
+      <div className={styles.activityList}>
+        {activities.map(({ user, guild, channel }) => (
+          <div key={`${user.id}-${guild.id}-${channel.id}`} className={styles.activityCard}>
+            <div className={styles.activityUserRow}>
+              <div className={styles.avatarWrap}>
+                <UserAvatar user={user} size={40} />
+                <span className={`${styles.statusDot} ${getStatusClass(user.status || 'online', styles)}`} />
+              </div>
+              <div className={styles.friendInfo}>
+                <div className={styles.friendName}>{user.global_name || user.username}</div>
+                <div className={styles.friendMeta}>{guild.name}</div>
+              </div>
+            </div>
+            <div className={styles.voiceRow}>
+              <span className={styles.voiceIcon}><Volume2 size={16} /></span>
+              <span className={styles.voiceName}>{channel.name}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </aside>
   );
 }
 

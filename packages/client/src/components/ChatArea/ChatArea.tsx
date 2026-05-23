@@ -14,6 +14,7 @@ import { SlashCommandAutocomplete } from '../SlashCommandAutocomplete/SlashComma
 import { MessageContextMenu } from '../context-menus/MessageContextMenu';
 import { Tooltip } from '../Tooltip/Tooltip';
 import { VoiceVideo } from '../VoiceVideo/VoiceVideo';
+import { DMCallButton } from '../VoiceVideo/DMCallButton';
 import { ThreadsPanel } from './ThreadsPanel';
 import { ThreadView } from '../ThreadView/ThreadView';
 import { StageChannelView } from '../StageChannelView/StageChannelView';
@@ -517,6 +518,9 @@ export function ChatArea() {
           <span className={styles.headerTopic}>{headerTopic}</span>
         </>}
         <div className={styles.headerActions}>
+          {isDirectMessage && channel?.id && (
+            <DMCallButton dmChannelId={channel.id} />
+          )}
           {isForum && (
             <button className={styles.headerPillButton} onClick={() => void handleCreateForumPost()}>
               Nouveau post

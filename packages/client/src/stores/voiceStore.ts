@@ -16,6 +16,9 @@ type ProducerInfo = {
 interface VoiceState {
   guildId: string | null;
   channelId: string | null;
+  dmChannelId: string | null;
+  callStatus: 'idle' | 'ringing' | 'connected' | 'ended';
+  incomingCall: { callerId: string; callerName: string; dmChannelId: string; timestamp: number } | null;
   selfMute: boolean;
   selfDeaf: boolean;
   selfVideo: boolean;
@@ -55,6 +58,11 @@ interface VoiceState {
   addProducer: (producer: ProducerInfo) => Promise<void>;
   closeProducer: (producerId: string) => void;
   setSpeaking: (userId: string, speaking: boolean) => void;
+  // DM Call actions
+  initiateDMCall: (dmChannelId: string) => void;
+  acceptDMCall: () => void;
+  declineDMCall: () => void;
+  endDMCall: () => void;
   reset: () => void;
 }
 
@@ -257,6 +265,9 @@ async function consumeProducer(channelId: string, producer: ProducerInfo): Promi
 export const useVoiceStore = create<VoiceState>((set, get) => ({
   guildId: null,
   channelId: null,
+  dmChannelId: null,
+  callStatus: 'idle',
+  incomingCall: null,
   selfMute: false,
   selfDeaf: false,
   selfVideo: false,
@@ -458,6 +469,41 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
   toggleVoiceActivityDetection: () => set((state) => ({ voiceActivityDetection: !state.voiceActivityDetection })),
   togglePushToTalk: () => set((state) => ({ pushToTalk: !state.pushToTalk })),
   setRegion: (region) => set({ selectedRegion: region }),
+
+  initiateDMCall: (dmChannelId) => {
+    const socket = getSocket();
+    if (!socket) {
+      set({ error: 'Socket déconnecté' });
+      return;
+    }
+    set({ dmChannelId, callStatus: 'ringing', isConnecting: true, error: null });
+    socket.emit(GatewayEvents.DM_CALL_INITIATE, { dm_channel_id: dmChannelId });
+  },
+
+  acceptDMCall: () => {
+    const { dmChannelId } = get();
+    const socket = getSocket();
+    if (!socket || !dmChannelId) return;
+    socket.emit(GatewayEvents.DM_CALL_ACCEPT, { dm_channel_id: dmChannelId });
+    set({ callStatus: 'connected', incomingCall: null });
+  },
+
+  declineDMCall: () => {
+    const { dmChannelId } = get();
+    const socket = getSocket();
+    if (!socket || !dmChannelId) return;
+    socket.emit(GatewayEvents.DM_CALL_DECLINE, { dm_channel_id: dmChannelId });
+    set({ callStatus: 'ended', incomingCall: null, dmChannelId: null });
+  },
+
+  endDMCall: () => {
+    const { dmChannelId } = get();
+    const socket = getSocket();
+    if (!socket || !dmChannelId) return;
+    socket.emit(GatewayEvents.DM_CALL_END, { dm_channel_id: dmChannelId });
+    closeMedia();
+    set({ callStatus: 'ended', dmChannelId: null, channelId: null, incomingCall: null });
+  },
 
   reset: () => {
     closeMedia();

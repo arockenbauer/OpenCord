@@ -446,3 +446,29 @@ export async function reorderChannels(req: Request, res: Response, next: NextFun
     next(err);
   }
 }
+
+export async function syncChannelWithParent(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const channel = await prisma.channel.findUnique({ where: { id: req.params.channelId } });
+    if (!channel) throw new AppError(404, 'CHANNEL_NOT_FOUND', 'Channel not found');
+    if (!channel.guild_id) throw new AppError(400, 'INVALID_CHANNEL', 'Channel is not in a guild');
+    if (!channel.parent_id) throw new AppError(400, 'NO_PARENT', 'Channel does not have a parent category');
+
+    const perms = await getMemberPermissions(channel.guild_id, req.user!.userId);
+    await checkPermission(perms, PERMISSION_BITS.MANAGE_CHANNELS, channel.guild_id, req.user!.userId);
+
+    await (await import('../services/permission.service.js')).syncChannelWithParent(req.params.channelId, channel.parent_id);
+
+    const updatedChannel = await prisma.channel.findUnique({
+      where: { id: req.params.channelId },
+      include: { permission_overwrites: true },
+    });
+
+    const io = getIO();
+    if (io) io.to(`guild:${channel.guild_id}`).emit(GatewayEvents.CHANNEL_UPDATE, { guild_id: channel.guild_id, channel: updatedChannel });
+
+    res.status(204).send();
+  } catch (err) {
+    next(err);
+  }
+}

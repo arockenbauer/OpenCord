@@ -28,6 +28,7 @@
     "test:ci": "npm test"
   },
   "devDependencies": {
+    "@vitest/coverage-v8": "^1.6.1",
     "concurrently": "^8.2.2",
     "typescript": "^5.4.0"
   }

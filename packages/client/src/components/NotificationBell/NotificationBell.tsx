@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Bell } from 'lucide-react';
+import { Inbox } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { fr, enUS } from 'date-fns/locale';
 import { api } from '../../services/api';
 import { useNotificationStore } from '../../stores/notificationStore';
 import { useGuildStore } from '../../stores/guildStore';
+import styles from './NotificationBell.module.css';
 
 function parseNotification(notification: any, t: any) {
   let parsed = notification.data;
@@ -124,44 +125,17 @@ export function NotificationBell() {
   };
 
   return (
-    <div ref={containerRef} style={{ position: 'fixed', top: 18, right: 24, zIndex: 1300 }}>
+    <div ref={containerRef} className={styles.container}>
       <button
         onClick={() => void toggleOpen()}
-        style={{
-          position: 'relative',
-          width: 44,
-          height: 44,
-          borderRadius: 14,
-          background: 'rgba(32, 34, 37, 0.92)',
-          color: 'var(--text-primary)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          boxShadow: 'var(--shadow-high)',
-          backdropFilter: 'blur(16px)',
-        }}
+        className={`${styles.trigger} ${open ? styles.triggerOpen : ''}`}
         title={t('notifications.title')}
+        aria-label={t('notifications.title')}
+        aria-expanded={open}
       >
-        <Bell size={20} />
+        <Inbox size={18} strokeWidth={2.35} aria-hidden="true" />
         {unreadCount > 0 && (
-          <span
-            style={{
-              position: 'absolute',
-              top: -4,
-              right: -4,
-              minWidth: 20,
-              height: 20,
-              padding: '0 6px',
-              borderRadius: 999,
-              background: 'var(--danger)',
-              color: 'white',
-              fontSize: 11,
-              fontWeight: 700,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
+          <span className={styles.unreadBadge}>
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         )}

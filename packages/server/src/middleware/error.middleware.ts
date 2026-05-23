@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import multer from 'multer';
 import { AppError } from '../utils/app-error.js';
 import { logError } from '../utils/logger.js';
 
@@ -20,6 +21,16 @@ export function errorHandler(err: Error, _req: Request, res: Response, _next: Ne
 
   if (err.message === 'INVALID_FILE_TYPE') {
     res.status(400).json({ error: { code: 'INVALID_FILE_TYPE', message: 'File type not allowed' } });
+    return;
+  }
+
+  if (err instanceof multer.MulterError) {
+    const status = err.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
+    const code = err.code === 'LIMIT_UNEXPECTED_FILE' ? 'UNEXPECTED_FILE_FIELD' : err.code;
+    const message = err.code === 'LIMIT_UNEXPECTED_FILE'
+      ? `Unexpected file field${err.field ? `: ${err.field}` : ''}`
+      : err.message;
+    res.status(status).json({ error: { code, message } });
     return;
   }
 

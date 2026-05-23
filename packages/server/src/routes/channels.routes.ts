@@ -35,6 +35,7 @@ router.patch('/:threadId', authenticate, threads.updateThread);
 
 router.post('/:channelId/typing', authenticate, typingRateLimit, channels.triggerTyping);
 router.post('/:channelId/followers', authenticate, channels.followChannel);
+router.post('/:channelId/sync', authenticate, channels.syncChannelWithParent);
 
 export { router as guildChannelRouter };
 export default router;

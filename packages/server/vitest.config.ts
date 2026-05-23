@@ -6,11 +6,12 @@ export default defineConfig({
     environment: 'node',
     setupFiles: ['./vitest.setup.ts'],
     include: ['src/**/*.test.ts'],
+    exclude: ['**/*.integration.test.ts'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov', 'html'],
       include: ['src/**/*.ts'],
-      exclude: ['src/**/*.test.ts', 'src/prisma/**', 'src/types/**'],
+      exclude: ['src/**/*.test.ts', 'src/**/*.integration.test.ts', 'src/prisma/**', 'src/types/**'],
       thresholds: {
         branches: 70,
         functions: 70,

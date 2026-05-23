@@ -94,3 +94,143 @@
   object-fit: cover;
   transform: scaleX(-1);
 }
+
+.incomingCallOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.incomingCallModal {
+  background: var(--bg-primary);
+  border-radius: 12px;
+  padding: 32px;
+  text-align: center;
+  min-width: 300px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.incomingCallAvatar {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: var(--accent-primary);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  font-weight: bold;
+  margin: 0 auto 16px;
+}
+
+.incomingCallTitle {
+  color: var(--text-primary);
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+
+.incomingCallSubtitle {
+  color: var(--text-secondary);
+  margin: 0 0 24px;
+  font-size: 14px;
+}
+
+.incomingCallActions {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+}
+
+.callButton {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.acceptButton {
+  background: #3ba55d;
+  color: white;
+}
+
+.acceptButton:hover {
+  background: #2d7d46;
+}
+
+.declineButton {
+  background: #ed4245;
+  color: white;
+}
+
+.declineButton:hover {
+  background: #c0353e;
+}
+
+.dmCallButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  border: none;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.dmCallButton:hover {
+  background: var(--accent-primary);
+  color: white;
+}
+
+.callControls {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-color);
+}
+
+.callControlButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.callControlButton:hover {
+  background: var(--bg-hover);
+}
+
+.callControlButton.active {
+  background: var(--accent-primary);
+  color: white;
+}
+
+.callControlButton.danger {
+  background: #ed4245;
+  color: white;
+}

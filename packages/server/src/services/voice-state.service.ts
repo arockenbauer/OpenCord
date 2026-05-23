@@ -204,3 +204,126 @@ export async function updateModeratedVoiceState(guildId: string, actorId: string
   await emitVoiceState(guildId, state);
   return state;
 }
+
+// DM Call Functions
+export async function initiateDMCall(dmChannelId: string, userId: string) {
+  const dmChannel = await prisma.dMChannel.findUnique({
+    where: { id: dmChannelId },
+    include: { members: { include: { user: true } } },
+  });
+  if (!dmChannel) throw new AppError(404, 'DM_CHANNEL_NOT_FOUND', 'DM channel not found');
+  if (dmChannel.type !== 1) throw new AppError(400, 'INVALID_DM_TYPE', 'DM calls only supported for 1-on-1 DMs');
+
+  const member = dmChannel.members.find(m => m.user_id === userId);
+  if (!member) throw new AppError(403, 'NOT_A_MEMBER', 'User is not a member of this DM channel');
+
+  const existingCall = await prisma.voiceState.findFirst({
+    where: { dm_channel_id: dmChannelId, call_status: { in: ['ringing', 'connected'] } },
+  });
+  if (existingCall) throw new AppError(400, 'CALL_ALREADY_ACTIVE', 'A call is already active in this DM');
+
+  const callStatusId = generateSnowflake();
+  await prisma.voiceState.create({
+    data: {
+      id: callStatusId,
+      user_id: userId,
+      dm_channel_id: dmChannelId,
+      channel_id: dmChannelId,
+      call_status: 'ringing',
+      session_id: generateSnowflake(),
+      self_mute: false,
+      self_deaf: false,
+      self_video: false,
+      suppress: false,
+      updated_at: new Date(),
+    },
+  });
+
+  const io = getIO();
+  if (io) {
+    const caller = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, username: true, avatar: true } });
+    for (const member of dmChannel.members) {
+      if (member.user_id !== userId) {
+        io.to(`user:${member.user_id}`).emit(GatewayEvents.DM_CALL_RING, {
+          caller_id: userId,
+          caller_name: caller?.username || 'Unknown',
+          dm_channel_id: dmChannelId,
+          timestamp: Date.now(),
+        });
+      }
+    }
+  }
+
+  return { status: 'ringing', dm_channel_id: dmChannelId };
+}
+
+export async function answerDMCall(dmChannelId: string, userId: string, accept: boolean) {
+  const voiceState = await prisma.voiceState.findFirst({
+    where: { dm_channel_id: dmChannelId, call_status: 'ringing' },
+  });
+  if (!voiceState) throw new AppError(404, 'NO_RINGING_CALL', 'No ringing call found');
+
+  const dmChannel = await prisma.dMChannel.findUnique({
+    where: { id: dmChannelId },
+    include: { members: true },
+  });
+  if (!dmChannel) throw new AppError(404, 'DM_CHANNEL_NOT_FOUND', 'DM channel not found');
+
+  if (!accept) {
+    await prisma.voiceState.deleteMany({ where: { dm_channel_id: dmChannelId } });
+    const io = getIO();
+    if (io) {
+      for (const member of dmChannel.members) {
+        io.to(`user:${member.user_id}`).emit(GatewayEvents.DM_CALL_DECLINE, {
+          dm_channel_id: dmChannelId,
+          user_id: userId,
+        });
+      }
+    }
+    return { status: 'declined' };
+  }
+
+  await prisma.voiceState.updateMany({
+    where: { dm_channel_id: dmChannelId },
+    data: { call_status: 'connected' },
+  });
+
+  const io = getIO();
+  if (io) {
+    io.to(`channel:${dmChannelId}`).emit(GatewayEvents.DM_CALL_ACCEPT, {
+      dm_channel_id: dmChannelId,
+      user_id: userId,
+    });
+  }
+
+  return { status: 'connected', dm_channel_id: dmChannelId };
+}
+
+export async function endDMCall(dmChannelId: string, userId: string) {
+  const voiceStates = await prisma.voiceState.findMany({
+    where: { dm_channel_id: dmChannelId },
+  });
+
+  for (const state of voiceStates) {
+    if (state.channel_id) closeUserMedia(state.channel_id, state.user_id);
+  }
+
+  await prisma.voiceState.deleteMany({ where: { dm_channel_id: dmChannelId } });
+
+  const io = getIO();
+  if (io) {
+    io.to(`channel:${dmChannelId}`).emit(GatewayEvents.DM_CALL_END, {
+      dm_channel_id: dmChannelId,
+      user_id: userId,
+    });
+  }
+
+  return { status: 'ended' };
+}
+
+export async function getDMCallState(dmChannelId: string) {
+  return prisma.voiceState.findMany({
+    where: { dm_channel_id: dmChannelId },
+    include: { user: { select: { id: true, username: true, avatar: true } } },
+  });
+}

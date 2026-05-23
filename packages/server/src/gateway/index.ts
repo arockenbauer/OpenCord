@@ -519,7 +519,8 @@ export function setupGateway(httpServer: HttpServer): SocketServer {
     socket.on(GatewayEvents.SPEAKING, async (data: any) => {
       try {
         const voiceState = await ensureVoiceAccess(data.channel_id || data.channelId);
-        socket.to(`guild:${voiceState.guild_id}`).emit(GatewayEvents.SPEAKING, {
+        const room = data.channel_id || data.channelId;
+        socket.to(`channel:${room}`).emit(GatewayEvents.SPEAKING, {
           user_id: userId,
           userId,
           speaking: Boolean(data.speaking),
@@ -527,6 +528,47 @@ export function setupGateway(httpServer: HttpServer): SocketServer {
         });
       } catch {
         // Ignore stale speaking updates.
+      }
+    });
+
+    // DM Call Events
+    socket.on(GatewayEvents.DM_CALL_INITIATE, async (data: any) => {
+      try {
+        const { initiateDMCall } = await import('../services/voice-state.service.js');
+        const result = await initiateDMCall(data.dm_channel_id, userId);
+        socket.emit(GatewayEvents.DM_CALL_INITIATE, result);
+      } catch (err: any) {
+        socket.emit(GatewayEvents.DM_CALL_END, { error: err.message || 'Failed to initiate call' });
+      }
+    });
+
+    socket.on(GatewayEvents.DM_CALL_ACCEPT, async (data: any) => {
+      try {
+        const { answerDMCall } = await import('../services/voice-state.service.js');
+        const result = await answerDMCall(data.dm_channel_id, userId, true);
+        socket.emit(GatewayEvents.DM_CALL_ACCEPT, result);
+      } catch (err: any) {
+        socket.emit(GatewayEvents.DM_CALL_END, { error: err.message || 'Failed to accept call' });
+      }
+    });
+
+    socket.on(GatewayEvents.DM_CALL_DECLINE, async (data: any) => {
+      try {
+        const { answerDMCall } = await import('../services/voice-state.service.js');
+        const result = await answerDMCall(data.dm_channel_id, userId, false);
+        socket.emit(GatewayEvents.DM_CALL_DECLINE, result);
+      } catch (err: any) {
+        socket.emit(GatewayEvents.DM_CALL_END, { error: err.message || 'Failed to decline call' });
+      }
+    });
+
+    socket.on(GatewayEvents.DM_CALL_END, async (data: any) => {
+      try {
+        const { endDMCall } = await import('../services/voice-state.service.js');
+        const result = await endDMCall(data.dm_channel_id, userId);
+        socket.emit(GatewayEvents.DM_CALL_END, result);
+      } catch (err: any) {
+        socket.emit(GatewayEvents.DM_CALL_END, { error: err.message || 'Failed to end call' });
       }
     });
 

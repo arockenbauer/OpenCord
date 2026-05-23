@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { Video, Monitor, Mic, MicOff, VideoOff, PhoneOff, Volume2, VolumeX } from 'lucide-react';
 import { useVoiceStore } from '../../stores/voiceStore';
+import { IncomingCallModal } from './IncomingCallModal';
+import { CallControls } from './CallControls';
 import styles from './VoiceVideo.module.css';
 
 export function VoiceVideo() {
   const {
     guildId,
     channelId,
+    callStatus,
     selfMute,
     selfDeaf,
     selfVideo,
@@ -16,6 +19,7 @@ export function VoiceVideo() {
     toggleSelfVideo,
     toggleSelfScreen,
     leaveVoiceChannel,
+    endDMCall,
     remoteProducers,
     speakingUserIds,
   } = useVoiceStore();
@@ -48,14 +52,17 @@ export function VoiceVideo() {
     };
   }, [selfVideo]);
 
-  if (!channelId) return null;
+  if (!channelId && callStatus === 'idle') return null;
 
   const videoProducers = Array.from(remoteProducers.values()).filter((p) => p.kind === 'video');
   const audioProducers = Array.from(remoteProducers.values()).filter((p) => p.kind === 'audio');
 
   return (
-    <div className={styles.container}>
-      <div className={styles.videoGrid}>
+    <>
+      <IncomingCallModal />
+      {callStatus === 'connected' && (
+        <div className={styles.container}>
+          <div className={styles.videoGrid}>
         {videoProducers.map((producer) => (
           <div key={producer.producerId} className={styles.videoTile}>
             <video
@@ -117,12 +124,18 @@ export function VoiceVideo() {
 
         <button
           className={`${styles.controlButton} ${styles.danger}`}
-          onClick={() => leaveVoiceChannel()}
-          title="Quitter l'appel"
+          onClick={() => {
+            if (guildId) leaveVoiceChannel();
+            else endDMCall();
+          }}
+          title="Raccrocher"
         >
           <PhoneOff size={20} />
         </button>
       </div>
+      <CallControls />
     </div>
+      )}
+    </>
   );
 }

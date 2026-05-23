@@ -375,6 +375,34 @@
   position: relative;
 }
 
+.homeNav {
+  padding: 8px 8px 0;
+}
+
+.homeNavItem {
+  width: 100%;
+  height: 42px;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  text-align: left;
+}
+
+.homeNavItem:hover {
+  background: var(--bg-modifier-hover);
+  color: var(--text-primary);
+}
+
+.homeNavItemActive {
+  background: var(--bg-modifier-selected);
+  color: var(--text-primary);
+}
+
 .dmSearch {
   flex: 1;
   min-width: 0;
@@ -659,6 +687,11 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.speaking {
+  box-shadow: 0 0 0 2px var(--status-online);
+  transition: box-shadow 0.2s ease;
 }
 
 .voiceIconMute,

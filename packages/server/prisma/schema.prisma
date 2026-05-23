@@ -1024,9 +1024,10 @@ model StageInstance {
 }
 
 model VoiceState {
-  guild_id                   String
-  user_id                    String
   id                         String    @id
+  user_id                    String
+  guild_id                   String?
+  dm_channel_id              String?
   channel_id                 String?
   session_id                 String?
   deaf                       Boolean   @default(false)
@@ -1035,12 +1036,14 @@ model VoiceState {
   self_mute                  Boolean   @default(false)
   self_video                 Boolean   @default(false)
   suppress                   Boolean   @default(false)
+  call_status                String    @default("idle")
   request_to_speak_timestamp DateTime?
   updated_at                 DateTime  @default(now())
   user                       User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  guild                      Guild     @relation(fields: [guild_id], references: [id], onDelete: Cascade)
+  guild                      Guild?    @relation(fields: [guild_id], references: [id], onDelete: Cascade)
 
   @@unique([guild_id, user_id])
+  @@index([dm_channel_id])
 }
 
 model GuildWidget {

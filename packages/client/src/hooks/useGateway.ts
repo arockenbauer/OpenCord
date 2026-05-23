@@ -161,6 +161,31 @@ export function useGateway() {
       useVoiceStore.setState({ error: data.message || 'Erreur vocale', isConnecting: false });
     });
 
+    // DM Call Events
+    socket.on(GatewayEvents.DM_CALL_RING, (data: any) => {
+      useVoiceStore.setState({
+        incomingCall: {
+          callerId: data.caller_id,
+          callerName: data.caller_name,
+          dmChannelId: data.dm_channel_id,
+          timestamp: data.timestamp,
+        },
+        callStatus: 'ringing',
+      });
+    });
+
+    socket.on(GatewayEvents.DM_CALL_ACCEPT, (data: any) => {
+      useVoiceStore.setState({ callStatus: 'connected', incomingCall: null });
+    });
+
+    socket.on(GatewayEvents.DM_CALL_DECLINE, (data: any) => {
+      useVoiceStore.setState({ callStatus: 'ended', incomingCall: null, dmChannelId: null });
+    });
+
+    socket.on(GatewayEvents.DM_CALL_END, (data: any) => {
+      useVoiceStore.getState().reset();
+    });
+
     socket.on(GatewayEvents.USER_UPDATE, (data: any) => {
       const currentUser = useAuthStore.getState().user;
       if (currentUser && data.id === currentUser.id) {

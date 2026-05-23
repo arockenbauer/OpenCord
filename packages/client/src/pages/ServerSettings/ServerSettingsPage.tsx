@@ -90,7 +90,7 @@ const PERM_DESCRIPTIONS: Record<string, string> = {
   '32': 'Permet de modifier les paramètres du serveur comme le nom et l\'icône.',
   '16': 'Permet de créer, modifier ou supprimer des canaux textuels et vocaux.',
   '268435456': 'Permet de créer, modifier ou supprimer des rôles inférieurs au rôle le plus élevé du membre.',
-  '67108864': 'Permet de créer, modifier ou supprimer des émojis et autocollants.',
+  '1073741824': 'Permet de créer, modifier ou supprimer des émojis et autocollants.',
   '536870912': 'Permet de créer, modifier et supprimer des webhooks.',
   '1': 'Permet de créer des invitations vers ce serveur.',
   '128': 'Permet de voir qui a fait quoi dans ce serveur.',
@@ -120,13 +120,12 @@ const PERM_DESCRIPTIONS: Record<string, string> = {
   '256': 'Permet d\'utiliser le priorité orateur dans un canal vocal.',
   '512': 'Permet de diffuser (Go Live) dans un canal vocal.',
   '1024': 'Permet de voir les canaux auxquels ce rôle a accès.',
-  '268435456': 'Permet de gérer les fils de discussion (archiver, supprimer).',
-  '536870912': 'Permet de créer des fils de discussion publics.',
-  '1073741824': 'Permet de créer des fils de discussion privés.',
-  '2147483648': 'Permet d\'utiliser des autocollants provenant d\'autres serveurs.',
-  '4294967296': 'Permet d\'envoyer des messages dans les fils de discussion.',
+  '17179869184': 'Permet de gérer les fils de discussion (archiver, supprimer).',
+  '34359738368': 'Permet de créer des fils de discussion publics.',
+  '68719476736': 'Permet de créer des fils de discussion privés.',
+  '137438953472': 'Permet d\'utiliser des autocollants provenant d\'autres serveurs.',
+  '274877906944': 'Permet d\'envoyer des messages dans les fils de discussion.',
   '549755813888': 'Permet d\'utiliser des activités intégrées (applications avec EMBEDDED).',
-  '1099511627776': 'Permet de modérer des membres (timeout).',
   '2199023255552': 'Permet de voir les analyses d\'abonnement créateur.',
   '4398046511104': 'Permet d\'utiliser le soundboard dans un canal vocal.',
   '8796093022208': 'Permet de créer des émojis, stickers et sons, et modifier/supprimer ceux créés par l\'utilisateur.',
@@ -291,7 +290,7 @@ function OverviewTab({ guild, updateGuildStore }: { guild: any; updateGuildStore
     const file = e.target.files?.[0];
     if (!file) return;
     const form = new FormData();
-    form.append('file', file);
+    form.append('icon', file);
     try {
       const res = await api<any>(`/api/guilds/${guild.id}/icon`, { method: 'PATCH', body: form as any });
       updateGuildStore(guild.id, { icon: res.icon });
@@ -306,7 +305,7 @@ function OverviewTab({ guild, updateGuildStore }: { guild: any; updateGuildStore
     const file = e.target.files?.[0];
     if (!file) return;
     const form = new FormData();
-    form.append('file', file);
+    form.append('banner', file);
     try {
       const res = await api<any>(`/api/guilds/${guild.id}/banner`, { method: 'PATCH', body: form as any });
       updateGuildStore(guild.id, { banner: res.banner as string | undefined });
@@ -1267,6 +1266,7 @@ function ChannelsTab({ guild }: { guild: any }) {
   const [addingAllow, setAddingAllow] = useState(0n);
   const [addingDeny, setAddingDeny] = useState(0n);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
   const loadOverwrites = async (channel: any) => {
     try {
@@ -1281,21 +1281,116 @@ function ChannelsTab({ guild }: { guild: any }) {
     loadOverwrites(channel);
   };
 
+  const handleSyncWithParent = async () => {
+    if (!selectedChannel?.parent_id) {
+      setMsg('Ce salon n\'a pas de catégorie parente.');
+      return;
+    }
+    setSyncing(true);
+    setMsg('');
+    try {
+      await api(`/api/channels/${selectedChannel.id}/sync`, { method: 'POST' });
+      await loadOverwrites(selectedChannel);
+      setMsg('Permissions synchronisées avec la catégorie.');
+    } catch (e: any) {
+      setMsg(e.message);
+    }
+    setSyncing(false);
+  };
+
+  const handleMakeReadOnly = async () => {
+    if (!selectedChannel || !selectedChannel.id) return;
+    if (!confirm('Rendre ce salon en lecture seule ? Les membres pourront voir le salon mais pas envoyer de messages.')) return;
+    setSaving(true);
+    setMsg('');
+    try {
+      // Deny send permissions: SEND_MESSAGES, SEND_MESSAGES_IN_THREADS, CREATE_PUBLIC_THREADS, CREATE_PRIVATE_THREADS
+      const denyBits = 0x800n | 0x4000000000n | 0x800000000n | 0x1000000000n;
+      // Get @everyone role
+      const everyoneRole = guild.roles?.find((r: any) => r.name === '@everyone');
+      if (!everyoneRole) throw new Error('@everyone role not found');
+      // Update or create overwrite for @everyone
+      const existing = overwrites.find((o: any) => o.target_id === everyoneRole.id && o.target_type === 'role');
+      if (existing) {
+        const newDeny = BigInt(existing.deny || '0') | denyBits;
+        await api(`/api/channels/${selectedChannel.id}/permissions/${existing.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ deny: newDeny.toString() }),
+        });
+      } else {
+        await api(`/api/channels/${selectedChannel.id}/permissions`, {
+          method: 'POST',
+          body: JSON.stringify({
+            target_id: everyoneRole.id,
+            type: 'role',
+            allow: '0',
+            deny: denyBits.toString(),
+          }),
+        });
+      }
+      await loadOverwrites(selectedChannel);
+      setMsg('Salon en lecture seule. Les membres peuvent voir mais pas envoyer de messages.');
+    } catch (e: any) {
+      setMsg(e.message);
+    }
+    setSaving(false);
+  };
+
   const CHANNEL_PERM_DEFS = [
-    { bit: 0x400n, label: 'Voir le salon', group: 'Accès' },
-    { bit: 0x800n, label: 'Envoyer des messages', group: 'Accès' },
-    { bit: 0x40n, label: 'Ajouter des réactions', group: 'Accès' },
-    { bit: 0x2000n, label: 'Gérer les messages', group: 'Modération' },
-    { bit: 0x4000n, label: 'Intégrer des liens', group: 'Messagerie' },
-    { bit: 0x8000n, label: 'Joindre des fichiers', group: 'Messagerie' },
-    { bit: 0x10000n, label: 'Voir l\'historique', group: 'Messagerie' },
-    { bit: 0x1000n, label: 'Envoyer des messages TTS', group: 'Messagerie' },
-    { bit: 0x100000n, label: 'Se connecter', group: 'Vocal' },
-    { bit: 0x200000n, label: 'Parler', group: 'Vocal' },
-    { bit: 0x400000n, label: 'Rendre muet', group: 'Vocal' },
-    { bit: 0x800000n, label: 'Rendre sourd', group: 'Vocal' },
-    { bit: 0x1000000n, label: 'Déplacer des membres', group: 'Vocal' },
-    { bit: 0x20000000n, label: 'Gérer les webhooks', group: 'Avancé' },
+    // Accès (View)
+    { bit: 0x400n, label: 'Voir le salon', group: 'Accès', description: 'Allows members to view this channel. In voice channels, this allows members to join.' },
+    { bit: 0x100000n, label: 'Se connecter', group: 'Accès', description: 'Allows members to connect to a voice channel.' },
+    { bit: 0x100000000n, label: 'Demander à parler', group: 'Accès', description: 'Allows members to request to speak in a stage channel.' },
+
+    // Messagerie (Text)
+    { bit: 0x800n, label: 'Envoyer des messages', group: 'Messagerie', description: 'Allows members to send messages in this channel.' },
+    { bit: 0x40n, label: 'Ajouter des réactions', group: 'Messagerie', description: 'Allows members to add new reactions to messages.' },
+    { bit: 0x4000n, label: 'Intégrer des liens', group: 'Messagerie', description: 'Links sent by members with this permission will be auto-embedded.' },
+    { bit: 0x8000n, label: 'Joindre des fichiers', group: 'Messagerie', description: 'Allows members to upload images and files.' },
+    { bit: 0x10000n, label: 'Voir l\'historique', group: 'Messagerie', description: 'Allows members to read message history in this channel.' },
+    { bit: 0x1000n, label: 'Envoyer des messages TTS', group: 'Messagerie', description: 'Allows members to send text-to-speech messages.' },
+    { bit: 0x20000n, label: 'Mentionner @everyone', group: 'Messagerie', description: 'Allows members to use @everyone, @here, and all role mentions.' },
+    { bit: 0x40000n, label: 'Utiliser émojis externes', group: 'Messagerie', description: 'Allows members to use emojis from other servers.' },
+    { bit: 0x2000000000n, label: 'Utiliser autocollants externes', group: 'Messagerie', description: 'Allows members to use stickers from other servers.' },
+    { bit: 0x2000000000000n, label: 'Envoyer des sondages', group: 'Messagerie', description: 'Allows members to send polls in this channel.' },
+    { bit: 0x8000000000000n, label: 'Épingler des messages', group: 'Messagerie', description: 'Allows members to pin and unpin messages.' },
+    { bit: 0x10000000000000n, label: 'Contourner le mode lent', group: 'Messagerie', description: 'Allows members to bypass slowmode restrictions.' },
+
+    // Fils (Threads)
+    { bit: 0x400000000n, label: 'Gérer les fils', group: 'Fils', description: 'Allows members to delete and archive threads, and view all private threads.' },
+    { bit: 0x800000000n, label: 'Créer fils publics', group: 'Fils', description: 'Allows members to create public and announcement threads.' },
+    { bit: 0x1000000000n, label: 'Créer fils privés', group: 'Fils', description: 'Allows members to create private threads.' },
+    { bit: 0x4000000000n, label: 'Envoyer dans les fils', group: 'Fils', description: 'Allows members to send messages in threads.' },
+
+    // Modération (Moderation)
+    { bit: 0x2000n, label: 'Gérer les messages', group: 'Modération', description: 'Allows members to delete messages from other members.' },
+    { bit: 0x2n, label: 'Expulser des membres', group: 'Modération', description: 'Allows members to kick members from the server.' },
+    { bit: 0x4n, label: 'Bannir des membres', group: 'Modération', description: 'Allows members to ban members from the server.' },
+    { bit: 0x10000000000n, label: 'Modérer des membres', group: 'Modération', description: 'Allows members to timeout users (prevents sending messages/reacting).' },
+
+    // Vocal (Voice)
+    { bit: 0x200000n, label: 'Parler', group: 'Vocal', description: 'Allows members to speak in a voice channel.' },
+    { bit: 0x100n, label: 'Priorité orateur', group: 'Vocal', description: 'Allows members to use priority speaker in a voice channel.' },
+    { bit: 0x200n, label: 'Streamer (Go Live)', group: 'Vocal', description: 'Allows members to stream video in a voice channel.' },
+    { bit: 0x400000n, label: 'Rendre muet', group: 'Vocal', description: 'Allows members to mute other members in voice channels.' },
+    { bit: 0x800000n, label: 'Rendre sourd', group: 'Vocal', description: 'Allows members to deafen other members in voice channels.' },
+    { bit: 0x1000000n, label: 'Déplacer des membres', group: 'Vocal', description: 'Allows members to move members between voice channels.' },
+    { bit: 0x2000000n, label: 'Voice Activity Detection', group: 'Vocal', description: 'Allows members to use voice-activity-detection in voice channels.' },
+    { bit: 0x40000000000n, label: 'Utiliser le soundboard', group: 'Vocal', description: 'Allows members to use the soundboard in voice channels.' },
+    { bit: 0x400000000000n, label: 'Messages vocaux', group: 'Vocal', description: 'Allows members to send voice messages.' },
+    { bit: 0x1000000000000n, label: 'Statut salon vocal', group: 'Vocal', description: 'Allows members to set voice channel status.' },
+    { bit: 0x200000000000n, label: 'Utiliser sons externes', group: 'Vocal', description: 'Allows members to use soundboard sounds from other servers.' },
+
+    // Avancé (Advanced)
+    { bit: 0x20000000n, label: 'Gérer les webhooks', group: 'Avancé', description: 'Allows members to create, edit, and delete webhooks.' },
+    { bit: 0x10000000n, label: 'Gérer les rôles', group: 'Avancé', description: 'Allows members to create, edit, and delete roles below their highest role.' },
+    { bit: 0x40000000n, label: 'Gérer émojis/autocollants', group: 'Avancé', description: 'Allows members to create, edit, and delete emojis, stickers, and soundboard sounds.' },
+    { bit: 0x80000000n, label: 'Utiliser commandes d\'appli', group: 'Avancé', description: 'Allows members to use application commands (slash commands).' },
+    { bit: 0x8000000000n, label: 'Activités intégrées', group: 'Avancé', description: 'Allows members to use Activities (applications with EMBEDDED flag).' },
+    { bit: 0x80000000000n, label: 'Créer expressions serveur', group: 'Avancé', description: 'Allows members to create emojis, stickers, and sounds.' },
+    { bit: 0x100000000000n, label: 'Créer des événements', group: 'Avancé', description: 'Allows members to create scheduled events.' },
+    { bit: 0x4000000000000n, label: 'Utiliser apps externes', group: 'Avancé', description: 'Allows user-installed apps to send public responses.' },
+    { bit: 0x20000000000n, label: 'Voir analytiques créateur', group: 'Avancé', description: 'Allows members to view role subscription insights.' },
   ];
 
   const permGroups = CHANNEL_PERM_DEFS.reduce<Record<string, typeof CHANNEL_PERM_DEFS>>((acc, p) => {
@@ -1422,6 +1517,26 @@ function ChannelsTab({ guild }: { guild: any }) {
         <div className={styles.splitRight}>
           <div className={styles.splitRightHeader}>
             <div className={styles.memberDetailName}># {selectedChannel.name}</div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              {selectedChannel.parent_id && (
+                <button
+                  className={styles.secondaryBtn}
+                  onClick={handleSyncWithParent}
+                  disabled={syncing}
+                  title="Synchroniser les permissions avec la catégorie parente"
+                >
+                  {syncing ? 'Synchronisation...' : 'Sync avec catégorie'}
+                </button>
+              )}
+              <button
+                className={styles.secondaryBtn}
+                onClick={handleMakeReadOnly}
+                disabled={saving}
+                title="Rendre le salon en lecture seule (les membres peuvent voir mais pas envoyer de messages)"
+              >
+                {saving ? 'Application...' : 'Lecture seule'}
+              </button>
+            </div>
           </div>
 
           <div className={styles.permissionsHealthCard}>
@@ -1475,7 +1590,7 @@ function ChannelsTab({ guild }: { guild: any }) {
                         const allowed = (BigInt(ow.allow || '0') & p.bit) !== 0n;
                         const denied = (BigInt(ow.deny || '0') & p.bit) !== 0n;
                         return (
-                          <div key={p.bit.toString()} className={styles.permCell} onClick={() => handleCycleOverwriteBit(ow.id, p.bit)} title={`${p.label}: cliquer pour changer`}>
+                          <div key={p.bit.toString()} className={styles.permCell} onClick={() => handleCycleOverwriteBit(ow.id, p.bit)} title={`${p.label}: ${p.description || 'Cliquer pour changer'}`}>
                             <span className={`${styles.permBadge} ${allowed ? styles.permAllowed : ''} ${denied ? styles.permDenied : ''}`}>
                               {!allowed && !denied ? '—' : allowed ? '✓' : '✗'}
                             </span>
@@ -1519,7 +1634,7 @@ function ChannelsTab({ guild }: { guild: any }) {
               <div className={styles.fieldLabel} style={{ marginTop: 12 }}>Autoriser</div>
               <div className={styles.permToggleGrid}>
                 {CHANNEL_PERM_DEFS.map((p) => (
-                  <label key={p.bit.toString()} className={styles.permRow} onClick={() => togglePerm(p.bit, true)}>
+                  <label key={p.bit.toString()} className={styles.permRow} onClick={() => togglePerm(p.bit, true)} title={p.description}>
                     <div className={`${styles.permCheck} ${(addingAllow & p.bit) !== 0n ? styles.permCheckOn : ''}`}>
                       {(addingAllow & p.bit) !== 0n && <Check size={12} />}
                     </div>
@@ -1530,7 +1645,7 @@ function ChannelsTab({ guild }: { guild: any }) {
               <div className={styles.fieldLabel}>Refuser</div>
               <div className={styles.permToggleGrid}>
                 {CHANNEL_PERM_DEFS.map((p) => (
-                  <label key={p.bit.toString()} className={styles.permRow} onClick={() => togglePerm(p.bit, false)}>
+                  <label key={p.bit.toString()} className={styles.permRow} onClick={() => togglePerm(p.bit, false)} title={p.description}>
                     <div className={`${styles.permCheck} ${(addingDeny & p.bit) !== 0n ? styles.permCheckOn : ''}`}>
                       {(addingDeny & p.bit) !== 0n && <Check size={12} />}
                     </div>
