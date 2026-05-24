@@ -22,6 +22,7 @@ export interface SmokeScenario {
   admin: SeededAccount;
   guildId: string;
   channelId: string;
+  voiceChannelId: string;
   inviteCode: string;
   dmChannelId: string;
 }
@@ -163,6 +164,7 @@ export async function seedSmokeScenario(): Promise<SmokeScenario> {
   };
   const guildId = buildId('guild');
   const channelId = buildId('channel');
+  const voiceChannelId = buildId('voice-channel');
   const inviteCode = 'smoke-invite';
   const dmChannelId = buildId('dm');
 
@@ -247,6 +249,18 @@ export async function seedSmokeScenario(): Promise<SmokeScenario> {
     },
   });
 
+  await prisma.channel.create({
+    data: {
+      id: voiceChannelId,
+      guild_id: guildId,
+      name: 'Voice Lobby',
+      type: 2,
+      position: 1,
+      bitrate: 64000,
+      user_limit: 0,
+    },
+  });
+
   await prisma.invite.create({
     data: {
       code: inviteCode,
@@ -289,6 +303,7 @@ export async function seedSmokeScenario(): Promise<SmokeScenario> {
     admin,
     guildId,
     channelId,
+    voiceChannelId,
     inviteCode,
     dmChannelId,
   };
