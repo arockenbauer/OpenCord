@@ -131,7 +131,7 @@ export async function evaluateAutoMod(
     where: { guild_id: guildId, user_id: authorId },
     include: { role: true },
   });
-  const isAdmin = memberRoles.some((mr) => (BigInt(mr.role.permissions) & ADMINISTRATOR) !== 0n);
+  const isAdmin = memberRoles.some((mr) => mr.role && (BigInt(mr.role.permissions) & ADMINISTRATOR) !== 0n);
   if (isAdmin) return { blocked: false };
 
   const authorRoleIds = memberRoles.map((mr) => mr.role_id);

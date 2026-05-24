@@ -1,5 +1,15 @@
 import { expect, type Page } from '@playwright/test';
-import { e2eAccounts } from '../test-env';
+import { e2eAccounts, e2eApiUrl, e2eClientUrl } from '../test-env';
+
+export async function waitForApiReady(page: Page): Promise<void> {
+  await expect.poll(async () => {
+    const [apiResponse, clientResponse] = await Promise.all([
+      page.request.get(`${e2eApiUrl}/api/health`).catch(() => null),
+      page.request.get(`${e2eClientUrl}/login`).catch(() => null),
+    ]);
+    return (apiResponse?.ok() ?? false) && (clientResponse?.ok() ?? false);
+  }, { timeout: 30000, intervals: [250, 500, 1000] }).toBe(true);
+}
 
 export function attachFailureGuards(page: Page): string[] {
   const failures: string[] = [];
@@ -11,11 +21,14 @@ export function attachFailureGuards(page: Page): string[] {
 }
 
 export async function login(page: Page, account: { email: string; password: string } = e2eAccounts.user): Promise<void> {
+  await waitForApiReady(page);
   await page.goto('/login');
   await page.getByTestId('login-email').fill(account.email);
   await page.getByTestId('login-password').fill(account.password);
-  await page.getByTestId('login-submit').click();
-  await expect(page).toHaveURL(/\/channels\/@me/);
+  await Promise.all([
+    page.waitForURL(/\/channels\/@me/, { timeout: 30000 }),
+    page.getByTestId('login-submit').click(),
+  ]);
   await expect(page.getByTestId('app-layout')).toBeVisible();
 }
 

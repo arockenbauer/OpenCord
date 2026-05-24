@@ -3,10 +3,14 @@ import type { Request, Response } from 'express';
 import { prisma } from '../utils/prisma.js';
 import { AppError } from '../utils/app-error.js';
 
+function botTokenFor(botId: string): string {
+  return `${Buffer.from(botId).toString('base64url')}.timestamp.signature`;
+}
+
 const mocks = vi.hoisted(() => ({
   prisma: {
     user: {
-      findUnique: vi.fn(),
+      findFirst: vi.fn(),
     },
   },
   bcrypt: {
@@ -23,6 +27,7 @@ vi.mock('../utils/prisma.js', () => ({
 }));
 
 vi.mock('bcrypt', () => ({
+  compare: mocks.bcrypt.compare,
   default: mocks.bcrypt,
 }));
 
@@ -50,12 +55,11 @@ describe('bot authentication', () => {
         bot_token: 'hashed-token',
         application_id: 'app-1',
       };
-      mocks.prisma.user.findUnique.mockResolvedValue(botUser);
+      mocks.prisma.user.findFirst.mockResolvedValue(botUser);
       mocks.bcrypt.compare.mockResolvedValue(true);
 
-      const middleware = authenticateBot();
       const req = {
-        headers: { authorization: 'Bot valid-bot-token' },
+        headers: { authorization: `Bot ${botTokenFor('bot-1')}` },
         user: undefined,
       } as Request;
       const res = {
@@ -64,19 +68,16 @@ describe('bot authentication', () => {
       } as unknown as Response;
       const next = vi.fn();
 
-      await middleware(req, res, next);
+      await authenticateBot(req, res, next);
 
       expect(next).toHaveBeenCalled();
       expect(req.user).toEqual({
         userId: 'bot-1',
-        username: 'Test Bot',
-        bot: true,
-        appId: 'app-1',
+        type: 'bot',
       });
     });
 
-    it('returns 401 when authorization header is missing', async () => {
-      const middleware = authenticateBot();
+    it('passes a 401 AppError when authorization header is missing', async () => {
       const req = {
         headers: {},
       } as Request;
@@ -86,14 +87,13 @@ describe('bot authentication', () => {
       } as unknown as Response;
       const next = vi.fn();
 
-      await middleware(req, res, next);
+      await authenticateBot(req, res, next);
 
-      expect(res.status).toHaveBeenCalledWith(401);
-      expect(next).not.toHaveBeenCalled();
+      expect(next).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 401, code: 'UNAUTHORIZED' }));
+      expect(res.status).not.toHaveBeenCalled();
     });
 
-    it('returns 401 when authorization scheme is not Bot', async () => {
-      const middleware = authenticateBot();
+    it('passes a 401 AppError when authorization scheme is not Bot', async () => {
       const req = {
         headers: { authorization: 'Bearer some-token' },
       } as Request;
@@ -103,17 +103,16 @@ describe('bot authentication', () => {
       } as unknown as Response;
       const next = vi.fn();
 
-      await middleware(req, res, next);
+      await authenticateBot(req, res, next);
 
-      expect(res.status).toHaveBeenCalledWith(401);
+      expect(next).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 401, code: 'UNAUTHORIZED' }));
     });
 
-    it('returns 401 when bot user is not found', async () => {
-      mocks.prisma.user.findUnique.mockResolvedValue(null);
+    it('passes a 401 AppError when bot user is not found', async () => {
+      mocks.prisma.user.findFirst.mockResolvedValue(null);
 
-      const middleware = authenticateBot();
       const req = {
-        headers: { authorization: 'Bot invalid-token' },
+        headers: { authorization: `Bot ${botTokenFor('missing-bot')}` },
       } as Request;
       const res = {
         status: vi.fn().mockReturnThis(),
@@ -121,23 +120,22 @@ describe('bot authentication', () => {
       } as unknown as Response;
       const next = vi.fn();
 
-      await middleware(req, res, next);
+      await authenticateBot(req, res, next);
 
-      expect(res.status).toHaveBeenCalledWith(401);
+      expect(next).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 401, code: 'INVALID_TOKEN' }));
     });
 
-    it('returns 401 when bot token is invalid', async () => {
+    it('passes a 401 AppError when bot token is invalid', async () => {
       const botUser = {
         id: 'bot-1',
         bot: true,
         bot_token: 'hashed-token',
       };
-      mocks.prisma.user.findUnique.mockResolvedValue(botUser);
+      mocks.prisma.user.findFirst.mockResolvedValue(botUser);
       mocks.bcrypt.compare.mockResolvedValue(false);
 
-      const middleware = authenticateBot();
       const req = {
-        headers: { authorization: 'Bot invalid-token' },
+        headers: { authorization: `Bot ${botTokenFor('bot-1')}` },
       } as Request;
       const res = {
         status: vi.fn().mockReturnThis(),
@@ -145,22 +143,16 @@ describe('bot authentication', () => {
       } as unknown as Response;
       const next = vi.fn();
 
-      await middleware(req, res, next);
+      await authenticateBot(req, res, next);
 
-      expect(res.status).toHaveBeenCalledWith(401);
+      expect(next).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 401, code: 'INVALID_TOKEN' }));
     });
 
-    it('returns 401 when user is not a bot', async () => {
-      const regularUser = {
-        id: 'user-1',
-        bot: false,
-        bot_token: null,
-      };
-      mocks.prisma.user.findUnique.mockResolvedValue(regularUser);
+    it('passes a 401 AppError when user is not a bot', async () => {
+      mocks.prisma.user.findFirst.mockResolvedValue(null);
 
-      const middleware = authenticateBot();
       const req = {
-        headers: { authorization: 'Bot some-token' },
+        headers: { authorization: `Bot ${botTokenFor('user-1')}` },
       } as Request;
       const res = {
         status: vi.fn().mockReturnThis(),
@@ -168,13 +160,12 @@ describe('bot authentication', () => {
       } as unknown as Response;
       const next = vi.fn();
 
-      await middleware(req, res, next);
+      await authenticateBot(req, res, next);
 
-      expect(res.status).toHaveBeenCalledWith(401);
+      expect(next).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 401, code: 'INVALID_TOKEN' }));
     });
 
     it('handles malformed bot token gracefully', async () => {
-      const middleware = authenticateBot();
       const req = {
         headers: { authorization: 'Bot malformed..token' },
       } as Request;
@@ -184,9 +175,9 @@ describe('bot authentication', () => {
       } as unknown as Response;
       const next = vi.fn();
 
-      await middleware(req, res, next);
+      await authenticateBot(req, res, next);
 
-      expect(res.status).toHaveBeenCalledWith(401);
+      expect(next).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 401, code: 'INVALID_TOKEN' }));
     });
   });
 });

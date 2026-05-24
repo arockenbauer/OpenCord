@@ -3,6 +3,16 @@ import { e2eAccounts } from '../test-env';
 import { api, attachFailureGuards, login } from './helpers';
 
 test.describe('Admin E2E', () => {
+  test('redirects non-admin users away from the admin shell', async ({ page }) => {
+    const failures = attachFailureGuards(page);
+    await login(page, e2eAccounts.user);
+
+    await page.goto('/admin');
+    await expect(page).toHaveURL(/\/channels\/@me/);
+    await expect(page.getByTestId('app-layout')).toBeVisible();
+    expect(failures).toEqual([]);
+  });
+
   test('opens admin shell and loads real admin datasets', async ({ page }) => {
     const failures = attachFailureGuards(page);
     await login(page, e2eAccounts.admin);
@@ -20,6 +30,8 @@ test.describe('Admin E2E', () => {
     expect(Array.isArray(guilds.guilds)).toBe(true);
     expect(Array.isArray(auditLogs.logs)).toBe(true);
     expect(Array.isArray(backups.backups)).toBe(true);
+    expect(users.users.some((user: any) => user.email === e2eAccounts.admin.email)).toBe(true);
+    expect(guilds.guilds.some((guild: any) => guild.name === 'Smoke Guild')).toBe(true);
     expect(failures).toEqual([]);
   });
 });

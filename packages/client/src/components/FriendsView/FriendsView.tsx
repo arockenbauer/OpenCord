@@ -136,7 +136,7 @@ export function FriendsView() {
   ];
 
   return (
-    <div className={styles.container}>
+    <div className={styles.container} data-testid="friends-page">
       <div className={styles.header}>
         <div className={styles.headerIcon}>
           <UserPlus size={20} />
@@ -264,7 +264,7 @@ function FriendSection({
     <div>
       <div className={styles.sectionTitle}>{title}</div>
       {items.map((r) => (
-        <div key={r.user.id} className={styles.friendRow}>
+        <div key={r.user.id} className={styles.friendRow} data-testid={`friend-row-${r.user.id}`}>
           <div className={styles.avatarWrap}>
             <UserAvatar user={r.user} />
             {!isPending && (
@@ -284,7 +284,7 @@ function FriendSection({
               </button>
             )}
             {onOpenDM && !isPending && (
-              <button className={styles.actionBtn} onClick={() => onOpenDM(r.user.id)} title="Envoyer un message">
+              <button className={styles.actionBtn} onClick={() => onOpenDM(r.user.id)} title="Envoyer un message" data-testid={`friend-message-${r.user.id}`}>
                 <MessageCircle size={18} />
               </button>
             )}

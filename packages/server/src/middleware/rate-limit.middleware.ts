@@ -10,7 +10,7 @@ function getLimit(defaultLimit: number, testLimit = defaultLimit): number {
   return defaultLimit;
 }
 
-const stores = new Map<string, Map<string, RateLimitEntry>>();
+export const stores = new Map<string, Map<string, RateLimitEntry>>();
 
 setInterval(() => {
   const now = Date.now();
@@ -29,7 +29,7 @@ function getClientIp(req: Request): string {
       return ips?.trim() || req.ip || req.socket.remoteAddress || 'unknown';
     }
   }
-  return req.ip || req.socket.remoteAddress || 'unknown';
+  return req.ip || req.socket?.remoteAddress || 'unknown';
 }
 
 export function rateLimit(bucket: string, limit: number, windowMs: number, silent = false) {
@@ -85,7 +85,6 @@ export function rateLimitWithKey(bucket: string, limit: number, windowMs: number
   const store = stores.get(bucket)!;
 
   return (req: Request, res: Response, next: NextFunction): void => {
-    const ip = getClientIp(req);
     const key = `${bucket}:${getKey(req)}`;
 
     const now = Date.now();

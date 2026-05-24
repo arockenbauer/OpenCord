@@ -15,6 +15,8 @@ const mocks = vi.hoisted(() => ({
     oAuth2AccessToken: {
       findMany: vi.fn(),
       create: vi.fn(),
+      delete: vi.fn(),
+      update: vi.fn(),
     },
     user: {
       findUnique: vi.fn(),
@@ -58,7 +60,7 @@ import {
   clientCredentialsGrant,
   revokeToken,
   getTokenInfo,
-} from './oauth2.service.js';
+} from '../services/oauth2.service.js';
 
 describe('OAuth2 authorization flow', () => {
   beforeEach(() => {
@@ -136,7 +138,7 @@ describe('OAuth2 authorization flow', () => {
           user_id: 'user-1',
           scopes: '["identify"]',
           redirect_uri: 'https://app.test/callback',
-          used: false,
+          expires_at: expect.any(Date),
         }),
       });
     });
@@ -153,6 +155,7 @@ describe('OAuth2 authorization flow', () => {
     it('throws when code is already used', async () => {
       mocks.prisma.oAuth2AuthorizationCode.findUnique.mockResolvedValue({
         app_id: 'app-1',
+        redirect_uri: 'https://app.test/callback',
         used: true,
         expires_at: new Date(Date.now() + 10000),
       });
@@ -164,17 +167,19 @@ describe('OAuth2 authorization flow', () => {
     it('throws when code is expired', async () => {
       mocks.prisma.oAuth2AuthorizationCode.findUnique.mockResolvedValue({
         app_id: 'app-1',
+        redirect_uri: 'https://app.test/callback',
         used: false,
         expires_at: new Date(Date.now() - 10000), // Past
       });
 
       await expect(exchangeCodeForTokens('expired-code', 'app-1', 'https://app.test/callback'))
-        .rejects.toThrow('Invalid or expired authorization code');
+        .rejects.toThrow('Authorization code expired');
     });
 
     it('throws when client ID mismatches', async () => {
       mocks.prisma.oAuth2AuthorizationCode.findUnique.mockResolvedValue({
         app_id: 'other-app',
+        redirect_uri: 'https://app.test/callback',
         used: false,
         expires_at: new Date(Date.now() + 10000),
       });
@@ -207,27 +212,16 @@ describe('OAuth2 authorization flow', () => {
     it('throws when refresh token is expired', async () => {
       mocks.prisma.oAuth2AccessToken.findMany.mockResolvedValue([
         {
-          token_hash: 'hashed',
+          id: 'token-1',
+          refresh_token_hash: 'hashed-refresh',
+          scopes: '["identify"]',
           expires_at: new Date(Date.now() - 10000), // Past
-          revoked: false,
         },
       ]);
+      mocks.bcrypt.compare.mockResolvedValueOnce(true);
 
       await expect(refreshAccessToken('expired-refresh', 'app-1'))
         .rejects.toThrow('Refresh token expired');
-    });
-
-    it('throws when refresh token is revoked', async () => {
-      mocks.prisma.oAuth2AccessToken.findMany.mockResolvedValue([
-        {
-          token_hash: 'hashed',
-          expires_at: new Date(Date.now() + 10000),
-          revoked: true,
-        },
-      ]);
-
-      await expect(refreshAccessToken('revoked-refresh', 'app-1'))
-        .rejects.toThrow('Refresh token revoked');
     });
   });
 
@@ -277,9 +271,8 @@ describe('OAuth2 authorization flow', () => {
 
       const result = await revokeToken('valid-token', 'app-1', 'secret');
       expect(result.success).toBe(true);
-      expect(mocks.prisma.oAuth2AccessToken.update).toHaveBeenCalledWith({
+      expect(mocks.prisma.oAuth2AccessToken.delete).toHaveBeenCalledWith({
         where: { id: 'token-1' },
-        data: { revoked: true },
       });
     });
   });
@@ -298,16 +291,18 @@ describe('OAuth2 authorization flow', () => {
           id: 'token-1',
           app_id: 'app-1',
           user_id: 'user-1',
+          token: 'hashed-access-token',
           scopes: '["identify"]',
           expires_at: new Date(Date.now() + 10000),
-          revoked: false,
-          app: { id: 'app-1', name: 'Test App' },
+          app: { id: 'app-1', name: 'Test App', icon: null },
+          user: { id: 'user-1', username: 'user', discriminator: '0001', avatar: null },
         },
       ]);
+      mocks.bcrypt.compare.mockResolvedValueOnce(true);
 
       const info = await getTokenInfo('valid-token');
-      expect(info.app_id).toBe('app-1');
-      expect(info.user_id).toBe('user-1');
+      expect(info.application.id).toBe('app-1');
+      expect(info.user?.id).toBe('user-1');
     });
   });
 });

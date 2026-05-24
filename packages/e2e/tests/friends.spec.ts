@@ -8,7 +8,7 @@ test.describe('Friends E2E', () => {
 
     await expect(page.getByTestId('friends-page')).toBeVisible();
     const relationships = await api<{ relationships: Array<any> }>(page, '/api/relationships');
-    const friend = relationships.relationships.find((relationship) => relationship.status === 1);
+    const friend = relationships.relationships.find((relationship) => relationship.type === 1);
     expect(friend).toBeTruthy();
 
     await expect(page.getByTestId(`friend-row-${friend.user.id}`)).toBeVisible();

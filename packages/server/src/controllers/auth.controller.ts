@@ -609,7 +609,8 @@ export async function requestPasswordReset(req: Request, res: Response, next: Ne
 
 export async function resetPassword(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { token, new_password } = req.body;
+    const { token, password, new_password } = req.body;
+    const nextPassword = new_password ?? password;
 
     const user = await prisma.user.findFirst({
       where: {
@@ -620,7 +621,7 @@ export async function resetPassword(req: Request, res: Response, next: NextFunct
 
     if (!user) throw new AppError(400, 'INVALID_TOKEN', 'Invalid or expired token');
 
-    const newHash = await bcrypt.hash(new_password, BCRYPT_ROUNDS);
+    const newHash = await bcrypt.hash(nextPassword, BCRYPT_ROUNDS);
     await prisma.user.update({
       where: { id: user.id },
       data: {

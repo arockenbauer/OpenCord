@@ -8,7 +8,7 @@ import { AppError } from '../utils/app-error.js';
 import { getMemberPermissions, checkPermission } from './guild.controller.js';
 import { evaluateAutoMod } from './automod.controller.js';
 import { getIO } from '../gateway/index.js';
-import { GatewayEvents } from '@opencord/shared';
+import { GatewayEvents, ALL_PERMISSIONS } from '@opencord/shared';
 import { sanitizeFilename } from '../middleware/upload.middleware.js';
 import { createAndDispatchSystemMessage } from '../services/system-message.service.js';
 import { computeEffectivePermissions } from '../services/permission.service.js';
@@ -23,8 +23,8 @@ export async function getChannelPermissions(channelId: string, userId: string): 
     const member = await prisma.dMChannelMember.findUnique({
       where: { channel_id_user_id: { channel_id: channelId, user_id: userId } },
     });
-    if (!member) throw new AppError(403, 'NOT_MEMBER', 'You are not a member of this DM');
-    return BigInt('0xFFFFFFFFFFFFFFFF');
+    if (!member) throw new AppError(403, 'NOT_MEMBER', 'NOT_MEMBER');
+    return ALL_PERMISSIONS;
   }
 
   const base = await getMemberPermissions(channel.guild_id, userId);
@@ -519,7 +519,7 @@ export async function removeReaction(req: Request, res: Response, next: NextFunc
         message_id: req.params.messageId,
         user_id: req.user!.userId,
         emoji_name: emojiName,
-        emoji_id: emojiId || '',
+        emoji_id: emojiId,
       },
     });
 

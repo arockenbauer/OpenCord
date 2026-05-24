@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { e2eAccounts } from '../test-env';
+import { waitForApiReady } from './helpers';
 
 function attachFailureGuards(page: Page): Array<string> {
   const failures: string[] = [];
@@ -17,11 +18,14 @@ function attachFailureGuards(page: Page): Array<string> {
 }
 
 async function login(page: Page, account: { email: string; password: string }): Promise<void> {
+  await waitForApiReady(page);
   await page.goto('/login');
   await page.getByTestId('login-email').fill(account.email);
   await page.getByTestId('login-password').fill(account.password);
-  await page.getByTestId('login-submit').click();
-  await expect(page).toHaveURL(/\/channels\/@me/);
+  await Promise.all([
+    page.waitForURL(/\/channels\/@me/, { timeout: 30000 }),
+    page.getByTestId('login-submit').click(),
+  ]);
 }
 
 async function navigateSpa(page: Page, route: string): Promise<void> {
@@ -36,6 +40,7 @@ test.describe('App smoke', () => {
     const failures = attachFailureGuards(page);
     const unique = Date.now();
 
+    await waitForApiReady(page);
     await page.goto('/register');
     await page.getByTestId('register-email').fill(`fresh-${unique}@opencord.test`);
     await page.getByTestId('register-username').fill(`freshuser${unique}`);
@@ -67,6 +72,7 @@ test.describe('App smoke', () => {
   test('should submit the forgot password flow without 500s', async ({ page }) => {
     const failures = attachFailureGuards(page);
 
+    await waitForApiReady(page);
     await page.goto('/forgot-password');
     await page.getByTestId('forgot-password-email').fill(e2eAccounts.user.email);
     await page.getByTestId('forgot-password-submit').click();

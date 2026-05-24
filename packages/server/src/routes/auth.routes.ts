@@ -20,7 +20,7 @@ router.post('/logout/all', authenticate, auth.logoutAll);
 router.post('/2fa/enable', authenticate, validate(twoFactorEnableSchema), auth.twoFactorEnable);
 router.post('/2fa/verify', authenticate, validate(twoFactorVerifySchema), auth.twoFactorVerify);
 router.post('/2fa/login', authRateLimit, validate(twoFactorLoginSchema), auth.twoFactorLogin);
-router.post('/2fa/disable', authenticate, validate(twoFactorEnableSchema), auth.twoFactorDisable);
+router.post('/2fa/disable', authenticate, validate(z.object({ password: z.string().min(1), code: z.string().min(1) })), auth.twoFactorDisable);
 router.post('/password/change', authenticate, validate(changePasswordSchema), auth.changePassword);
 router.post('/password/reset-request', authRateLimit, validate(z.object({ email: z.string().email() })), auth.requestPasswordReset);
 router.post('/password/reset', authRateLimit, validate(resetPasswordSchema), auth.resetPassword);

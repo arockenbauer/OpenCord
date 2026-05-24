@@ -10,14 +10,16 @@ export const e2eUploadsDir = path.join(repositoryRoot, 'uploads', 'tests-e2e');
 export const e2eBackupDir = path.join(repositoryRoot, 'exports', 'tests-e2e-backups');
 export const e2eExportDir = path.join(repositoryRoot, 'exports', 'tests-e2e-exports');
 export const e2eLogFile = path.join(repositoryRoot, 'logs', 'tests-e2e.log');
+export const e2eApiUrl = 'http://127.0.0.1:3001';
+export const e2eClientUrl = 'http://127.0.0.1:5173';
 
 export const e2eServerEnv: Record<string, string> = {
   NODE_ENV: 'test',
   OPENCORD_DISABLE_STARTUP: 'false',
   DATABASE_URL: `file:${e2eDatabasePath}`,
   PORT: '3001',
-  VITE_API_URL: 'http://127.0.0.1:3001',
-  VITE_WS_URL: 'http://127.0.0.1:3001',
+  VITE_API_URL: e2eApiUrl,
+  VITE_WS_URL: e2eApiUrl,
   JWT_SECRET: 'opencord-test-jwt-secret-1234567890',
   JWT_ACCESS_SECRET: 'opencord-test-access-secret-1234567890',
   JWT_REFRESH_SECRET: 'opencord-test-refresh-secret-1234567890',
@@ -41,6 +43,10 @@ export const e2eAccounts = {
   },
   admin: {
     email: 'smoke-admin@opencord.test',
+    password: 'Passw0rd!123',
+  },
+  visual: {
+    email: 'visual-user@opencord.test',
     password: 'Passw0rd!123',
   },
 };

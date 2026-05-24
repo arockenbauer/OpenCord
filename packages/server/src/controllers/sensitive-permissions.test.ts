@@ -69,7 +69,7 @@ describe('sensitive permissions - 2FA requirement', () => {
         two_factor_enabled: false,
       });
 
-      await expect(checkPermission(BigInt(0), BigInt(0x10000000), 'guild-1', 'user-1'))
+      await expect(checkPermission(BigInt(0x10000000), BigInt(0x10000000), 'guild-1', 'user-1'))
         .rejects.toThrow('2FA required');
     });
 
@@ -81,7 +81,7 @@ describe('sensitive permissions - 2FA requirement', () => {
         two_factor_enabled: false,
       });
 
-      await expect(checkPermission(BigInt(0), BigInt(0x40000000), 'guild-1', 'user-1'))
+      await expect(checkPermission(BigInt(0x40000000), BigInt(0x40000000), 'guild-1', 'user-1'))
         .rejects.toThrow('2FA required');
     });
 
@@ -93,7 +93,7 @@ describe('sensitive permissions - 2FA requirement', () => {
         two_factor_enabled: false,
       });
 
-      await expect(checkPermission(BigInt(0), BigInt(0x20000000), 'guild-1', 'user-1'))
+      await expect(checkPermission(BigInt(0x20000000), BigInt(0x20000000), 'guild-1', 'user-1'))
         .rejects.toThrow('2FA required');
     });
 

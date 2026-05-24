@@ -6,8 +6,8 @@ const router = Router();
 
 router.get('/', authenticate, friend.getRelationships);
 router.post('/', authenticate, friend.sendFriendRequest);
-router.post('/accept/:friendId', authenticate, friend.acceptFriendRequest);
-router.post('/decline/:friendId', authenticate, friend.declineFriendRequest);
+router.post('/accept/:userId', authenticate, friend.acceptFriendRequest);
+router.post('/decline/:userId', authenticate, friend.declineFriendRequest);
 router.put('/:userId/block', authenticate, friend.blockUser);
 router.delete('/:userId/block', authenticate, friend.unblockUser);
 router.delete('/:userId', authenticate, friend.removeOrUnblock);

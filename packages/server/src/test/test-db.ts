@@ -3,6 +3,7 @@ import Database from 'better-sqlite3';
 import fs from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
+import { DEFAULT_EVERYONE_PERMISSIONS } from '@opencord/shared';
 import { applyServerTestEnv, repositoryRoot, serverRoot } from './test-env.js';
 
 export const TEST_PASSWORD = 'Passw0rd!123';
@@ -152,6 +153,14 @@ export async function seedSmokeScenario(): Promise<SmokeScenario> {
     password: TEST_PASSWORD,
     adminLevel: 2,
   };
+  const visual: SeededAccount = {
+    id: buildId('visual'),
+    email: 'visual-user@opencord.test',
+    username: 'visualuser',
+    discriminator: '2001',
+    password: TEST_PASSWORD,
+    adminLevel: 0,
+  };
   const guildId = buildId('guild');
   const channelId = buildId('channel');
   const inviteCode = 'smoke-invite';
@@ -185,6 +194,19 @@ export async function seedSmokeScenario(): Promise<SmokeScenario> {
         theme: 'dark',
         allow_dms_from: 'everyone',
       },
+      {
+        id: visual.id,
+        email: visual.email,
+        username: visual.username,
+        discriminator: visual.discriminator,
+        password_hash: passwordHash,
+        date_of_birth: new Date('1990-01-01T00:00:00.000Z'),
+        verified: true,
+        admin_level: visual.adminLevel,
+        locale: 'fr',
+        theme: 'dark',
+        allow_dms_from: 'everyone',
+      },
     ],
   });
 
@@ -195,6 +217,16 @@ export async function seedSmokeScenario(): Promise<SmokeScenario> {
       owner_id: admin.id,
       discoverable: true,
       discovery_description: 'Guild used by the smoke test suite',
+    },
+  });
+
+  await prisma.role.create({
+    data: {
+      id: buildId('role_everyone'),
+      guild_id: guildId,
+      name: '@everyone',
+      position: 0,
+      permissions: DEFAULT_EVERYONE_PERMISSIONS,
     },
   });
 

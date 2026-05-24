@@ -5,6 +5,10 @@ import { evaluateAutoMod } from './automod.controller.js';
 import { GatewayEvents } from '@opencord/shared';
 
 const mocks = vi.hoisted(() => ({
+  io: {
+    to: vi.fn().mockReturnThis(),
+    emit: vi.fn(),
+  },
   prisma: {
     autoModRule: {
       findMany: vi.fn(),
@@ -22,13 +26,13 @@ const mocks = vi.hoisted(() => ({
     guildMember: {
       findUnique: vi.fn(),
     },
+    message: {
+      create: vi.fn(),
+    },
   },
   getMemberPermissions: vi.fn(),
   checkPermission: vi.fn(),
-  getIO: vi.fn(() => ({
-    to: vi.fn().mockReturnThis(),
-    emit: vi.fn(),
-  })),
+  getIO: vi.fn(),
 }));
 
 vi.mock('../utils/prisma.js', () => ({
@@ -47,6 +51,13 @@ vi.mock('../gateway/index.js', () => ({
 describe('automod.controller', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.getIO.mockReturnValue(mocks.io);
+    mocks.prisma.guildMemberRole.findMany.mockResolvedValue([]);
+    mocks.prisma.autoModExecution.create.mockImplementation(async ({ data }) => ({
+      ...data,
+      created_at: new Date('2026-05-23T12:00:00.000Z'),
+    }));
+    mocks.prisma.message.create.mockResolvedValue({});
   });
 
   describe('evaluateAutoMod', () => {
@@ -58,9 +69,7 @@ describe('automod.controller', () => {
     });
 
     it('returns not blocked when rules are disabled', async () => {
-      mocks.prisma.autoModRule.findMany.mockResolvedValue([
-        { enabled: false, trigger_type: 1, trigger_metadata: '{}', actions: '[]' },
-      ]);
+      mocks.prisma.autoModRule.findMany.mockResolvedValue([]);
 
       const result = await evaluateAutoMod('guild-1', 'badword', 'user-1', 'channel-1');
       expect(result.blocked).toBe(false);
@@ -161,8 +170,14 @@ describe('automod.controller', () => {
 
       await evaluateAutoMod('guild-1', 'badword content', 'user-1', 'channel-1');
 
-      expect(io.to).toHaveBeenCalledWith('channel:alert-channel-1');
-      expect(io.emit).toHaveBeenCalledWith(GatewayEvents.MESSAGE_CREATE, expect.anything());
+      expect(mocks.prisma.message.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          channel_id: 'alert-channel-1',
+          type: 20,
+        }),
+      });
+      expect(io.to).toHaveBeenCalledWith('guild:guild-1');
+      expect(io.emit).toHaveBeenCalledWith(GatewayEvents.AUTO_MODERATION_ACTION_EXECUTION, expect.anything());
     });
 
     it('applies timeout when configured', async () => {
@@ -221,6 +236,7 @@ describe('automod.controller', () => {
         },
       ]);
       mocks.prisma.guildMemberRole.findMany.mockResolvedValue([]);
+      mocks.prisma.autoModExecution.create.mockResolvedValue({ id: 'exec-1' });
 
       await evaluateAutoMod('guild-1', 'badword content', 'user-1', 'channel-1');
 

@@ -1,12 +1,16 @@
 import { expect, test, type Page } from '@playwright/test';
 import { e2eAccounts } from '../test-env';
+import { waitForApiReady } from './helpers';
 
 async function login(page: Page): Promise<void> {
+  await waitForApiReady(page);
   await page.goto('/login');
   await page.getByTestId('login-email').fill(e2eAccounts.admin.email);
   await page.getByTestId('login-password').fill(e2eAccounts.admin.password);
-  await page.getByTestId('login-submit').click();
-  await expect(page).toHaveURL(/\/channels\/@me/);
+  await Promise.all([
+    page.waitForURL(/\/channels\/@me/, { timeout: 30000 }),
+    page.getByTestId('login-submit').click(),
+  ]);
   await expect(page.getByTestId('app-layout')).toBeVisible();
 }
 

@@ -138,7 +138,7 @@ export const useGuildStore = create<GuildState>((set, get) => ({
   setDMChannels: (dmChannels) => set((state) => {
     const activeDmChannelId = state.selectedGuildId === null && state.selectedChannelId && dmChannels.some((channel) => channel.id === state.selectedChannelId)
       ? state.selectedChannelId
-      : dmChannels[0]?.id || null;
+      : state.selectedChannelId;
 
     return {
       dmChannels,
@@ -162,8 +162,7 @@ export const useGuildStore = create<GuildState>((set, get) => ({
 
   addDMChannel: (channel) => set((state) => {
     const dmChannels = [channel, ...state.dmChannels.filter((existing) => existing.id !== channel.id)];
-    const selectedChannelId = state.selectedGuildId === null && !state.selectedChannelId ? channel.id : state.selectedChannelId;
-    return { dmChannels, selectedChannelId };
+    return { dmChannels };
   }),
 
   removeGuild: (guildId) => set((state) => {
@@ -172,7 +171,7 @@ export const useGuildStore = create<GuildState>((set, get) => ({
     const updates: Partial<GuildState> = { guilds };
     if (state.selectedGuildId === guildId) {
       updates.selectedGuildId = null;
-      updates.selectedChannelId = state.dmChannels[0]?.id || null;
+      updates.selectedChannelId = null;
     }
     return updates;
   }),
@@ -186,7 +185,7 @@ export const useGuildStore = create<GuildState>((set, get) => ({
 
   selectGuild: (guildId) => {
     if (!guildId) {
-      set({ selectedGuildId: null, selectedChannelId: get().dmChannels[0]?.id || null });
+      set({ selectedGuildId: null, selectedChannelId: null });
       return;
     }
 

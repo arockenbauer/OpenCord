@@ -21,6 +21,13 @@ function serializeBigInts<T>(value: T): T {
   );
 }
 
+function toPermissionBits(value: unknown): bigint {
+  if (typeof value === 'bigint') return value;
+  if (typeof value === 'number') return BigInt(value);
+  if (typeof value === 'string') return BigInt(value);
+  return 0n;
+}
+
 export async function requireMembership(guildId: string, userId: string) {
   const member = await prisma.guildMember.findUnique({ where: { guild_id_user_id: { guild_id: guildId, user_id: userId } } });
   if (!member) throw new AppError(403, 'NOT_MEMBER', 'You are not a member of this server');
@@ -34,7 +41,7 @@ export async function getMemberPermissions(guildId: string, userId: string): Pro
   if (guild.owner_id === userId) return BigInt('0xFFFFFFFFFFFFFFFF');
 
   const everyoneRole = await prisma.role.findFirst({ where: { guild_id: guildId, name: '@everyone' } });
-  const everyonePerms = everyoneRole ? everyoneRole.permissions : BigInt(0);
+  const everyonePerms = everyoneRole ? toPermissionBits(everyoneRole.permissions) : BigInt(0);
 
   // Check if member is pending (membership screening) or timed out
   const member = await prisma.guildMember.findUnique({
@@ -57,7 +64,7 @@ export async function getMemberPermissions(guildId: string, userId: string): Pro
 
   let perms = everyonePerms;
   for (const mr of memberRoles) {
-    perms |= mr.role.permissions;
+    perms |= toPermissionBits(mr.role.permissions);
   }
   
   // If has ADMINISTRATOR permission, return ALL_PERMISSIONS (unless timed out, handled below)
@@ -89,6 +96,18 @@ const SENSITIVE_PERMISSIONS = [
   BigInt(0x20000000), // MANAGE_WEBHOOKS
 ];
 
+function guildRequiresTwoFactor(features: unknown): boolean {
+  if (Array.isArray(features)) return features.includes('2FA_REQUIRED');
+  if (typeof features !== 'string') return false;
+  if (features.includes('2FA_REQUIRED')) return true;
+  try {
+    const parsed = JSON.parse(features);
+    return Boolean(parsed?.require_2fa || parsed?.two_factor_required);
+  } catch {
+    return false;
+  }
+}
+
 export async function checkPermission(perms: bigint, bit: bigint, guildId?: string, userId?: string): Promise<void> {
   if ((perms & BigInt(0x8)) !== BigInt(0)) return;
   if ((perms & bit) === BigInt(0)) throw new AppError(403, 'MISSING_PERMISSIONS', 'Missing required permissions');
@@ -101,14 +120,14 @@ export async function checkPermission(perms: bigint, bit: bigint, guildId?: stri
     });
     
     // Check if guild has 2FA requirement enabled (feature "2FA_REQUIRED" or similar)
-    if (guild?.features?.includes('2FA_REQUIRED')) {
+    if (guildRequiresTwoFactor(guild?.features)) {
       const user = await prisma.user.findUnique({ 
         where: { id: userId }, 
         select: { two_factor_enabled: true } 
       });
       
       if (!user?.two_factor_enabled) {
-        throw new AppError(403, '2FA_REQUIRED', 'Two-factor authentication is required for this action');
+        throw new AppError(403, '2FA_REQUIRED', '2FA required for this action');
       }
     }
   }

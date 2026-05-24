@@ -1,8 +1,22 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import type { Request, Response } from 'express';
-import { sanitizeFilename, validateUploadedFile, ALLOWED_MIME_TYPES, BLOCKED_EXTENSIONS } from './upload.middleware.js';
+
+const mocks = vi.hoisted(() => ({
+  fileTypeFromFile: vi.fn(),
+}));
+
+vi.mock('file-type', () => ({
+  fileTypeFromFile: mocks.fileTypeFromFile,
+}));
+
+import { sanitizeFilename, validateUploadedFile, ALLOWED_ATTACHMENT_TYPES, FORBIDDEN_EXTENSIONS } from './upload.middleware.js';
+import { validateMagicBytes } from './upload.middleware.js';
 
 describe('upload.middleware - validation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   describe('sanitizeFilename', () => {
     it('keeps normal filenames unchanged', () => {
       expect(sanitizeFilename('document.pdf')).toBe('document.pdf');
@@ -30,71 +44,73 @@ describe('upload.middleware - validation', () => {
   });
 
   describe('validateUploadedFile', () => {
-    it('accepts allowed MIME types', () => {
-      for (const mime of ALLOWED_MIME_TYPES) {
-        const result = validateUploadedFile(Buffer.from('test'), mime, 'test.png', 1000);
-        expect(result.valid).toBe(true);
-      }
+    it('returns middleware that accepts allowed MIME types', async () => {
+      const middleware = validateUploadedFile(ALLOWED_ATTACHMENT_TYPES, ['.png', '.jpg']);
+      mocks.fileTypeFromFile.mockResolvedValue({ mime: 'image/png' });
+      
+      const req = {
+        files: [{
+          originalname: 'test.png',
+          path: '/tmp/test.png',
+          mimetype: 'image/png',
+        }],
+      } as any;
+      const res = {} as any;
+      const next = vi.fn();
+
+      await middleware(req, res, next);
+
+      expect(next).toHaveBeenCalledWith(); // called without error
     });
 
-    it('rejects blocked extensions even with allowed MIME', () => {
-      const blockedExts = ['.exe', '.bat', '.sh', '.ps1', '.cmd', '.scr', '.vbs', '.msi', '.dmg', '.app'];
-      for (const ext of blockedExts) {
-        const result = validateUploadedFile(Buffer.from('test'), 'application/octet-stream', `file${ext}`, 1000);
-        expect(result.valid).toBe(false);
-        expect(result.error).toContain('not allowed');
-      }
-    });
+    it('returns middleware that rejects blocked extensions', async () => {
+      const middleware = validateUploadedFile(ALLOWED_ATTACHMENT_TYPES, ['.png', '.jpg']);
+      mocks.fileTypeFromFile.mockResolvedValue({ mime: 'application/octet-stream' });
+      
+      const req = {
+        files: [{
+          originalname: 'file.exe',
+          path: '/tmp/file.exe',
+          mimetype: 'application/octet-stream',
+        }],
+      } as any;
+      const res = {} as any;
+      const next = vi.fn();
 
-    it('rejects files that are too large for non-premium', () => {
-      const largeFile = Buffer.alloc(9 * 1024 * 1024); // 9MB
-      const result = validateUploadedFile(largeFile, 'image/png', 'test.png', 9 * 1024 * 1024, false);
-      expect(result.valid).toBe(false);
-      expect(result.error).toContain('too large');
-    });
+      await middleware(req, res, next);
 
-    it('allows larger files for premium users', () => {
-      const largeFile = Buffer.alloc(20 * 1024 * 1024); // 20MB
-      const result = validateUploadedFile(largeFile, 'image/png', 'test.png', 20 * 1024 * 1024, true);
-      expect(result.valid).toBe(true);
-    });
-
-    it('rejects empty files', () => {
-      const result = validateUploadedFile(Buffer.alloc(0), 'image/png', 'test.png', 0);
-      expect(result.valid).toBe(false);
-    });
-
-    it('validates image dimensions with sharp', async () => {
-      const sharp = await import('sharp');
-      const validImage = await sharp.default({
-        create: { width: 100, height: 100, channels: 4, background: { r: 255, g: 0, b: 0, alpha: 0.5 } },
-      }).png().toBuffer();
-
-      const result = validateUploadedFile(validImage, 'image/png', 'test.png', validImage.length, false);
-      expect(result.valid).toBe(true);
+      expect(next).toHaveBeenCalledWith(expect.any(Error));
     });
   });
 
-  describe('BLOCKED_EXTENSIONS', () => {
+  describe('FORBIDDEN_EXTENSIONS', () => {
     it('contains all dangerous extensions', () => {
-      expect(BLOCKED_EXTENSIONS).toContain('.exe');
-      expect(BLOCKED_EXTENSIONS).toContain('.sh');
-      expect(BLOCKED_EXTENSIONS).toContain('.bat');
-      expect(BLOCKED_EXTENSIONS).toContain('.dmg');
+      expect(FORBIDDEN_EXTENSIONS).toContain('.exe');
+      expect(FORBIDDEN_EXTENSIONS).toContain('.sh');
+      expect(FORBIDDEN_EXTENSIONS).toContain('.bat');
+      expect(FORBIDDEN_EXTENSIONS).toContain('.dmg');
     });
   });
 
-  describe('ALLOWED_MIME_TYPES', () => {
+  describe('ALLOWED_ATTACHMENT_TYPES', () => {
     it('contains common image types', () => {
-      expect(ALLOWED_MIME_TYPES).toContain('image/jpeg');
-      expect(ALLOWED_MIME_TYPES).toContain('image/png');
-      expect(ALLOWED_MIME_TYPES).toContain('image/gif');
-      expect(ALLOWED_MIME_TYPES).toContain('image/webp');
+      expect(ALLOWED_ATTACHMENT_TYPES).toContain('image/jpeg');
+      expect(ALLOWED_ATTACHMENT_TYPES).toContain('image/png');
+      expect(ALLOWED_ATTACHMENT_TYPES).toContain('image/gif');
+      expect(ALLOWED_ATTACHMENT_TYPES).toContain('image/webp');
     });
 
     it('contains common document types', () => {
-      expect(ALLOWED_MIME_TYPES).toContain('application/pdf');
-      expect(ALLOWED_MIME_TYPES).toContain('text/plain');
+      expect(ALLOWED_ATTACHMENT_TYPES).toContain('application/pdf');
+      expect(ALLOWED_ATTACHMENT_TYPES).toContain('text/plain');
+    });
+  });
+
+  describe('validateMagicBytes', () => {
+    it('returns true for valid file types', async () => {
+      mocks.fileTypeFromFile.mockResolvedValue({ mime: 'image/png' });
+      const result = await validateMagicBytes('/tmp/test.png', ['image/png']);
+      expect(result).toBe(true);
     });
   });
 });

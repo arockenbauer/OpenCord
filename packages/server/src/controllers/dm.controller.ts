@@ -5,7 +5,6 @@ import { AppError } from '../utils/app-error.js';
 import { getIO } from '../gateway/index.js';
 import { GatewayEvents } from '@opencord/shared';
 import { getMemberPermissions, checkPermission } from './guild.controller.js';
-import { createAndDispatchSystemMessage } from '../services/system-message.service.js';
 
 const dmRecipientSelect = {
   id: true,
@@ -16,6 +15,39 @@ const dmRecipientSelect = {
   global_name: true,
   custom_status_text: true,
 } as const;
+
+async function ensureSystemUser(): Promise<void> {
+  await prisma.user.upsert({
+    where: { id: '0' },
+    update: {},
+    create: {
+      id: '0',
+      email: 'system@opencord.local',
+      username: 'System',
+      discriminator: '0000',
+      password_hash: '',
+      date_of_birth: new Date('1970-01-01T00:00:00.000Z'),
+      verified: true,
+      bot: true,
+      status: 'offline',
+    },
+  });
+}
+
+async function createGroupSystemMessage(channelId: string, type: number, content: string): Promise<string> {
+  await ensureSystemUser();
+  const id = generateSnowflake();
+  await prisma.message.create({
+    data: {
+      id,
+      channel_id: channelId,
+      author_id: '0',
+      type,
+      content,
+    },
+  });
+  return id;
+}
 
 export async function getDMChannels(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
@@ -240,16 +272,7 @@ export async function updateDMChannel(req: Request, res: Response, next: NextFun
     if (icon && icon !== dmChannel.icon) changedFields.push('Channel icon changed');
 
     if (changedFields.length > 0) {
-      const systemMessageId = generateSnowflake();
-      await prisma.message.create({
-        data: {
-          id: systemMessageId,
-          channel_id: req.params.channelId,
-          author_id: 'system',
-          type: 6,
-          content: changedFields.join(', '),
-        },
-      });
+      const systemMessageId = await createGroupSystemMessage(req.params.channelId, 6, changedFields.join(', '));
 
       if (io) {
         io.to(`channel:${req.params.channelId}`).emit(GatewayEvents.CHANNEL_UPDATE, {
@@ -263,7 +286,7 @@ export async function updateDMChannel(req: Request, res: Response, next: NextFun
             id: systemMessageId,
             type: 6,
             content: changedFields.join(', '),
-            author: { id: 'system', username: 'System', discriminator: '0000' },
+            author: { id: '0', username: 'System', discriminator: '0000' },
             channel_id: req.params.channelId,
             created_at: new Date().toISOString(),
           },
@@ -354,17 +377,8 @@ export async function addDMRecipient(req: Request, res: Response, next: NextFunc
       data: { channel_id: req.params.channelId, user_id: req.params.userId },
     });
 
-    // Create system message for new recipient
-    const systemMsgId = generateSnowflake();
-    await prisma.message.create({
-      data: {
-        id: systemMsgId,
-        channel_id: req.params.channelId,
-        author_id: 'system',
-        type: 7, // RECIPIENT_ADD
-        content: `${target.username} was added to the group`,
-      },
-    });
+    const addedContent = `${target.username} was added to the group`;
+    const systemMsgId = await createGroupSystemMessage(req.params.channelId, 7, addedContent);
 
     const io = getIO();
     if (io) {
@@ -376,8 +390,8 @@ export async function addDMRecipient(req: Request, res: Response, next: NextFunc
         message: {
           id: systemMsgId,
           type: 7,
-          content: `${target.username} was added to the group`,
-          author: { id: 'system', username: 'System', discriminator: '0000' },
+          content: addedContent,
+          author: { id: '0', username: 'System', discriminator: '0000' },
           channel_id: req.params.channelId,
           created_at: new Date().toISOString(),
         },
@@ -407,18 +421,9 @@ export async function removeDMRecipient(req: Request, res: Response, next: NextF
       where: { channel_id_user_id: { channel_id: req.params.channelId, user_id: req.params.userId } },
     });
 
-    // Create system message for removed recipient
     const target = await prisma.user.findUnique({ where: { id: req.params.userId } });
-    const systemMsgId = generateSnowflake();
-    await prisma.message.create({
-      data: {
-        id: systemMsgId,
-        channel_id: req.params.channelId,
-        author_id: 'system',
-        type: 8, // RECIPIENT_REMOVE
-        content: `${target?.username || req.params.userId} was removed from the group`,
-      },
-    });
+    const removedContent = `${target?.username || req.params.userId} was removed from the group`;
+    const systemMsgId = await createGroupSystemMessage(req.params.channelId, 8, removedContent);
 
     const io = getIO();
     if (io) {
@@ -430,8 +435,8 @@ export async function removeDMRecipient(req: Request, res: Response, next: NextF
         message: {
           id: systemMsgId,
           type: 8,
-          content: `${target?.username || req.params.userId} was removed from the group`,
-          author: { id: 'system', username: 'System', discriminator: '0000' },
+          content: removedContent,
+          author: { id: '0', username: 'System', discriminator: '0000' },
           channel_id: req.params.channelId,
           created_at: new Date().toISOString(),
         },

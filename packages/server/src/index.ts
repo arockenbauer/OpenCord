@@ -176,6 +176,7 @@ app.use('/api/oauth2', oauthRoutes);
 app.get('/api/announcements/active', getActiveAnnouncements);
 app.use('/api/dms', dmRoutes);
 app.use('/api/relationships', friendsRoutes);
+app.use('/api', monitoringRoutes);
 app.use('/api', stageRoutes);
 app.use('/api/premium', premiumRoutes);
 app.use('/api/discover', discoveryRoutes);
@@ -184,7 +185,6 @@ app.use('/api/guilds/:guildId', guildBoostRouter);
 app.use('/api/guilds/:guildId', guildDiscoveryRouter);
 app.use('/api/proxy', proxyRoutes);
 app.use('/api', pollRoutes);
-app.use('/api', monitoringRoutes);
 app.get('/api/sticker-packs', authenticate, getStickerPacks);
 
 const clientDist = path.resolve(__dirname, '../../client/dist');

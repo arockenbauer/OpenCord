@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { prisma } from '../utils/prisma.js';
 import { generateSnowflake } from '../utils/snowflake.js';
-import { PERMISSION_BITS } from '@opencord/shared';
+import { ALL_PERMISSIONS, PERMISSION_BITS } from '@opencord/shared';
 
 const mocks = vi.hoisted(() => ({
   prisma: {
@@ -10,7 +10,6 @@ const mocks = vi.hoisted(() => ({
     },
     guildMember: {
       findUnique: vi.fn(),
-      findFirst: vi.fn(),
     },
     guildMemberRole: {
       findMany: vi.fn(),
@@ -18,10 +17,11 @@ const mocks = vi.hoisted(() => ({
     role: {
       findFirst: vi.fn(),
     },
-    permissionOverwrite: {
+    permissionOverwrites: {
       findMany: vi.fn(),
     },
-    dmChannelMember: {
+    dMChannelMember: {
+      findUnique: vi.fn(),
       findMany: vi.fn(),
     },
     friend: {
@@ -60,12 +60,12 @@ describe('message.controller - permissions', () => {
         guild_id: null,
         type: 1,
       });
-      mocks.prisma.dmChannelMember.findUnique.mockResolvedValue({
+      mocks.prisma.dMChannelMember.findUnique.mockResolvedValue({
         user_id: 'user-1',
       });
 
       const perms = await getChannelPermissions('dm-1', 'user-1');
-      expect(perms.toString()).toBe('340282366920938463463374607431768211455');
+      expect(perms).toBe(ALL_PERMISSIONS);
       expect(mocks.getMemberPermissions).not.toHaveBeenCalled();
     });
 
@@ -75,7 +75,7 @@ describe('message.controller - permissions', () => {
         guild_id: null,
         type: 1,
       });
-      mocks.prisma.dmChannelMember.findUnique.mockResolvedValue(null);
+      mocks.prisma.dMChannelMember.findUnique.mockResolvedValue(null);
 
       await expect(getChannelPermissions('dm-1', 'user-1')).rejects.toThrow('NOT_MEMBER');
     });
@@ -142,7 +142,9 @@ describe('message.controller - permissions', () => {
           },
         ],
       });
+      mocks.prisma.guildMemberRole.findMany.mockResolvedValue([]);
       mocks.prisma.role.findFirst.mockResolvedValue(everyoneRole);
+      mocks.prisma.guildMemberRole.findMany.mockResolvedValue([]);
       mocks.getMemberPermissions.mockResolvedValue(
         PERMISSION_BITS.SEND_MESSAGES | PERMISSION_BITS.VIEW_CHANNEL
       );
@@ -178,10 +180,7 @@ describe('message.controller - permissions', () => {
         guild_id: null,
         type: 1,
       });
-      mocks.prisma.dmChannelMember.findMany.mockResolvedValue([
-        { user_id: 'user-1' },
-        { user_id: 'user-2', user: { id: 'user-2', allow_dms_from: 'none' } },
-      ]);
+      mocks.prisma.dMChannelMember.findUnique.mockResolvedValue({ user_id: 'user-1' });
       mocks.prisma.friend.findFirst.mockResolvedValue(null);
 
       await expect(getChannelPermissions('dm-1', 'user-1')).resolves.toBeTruthy();
@@ -193,10 +192,7 @@ describe('message.controller - permissions', () => {
         guild_id: null,
         type: 1,
       });
-      mocks.prisma.dmChannelMember.findMany.mockResolvedValue([
-        { user_id: 'user-1' },
-        { user_id: 'user-2', user: { id: 'user-2', allow_dms_from: 'friends' } },
-      ]);
+      mocks.prisma.dMChannelMember.findUnique.mockResolvedValue({ user_id: 'user-1' });
       mocks.prisma.friend.findFirst.mockResolvedValue({
         user_id: 'user-2',
         target_id: 'user-1',
@@ -204,7 +200,7 @@ describe('message.controller - permissions', () => {
       });
 
       const perms = await getChannelPermissions('dm-1', 'user-1');
-      expect(perms.toString()).toBe('340282366920938463463374607431768211455');
+      expect(perms).toBe(ALL_PERMISSIONS);
     });
   });
 });

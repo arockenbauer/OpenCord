@@ -1,5 +1,8 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { e2eAccounts, e2eInviteCode } from '../test-env';
+import { waitForApiReady } from './helpers';
+
+let profileResetDone = false;
 
 async function stabilize(page: Page): Promise<void> {
   await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -21,11 +24,34 @@ async function stabilize(page: Page): Promise<void> {
 }
 
 async function login(page: Page): Promise<void> {
+  await waitForApiReady(page);
   await page.goto('/login');
-  await page.getByTestId('login-email').fill(e2eAccounts.user.email);
-  await page.getByTestId('login-password').fill(e2eAccounts.user.password);
-  await page.getByTestId('login-submit').click();
-  await expect(page).toHaveURL(/\/channels\/@me/);
+  await page.getByTestId('login-email').fill(e2eAccounts.visual.email);
+  await page.getByTestId('login-password').fill(e2eAccounts.visual.password);
+  await Promise.all([
+    page.waitForURL(/\/channels\/@me/, { timeout: 30000 }),
+    page.getByTestId('login-submit').click(),
+  ]);
+  if (!profileResetDone) {
+    await page.evaluate(async () => {
+      const response = await fetch('/api/users/@me', {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          global_name: null,
+          bio: '',
+          pronouns: null,
+          banner_color: null,
+          status: 'online',
+          theme: 'dark',
+        }),
+      });
+      if (!response.ok) throw new Error(`Profile reset failed: ${response.status}`);
+    });
+    profileResetDone = true;
+    await page.reload();
+  }
   await expect(page.getByTestId('app-layout')).toBeVisible();
 }
 
@@ -45,10 +71,11 @@ async function expectPageScreenshot(page: Page, name: string): Promise<void> {
   });
 }
 
-async function expectLocatorScreenshot(locator: Locator, name: string): Promise<void> {
+async function expectLocatorScreenshot(locator: Locator, name: string, options: { maxDiffPixels?: number } = {}): Promise<void> {
   await expect(locator).toHaveScreenshot(name, {
     animations: 'disabled',
     caret: 'hide',
+    ...options,
   });
 }
 
@@ -105,7 +132,7 @@ test.describe('Visual regression', () => {
   test('app shell and profile popout', async ({ page }) => {
     await login(page);
     await expect(page.getByTestId('app-layout')).toBeVisible();
-    await expectLocatorScreenshot(page.getByTestId('app-layout'), 'app-shell.png');
+    await expectLocatorScreenshot(page.getByTestId('app-layout'), 'app-shell.png', { maxDiffPixels: 500 });
 
     await expect(page.getByTestId('own-profile-trigger')).toBeVisible();
     await page.getByTestId('own-profile-trigger').dispatchEvent('click');

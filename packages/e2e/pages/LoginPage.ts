@@ -1,4 +1,15 @@
-import { Page } from '@playwright/test';
+import { expect, Page } from '@playwright/test';
+import { e2eApiUrl, e2eClientUrl } from '../test-env';
+
+async function waitForApiReady(page: Page): Promise<void> {
+  await expect.poll(async () => {
+    const [apiResponse, clientResponse] = await Promise.all([
+      page.request.get(`${e2eApiUrl}/api/health`).catch(() => null),
+      page.request.get(`${e2eClientUrl}/login`).catch(() => null),
+    ]);
+    return (apiResponse?.ok() ?? false) && (clientResponse?.ok() ?? false);
+  }, { timeout: 30000, intervals: [250, 500, 1000] }).toBe(true);
+}
 
 export class LoginPage {
   constructor(private page: Page) {}
@@ -8,11 +19,9 @@ export class LoginPage {
   }
 
   async login(email: string, password: string) {
+    await waitForApiReady(this.page);
     await this.page.fill('[data-testid="login-email"]', email);
     await this.page.fill('[data-testid="login-password"]', password);
-    
-    // Wait for either the plugins response or navigation to channels
-    const loginPromise = this.page.click('[data-testid="login-submit"]');
     
     // Set up a response listener for plugins, but don't make it mandatory
     const pluginsResponsePromise = this.page.waitForResponse(response => 
@@ -23,7 +32,10 @@ export class LoginPage {
     // Wait for navigation to the channels page (successful login)
     const navigationPromise = this.page.waitForURL(/\/channels/, { timeout: 30000 });
     
-    await Promise.all([loginPromise, navigationPromise]);
+    await Promise.all([
+      navigationPromise,
+      this.page.click('[data-testid="login-submit"]'),
+    ]);
     await pluginsResponsePromise; // Wait for it but don't fail if it doesn't come
   }
 

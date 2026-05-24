@@ -18,9 +18,9 @@ const storage = multer.diskStorage({
   },
 });
 
-const ALLOWED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
-const ALLOWED_IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp'];
-const ALLOWED_ATTACHMENT_TYPES = [
+export const ALLOWED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
+export const ALLOWED_IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp'];
+export const ALLOWED_ATTACHMENT_TYPES = [
   ...ALLOWED_IMAGE_TYPES,
   'video/mp4', 'video/webm',
   'audio/mpeg', 'audio/ogg', 'audio/wav', 'audio/flac',
@@ -28,10 +28,10 @@ const ALLOWED_ATTACHMENT_TYPES = [
   'application/zip', 'application/x-zip-compressed',
   'application/json', 'text/csv', 'application/xml',
 ];
-const ALLOWED_SOUNDBOARD_TYPES = ['audio/mpeg', 'audio/ogg', 'audio/wav', 'audio/webm', 'audio/flac'];
-const ALLOWED_SOUNDBOARD_EXTENSIONS = ['.mp3', '.ogg', '.wav', '.webm', '.flac'];
+export const ALLOWED_SOUNDBOARD_TYPES = ['audio/mpeg', 'audio/ogg', 'audio/wav', 'audio/webm', 'audio/flac'];
+export const ALLOWED_SOUNDBOARD_EXTENSIONS = ['.mp3', '.ogg', '.wav', '.webm', '.flac'];
 
-const FORBIDDEN_EXTENSIONS = ['.exe', '.bat', '.sh', '.ps1', '.cmd', '.scr', '.vbs', '.msi', '.dmg', '.app'];
+export const FORBIDDEN_EXTENSIONS = ['.exe', '.bat', '.sh', '.ps1', '.cmd', '.scr', '.vbs', '.msi', '.dmg', '.app'];
 
 export const uploadAvatar = (req: any, res: any, next: any) => {
   const upload = multer({
@@ -211,9 +211,17 @@ export const uploadAttachments = (req: any, res: any, next: any) => {
 
 export function sanitizeFilename(name: string): string {
   return name
-    .replace(/[/\\:*?"<>|]/g, '')
+    .replace(/[/\\:*?"<>|&=]/g, '_')
     .replace(/\.\./g, '')
     .slice(0, 255);
+}
+
+function removeUploadedFile(filePath: string): void {
+  try {
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  } catch {
+    // Best-effort cleanup: validation should still fail even if temp cleanup fails.
+  }
 }
 
 // Validation magic bytes après upload
@@ -236,12 +244,12 @@ export function validateUploadedFile(allowedTypes: string[], allowedExtensions: 
     for (const file of files) {
       const ext = path.extname(file.originalname).toLowerCase();
       if (allowedExtensions.length > 0 && !allowedExtensions.includes(ext)) {
-        fs.unlinkSync(file.path);
+        removeUploadedFile(file.path);
         return next(new Error('INVALID_FILE_TYPE'));
       }
       const valid = await validateMagicBytes(file.path, allowedTypes);
       if (!valid) {
-        fs.unlinkSync(file.path);
+        removeUploadedFile(file.path);
         return next(new Error('INVALID_FILE_TYPE'));
       }
     }

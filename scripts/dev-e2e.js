@@ -1,5 +1,5 @@
-const { spawn } = require('child_process');
 const concurrently = require('concurrently');
+const { execFileSync, execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
@@ -40,17 +40,25 @@ loadEnvFile(envPath);
 // Kill any existing processes on the ports before starting
 function killPort(port) {
   try {
-    const { execSync } = require('child_process');
-    const pid = execSync(`lsof -t -i:${port} 2>/dev/null`, { encoding: 'utf8' }).trim();
-    if (pid) {
-      console.log(`Killing process ${pid} on port ${port}`);
-      try { process.kill(Number(pid), 'SIGKILL'); } catch {}
+    const output = execSync(`lsof -t -i:${port} 2>/dev/null`, { encoding: 'utf8' }).trim();
+    if (output) {
+      for (const pid of output.split(/\s+/)) {
+        console.log(`Killing process ${pid} on port ${port}`);
+        try { process.kill(Number(pid), 'SIGKILL'); } catch {}
+      }
     }
   } catch {}
 }
 
 killPort(3001);
 killPort(5173);
+
+console.log('Seeding E2E database before starting services...');
+execFileSync('npx', ['tsx', 'packages/e2e/run-seed.mjs'], {
+  cwd: path.join(__dirname, '..'),
+  env: process.env,
+  stdio: 'inherit',
+});
 
 const { result } = concurrently(
   [

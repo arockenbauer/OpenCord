@@ -51,6 +51,7 @@ export function AppLayout() {
   const selectedGuildId = useGuildStore((s) => s.selectedGuildId);
   const selectedChannelId = useGuildStore((s) => s.selectedChannelId);
   const [qOpenState, setQOpenState] = useState(false);
+  const [sessionChecked, setSessionChecked] = useState(false);
 
   useGateway();
 
@@ -69,14 +70,28 @@ export function AppLayout() {
   });
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      navigate('/login');
-      return;
+    let cancelled = false;
+
+    if (!isAuthenticated && !currentUser) {
+      fetchMe().finally(() => {
+        if (!cancelled) setSessionChecked(true);
+      });
+      return () => {
+        cancelled = true;
+      };
     }
+
+    setSessionChecked(true);
     if (!currentUser) {
       fetchMe();
     }
   }, [currentUser, fetchMe, isAuthenticated, navigate]);
+
+  useEffect(() => {
+    if (sessionChecked && !isAuthenticated && !currentUser) {
+      navigate('/login');
+    }
+  }, [currentUser, isAuthenticated, navigate, sessionChecked]);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -136,7 +151,7 @@ export function AppLayout() {
 
   const showFriendsView = !selectedGuildId && !selectedChannelId;
 
-  if (!isAuthenticated) return null;
+  if (!isAuthenticated && !currentUser) return null;
 
   return (
     <>
